@@ -39,16 +39,32 @@ def test_educator_level_crud(admin_client):
 def test_client_crud(admin_client):
     r = admin_client.post(
         "/api/admin/clients",
-        json={"guardian_name": "Jane Doe", "email": "jane@example.com", "child_reference": "JD"},
+        json={"guardian_first_name": "Jane", "guardian_surname": "Doe", "email": "jane@example.com", "child_name": "JD"},
     )
     assert r.status_code == 200
     client_row = r.json()
-    assert client_row["guardian_name"] == "Jane Doe"
+    assert client_row["guardian_first_name"] == "Jane"
+    assert client_row["guardian_surname"] == "Doe"
 
     r = admin_client.get("/api/clients")
     brief = next(x for x in r.json() if x["id"] == client_row["id"])
-    assert brief["child_reference"] == "JD"
+    assert brief["child_name"] == "JD"
     assert "email" not in brief  # brief shape hides contact details
+    assert "observations" not in brief  # sensitive — admins only
+
+    r = admin_client.get(f"/api/admin/clients/{client_row['id']}")
+    assert r.status_code == 200
+    assert r.json()["email"] == "jane@example.com"
+
+    assert admin_client.get("/api/admin/clients/999999").status_code == 404
+
+
+def test_clients_ordered_alphabetically_by_surname(admin_client):
+    admin_client.post("/api/admin/clients", json={"guardian_first_name": "Bob", "guardian_surname": "Zeta", "email": "z@example.com"})
+    admin_client.post("/api/admin/clients", json={"guardian_first_name": "Amy", "guardian_surname": "Abela", "email": "a@example.com"})
+    r = admin_client.get("/api/admin/clients")
+    surnames = [c["guardian_surname"] for c in r.json()]
+    assert surnames == sorted(surnames)
 
 
 def test_user_create_and_role_gate(admin_client):

@@ -63,7 +63,18 @@ describe("Admin", () => {
   it("shows the clients tab with an add-client form", async () => {
     mockAdminListRooms.mockResolvedValue([]);
     mockAdminListClients.mockResolvedValue([
-      { id: 1, guardian_name: "Aġius family", email: "agius@example.com", phone: null, child_reference: null, notes: null, active: true },
+      {
+        id: 1,
+        guardian_first_name: "Aġius",
+        guardian_surname: "family",
+        email: "agius@example.com",
+        phone: null,
+        child_name: null,
+        child_dob: null,
+        observations: null,
+        notes: null,
+        active: true,
+      },
     ]);
 
     render(<Admin />);

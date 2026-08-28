@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, time as time_cls, timedelta, UTC
 
-from l360.booking_logic import local_to_utc
+from l360.booking_logic import local_to_utc, utc_to_local
 
 
 def _future_start(hours_ahead: int) -> str:
@@ -17,6 +17,18 @@ def _safe_morning_start(days_ahead: int = 2):
     local midnight even after a few hours' further offset is added on top
     (as the move tests do), regardless of what time of day the suite runs."""
     return local_to_utc((datetime.now(UTC) + timedelta(days=days_ahead)).date(), time_cls(9, 0))
+
+
+def _inside_cutoff_start():
+    """A start time within the 24h cancellation cutoff — soon, but anchored
+    to local time so a 60-minute session never crosses local midnight
+    regardless of what time of day the suite runs (unlike a pure
+    now()+timedelta(hours=4) offset, which does whenever the suite happens
+    to run late evening)."""
+    local_date, local_time = utc_to_local(datetime.now(UTC))
+    if local_time.hour < 21:
+        return local_to_utc(local_date, local_time.replace(hour=local_time.hour + 2, minute=0, second=0, microsecond=0))
+    return local_to_utc(local_date + timedelta(days=1), time_cls(9, 0))
 
 
 def test_create_booking_and_list(admin_client, booking_env):
@@ -133,7 +145,7 @@ def test_cancel_inside_cutoff_is_billable(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
-        "start_utc": _future_start(4),  # inside the 24h cutoff
+        "start_utc": _inside_cutoff_start().isoformat(),  # inside the 24h cutoff
         "duration_minutes": 60,
     }).json()
     r = admin_client.post(f"/api/bookings/{booking['id']}/cancel")
@@ -170,6 +182,31 @@ def test_series_creates_weekly_occurrences(admin_client, booking_env):
     assert r.status_code == 200, r.text
     body = r.json()
     assert len(body["created"]) == 4
+
+
+def test_series_fortnightly_interval(admin_client, booking_env):
+    starts_on = (datetime.now(UTC) + timedelta(days=7)).date()
+    ends_on = starts_on + timedelta(days=42)  # 6 weeks — 4 occurrences every-other-week
+    r = admin_client.post("/api/bookings/series", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "weekday": starts_on.weekday(),
+        "local_time": "10:00:00",
+        "duration_minutes": 60,
+        "starts_on": str(starts_on),
+        "ends_on": str(ends_on),
+        "interval_weeks": 2,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body["created"]) == 4
+    dates = [b["start_utc"][:10] for b in body["created"]]
+    gaps = [
+        (datetime.fromisoformat(dates[i + 1]) - datetime.fromisoformat(dates[i])).days
+        for i in range(len(dates) - 1)
+    ]
+    assert gaps == [14, 14, 14]
     assert body["skipped"] == []
     assert all(b["series_id"] == body["series_id"] for b in body["created"])
 

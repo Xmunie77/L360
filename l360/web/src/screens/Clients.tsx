@@ -34,15 +34,15 @@ export function Clients() {
           <table className="l360-table">
             <thead>
               <tr>
-                <th>Guardian</th>
-                <th>Child reference</th>
+                <th>Parent / Guardian</th>
+                <th>Child's name</th>
               </tr>
             </thead>
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.guardian_name}</td>
-                  <td>{c.child_reference ?? "—"}</td>
+                  <td>{c.guardian_first_name} {c.guardian_surname}</td>
+                  <td>{c.child_name ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

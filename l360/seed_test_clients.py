@@ -13,8 +13,8 @@ from l360.db import session_scope
 from l360.models import Client
 
 TEST_CLIENTS = [
-    {"guardian_name": f"Test Client {i}", "email": f"test-client-{i}@example.com",
-     "child_reference": f"Test Child {i}"}
+    {"guardian_first_name": "Test", "guardian_surname": f"Client {i}", "email": f"test-client-{i}@example.com",
+     "child_name": f"Test Child {i}"}
     for i in range(1, 11)
 ]
 

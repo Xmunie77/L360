@@ -24,11 +24,12 @@ export interface Educator {
   active: boolean;
 }
 
-/** GET /api/clients returns the minimal ClientBrief shape — no notes/phone. */
+/** GET /api/clients returns the minimal ClientBrief shape — no notes/phone/DOB/observations. */
 export interface Client {
   id: number;
-  guardian_name: string;
-  child_reference: string | null;
+  guardian_first_name: string;
+  guardian_surname: string;
+  child_name: string | null;
 }
 
 export type BookingStatus = "confirmed" | "cancelled" | "cancelled_late" | "completed" | "no_show";
@@ -68,6 +69,31 @@ export interface BookingCreateInput {
   start_utc: string;
   duration_minutes: Duration;
   notes?: string | null;
+}
+
+export interface BookingSeriesCreateInput {
+  room_id: number;
+  educator_id: number;
+  client_id: number;
+  weekday: number;
+  local_time: string;
+  duration_minutes: Duration;
+  starts_on: string;
+  ends_on: string;
+  /** 1 = every week, 2 = every other week (fortnightly). */
+  interval_weeks: 1 | 2;
+  notes?: string | null;
+}
+
+export interface SkippedOccurrence {
+  date: string;
+  reason: string;
+}
+
+export interface BookingSeriesResult {
+  series_id: number;
+  created: Booking[];
+  skipped: SkippedOccurrence[];
 }
 
 export interface BookingMoveInput {
@@ -137,23 +163,30 @@ export interface UserUpdateInput {
   password?: string;
 }
 
-/** GET /api/admin/clients returns the full ClientOut shape (email/phone/notes),
- *  unlike the brief ClientBrief from /api/clients. */
+/** GET /api/admin/clients returns the full ClientOut shape (email/phone/notes/
+ *  child DOB/observations), unlike the brief ClientBrief from /api/clients. */
 export interface AdminClient {
   id: number;
-  guardian_name: string;
+  guardian_first_name: string;
+  guardian_surname: string;
   email: string;
   phone: string | null;
-  child_reference: string | null;
+  child_name: string | null;
+  child_dob: string | null;
+  /** Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome) — admins only. */
+  observations: string | null;
   notes: string | null;
   active: boolean;
 }
 
 export interface ClientInput {
-  guardian_name: string;
+  guardian_first_name: string;
+  guardian_surname: string;
   email: string;
   phone?: string | null;
-  child_reference?: string | null;
+  child_name?: string | null;
+  child_dob?: string | null;
+  observations?: string | null;
   notes?: string | null;
   active: boolean;
 }
@@ -406,6 +439,10 @@ export function createBooking(body: BookingCreateInput): Promise<Booking> {
   return post<Booking>("/api/bookings", body);
 }
 
+export function createBookingSeries(body: BookingSeriesCreateInput): Promise<BookingSeriesResult> {
+  return post<BookingSeriesResult>("/api/bookings/series", body);
+}
+
 export function moveBooking(id: number, body: BookingMoveInput): Promise<Booking> {
   return patch<Booking>(`/api/bookings/${id}`, body);
 }
@@ -470,6 +507,10 @@ export function adminDeactivateUser(id: number): Promise<{ ok: boolean }> {
 
 export function adminListClients(): Promise<AdminClient[]> {
   return get<AdminClient[]>("/api/admin/clients");
+}
+
+export function adminGetClient(id: number): Promise<AdminClient> {
+  return get<AdminClient>(`/api/admin/clients/${id}`);
 }
 
 export function adminCreateClient(body: ClientInput): Promise<AdminClient> {

@@ -37,9 +37,10 @@ def utc_to_local(dt: datetime, tz_name: str = TIMEZONE) -> tuple[date, time]:
     return local_dt.date(), local_dt.time()
 
 
-def expand_weekly_dates(starts_on: date, ends_on: date, weekday: int) -> list[date]:
+def expand_weekly_dates(starts_on: date, ends_on: date, weekday: int, interval_weeks: int = 1) -> list[date]:
     """All dates in [starts_on, ends_on] falling on the given weekday
-    (0=Monday .. 6=Sunday, matching date.weekday())."""
+    (0=Monday .. 6=Sunday, matching date.weekday()), every `interval_weeks`
+    weeks (1 = every week, 2 = fortnightly)."""
     if ends_on < starts_on:
         return []
     delta = (weekday - starts_on.weekday()) % 7
@@ -47,7 +48,7 @@ def expand_weekly_dates(starts_on: date, ends_on: date, weekday: int) -> list[da
     dates = []
     while d <= ends_on:
         dates.append(d)
-        d += timedelta(days=7)
+        d += timedelta(days=7 * interval_weeks)
     return dates
 
 

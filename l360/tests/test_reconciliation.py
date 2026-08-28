@@ -82,7 +82,10 @@ def test_ambiguous_amount_left_unmatched(admin_client, booking_env):
     # Two clients, two invoices, same amount — no reference to disambiguate.
     _issued_invoice(admin_client, booking_env, client_price_cents=3000, local_date=date(2026, 5, 10))
 
-    second_client = admin_client.post("/api/admin/clients", json={"guardian_name": "Second Parent", "email": "second@example.com"}).json()
+    second_client = admin_client.post(
+        "/api/admin/clients",
+        json={"guardian_first_name": "Second", "guardian_surname": "Parent", "email": "second@example.com"},
+    ).json()
     with session_scope() as db:
         from l360.models import Booking
         import l360.booking_logic as booking_logic

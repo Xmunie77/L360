@@ -70,7 +70,7 @@ describe("Statements", () => {
   it("an admin sees client statement and utilisation sections plus an educator picker", async () => {
     mockGetMyCalendarToken.mockResolvedValue(null);
     mockListEducators.mockResolvedValue([{ id: 7, email: "e@example.com", full_name: "E. Ducator", role: "educator", level_id: 1, active: true }]);
-    mockListClients.mockResolvedValue([{ id: 3, guardian_name: "Doe family", child_reference: null }]);
+    mockListClients.mockResolvedValue([{ id: 3, guardian_first_name: "Doe", guardian_surname: "family", child_name: null }]);
     mockGetUtilisationReport.mockResolvedValue([{ room_id: 1, room_name: "Room 1", session_count: 2, booked_minutes: 120 }]);
 
     render(<Statements me={ADMIN_ME} />);

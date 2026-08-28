@@ -9,6 +9,7 @@ import { Billing } from "./screens/Billing";
 import { Reconciliation } from "./screens/Reconciliation";
 import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
+import { ClientDetail } from "./screens/ClientDetail";
 import { Login } from "./screens/Login";
 import { ResetPassword } from "./screens/ResetPassword";
 import { getMe, getSession, logout, type Me } from "./api/client";
@@ -41,6 +42,9 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("reset"),
+  );
+  const [clientDetailId] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("client"),
   );
   const activeLabel = NAV_ITEMS.find((n) => n.key === active)?.label ?? "";
 
@@ -110,6 +114,10 @@ export function App() {
     return <Login onSignedIn={() => setAuthState("authed")} />;
   }
 
+  if (clientDetailId) {
+    return <ClientDetail id={Number(clientDetailId)} onClose={() => window.close()} />;
+  }
+
   return (
     <div className="l360-app">
       <a className="skip-link" href="#l360-main-content">Skip to main content</a>
@@ -144,7 +152,7 @@ export function App() {
         </header>
 
         <main id="l360-main-content" className="l360-content">
-          {active === "calendar" && <Calendar />}
+          {active === "calendar" && <Calendar me={me} />}
           {active === "bookings" && <Bookings />}
           {active === "clients" && <Clients />}
           {active === "rooms" && <Rooms />}

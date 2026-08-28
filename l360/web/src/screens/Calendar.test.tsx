@@ -30,7 +30,7 @@ describe("Calendar", () => {
       { id: 10, email: "m.vella@example.org", full_name: "M. Vella", role: "educator", level_id: 1, active: true },
     ]);
     mockListClients.mockResolvedValue([
-      { id: 20, guardian_name: "Aġius family", child_reference: "AG-1" },
+      { id: 20, guardian_first_name: "Aġius", guardian_surname: "family", child_name: "AG-1" },
     ]);
     mockListBookings.mockResolvedValue([
       {
@@ -52,7 +52,7 @@ describe("Calendar", () => {
       },
     ]);
 
-    render(<Calendar />);
+    render(<Calendar me={null} />);
 
     // Date picker defaulting to today.
     const dateInput = screen.getByLabelText("Day") as HTMLInputElement;

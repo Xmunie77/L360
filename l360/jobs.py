@@ -64,7 +64,9 @@ def send_daily_digest(db: Session, *, today: date_cls | None = None) -> int:
     day_start = local_to_utc(today, time(0, 0))
     day_end = local_to_utc(today, time(23, 59, 59))
 
-    educators = db.scalars(select(User).where(User.role == "educator", User.active == True)).all()  # noqa: E712
+    # Anyone with a level assigned delivers sessions and gets a digest —
+    # not just role="educator" (an admin who's also an educator counts too).
+    educators = db.scalars(select(User).where(User.level_id.is_not(None), User.active == True)).all()  # noqa: E712
     sent = 0
     for educator in educators:
         bookings = db.scalars(

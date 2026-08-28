@@ -250,14 +250,19 @@ def list_rooms_ro(db: Session = Depends(get_session), _user: User = Depends(requ
 
 @app.get("/api/educators", response_model=list[UserOut])
 def list_educators_ro(db: Session = Depends(get_session), _user: User = Depends(require_user)):
+    # Anyone with a level assigned delivers sessions and is bookable — not
+    # just role="educator". An admin who's also a founder/educator shows up
+    # here too once they're given a level.
     return db.scalars(
-        select(User).where(User.role == "educator", User.active == True).order_by(User.full_name)  # noqa: E712
+        select(User).where(User.level_id.is_not(None), User.active == True).order_by(User.full_name)  # noqa: E712
     ).all()
 
 
 @app.get("/api/clients", response_model=list[ClientBrief])
 def list_clients_ro(db: Session = Depends(get_session), _user: User = Depends(require_user)):
-    return db.scalars(select(Client).where(Client.active == True).order_by(Client.guardian_name)).all()  # noqa: E712
+    return db.scalars(
+        select(Client).where(Client.active == True).order_by(Client.guardian_surname, Client.guardian_first_name)
+    ).all()  # noqa: E712
 
 
 @app.get("/api/price-list/current", response_model=list[PriceListEntryOut])
@@ -418,7 +423,15 @@ def admin_deactivate_user(
 # --- admin: clients ---------------------------------------------------
 @app.get("/api/admin/clients", response_model=list[ClientOut])
 def admin_list_clients(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
-    return db.scalars(select(Client).order_by(Client.guardian_name)).all()
+    return db.scalars(select(Client).order_by(Client.guardian_surname, Client.guardian_first_name)).all()
+
+
+@app.get("/api/admin/clients/{client_id}", response_model=ClientOut)
+def admin_get_client(client_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    row = db.get(Client, client_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return row
 
 
 @app.post("/api/admin/clients", response_model=ClientOut)
@@ -520,7 +533,8 @@ def admin_delete_closure(
 
 # --- bookings ------------------------------------------------------------
 def _client_label(client: Client) -> str:
-    return f"{client.guardian_name} ({client.child_reference})" if client.child_reference else client.guardian_name
+    name = f"{client.guardian_first_name} {client.guardian_surname}"
+    return f"{name} ({client.child_name})" if client.child_name else name
 
 
 def _booking_out(db: Session, b: Booking) -> BookingOut:
@@ -612,7 +626,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
 def create_booking_series(
     body: BookingSeriesIn, db: Session = Depends(get_session), user: User = Depends(require_user)
 ):
-    dates = booking_logic.expand_weekly_dates(body.starts_on, body.ends_on, body.weekday)
+    dates = booking_logic.expand_weekly_dates(body.starts_on, body.ends_on, body.weekday, body.interval_weeks)
     if not dates:
         raise HTTPException(status_code=422, detail="No occurrences between starts_on and ends_on")
 
@@ -625,6 +639,7 @@ def create_booking_series(
         duration_minutes=body.duration_minutes,
         starts_on=body.starts_on,
         ends_on=body.ends_on,
+        interval_weeks=body.interval_weeks,
     )
     db.add(series)
     db.flush()  # assign series.id without committing yet

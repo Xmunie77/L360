@@ -4,6 +4,7 @@ import {
   ApiError,
   cancelBooking,
   createBooking,
+  createBookingSeries,
   listBookings,
   listClients,
   listEducators,
@@ -13,7 +14,9 @@ import {
   type Client,
   type Duration,
   type Educator,
+  type Me,
   type Room,
+  type SkippedOccurrence,
 } from "../api/client";
 import { statusBadgeProps } from "../domain/status";
 import {
@@ -21,9 +24,16 @@ import {
   dayBoundsISO,
   formatHourLabel,
   localHourFraction,
+  mondayBasedWeekday,
   todayStr,
   toTimeInputValue,
 } from "../domain/datetime";
+
+const REPEAT_OPTIONS = [
+  { value: "none", label: "Doesn't repeat" },
+  { value: "weekly", label: "Weekly" },
+  { value: "fortnightly", label: "Every 2 weeks" },
+];
 
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 19;
@@ -43,7 +53,7 @@ interface NewBookingDraft {
 // rendered as positioned blocks. Click an empty column to book, click a
 // block to see/cancel/move it. Plain CSS grid + absolute positioning — no
 // calendar library.
-export function Calendar() {
+export function Calendar({ me }: { me: Me | null }) {
   const [date, setDate] = useState<string>(todayStr());
   const [rooms, setRooms] = useState<Room[]>([]);
   const [educators, setEducators] = useState<Educator[]>([]);
@@ -223,6 +233,7 @@ export function Calendar() {
           rooms={activeRooms}
           educators={educators}
           clients={clients}
+          me={me}
           onClose={() => setNewBookingDraft(null)}
           onCreated={() => {
             setNewBookingDraft(null);
@@ -254,19 +265,28 @@ interface NewBookingModalProps {
   rooms: Room[];
   educators: Educator[];
   clients: Client[];
+  me: Me | null;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function NewBookingModal({ draft, date, rooms, educators, clients, onClose, onCreated }: NewBookingModalProps) {
+function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, onCreated }: NewBookingModalProps) {
   const [roomId, setRoomId] = useState(String(draft.roomId));
-  const [educatorId, setEducatorId] = useState("");
+  // If the person booking is themselves a bookable educator, default the
+  // field to them — they're usually booking their own session — but leave
+  // it editable (an admin/educator can still book on someone else's behalf).
+  const [educatorId, setEducatorId] = useState(
+    me && educators.some((e) => e.id === me.id) ? String(me.id) : "",
+  );
   const [clientId, setClientId] = useState("");
   const [time, setTime] = useState(draft.time);
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
+  const [repeat, setRepeat] = useState("none");
+  const [repeatEndsOn, setRepeatEndsOn] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [skipped, setSkipped] = useState<SkippedOccurrence[] | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -274,23 +294,73 @@ function NewBookingModal({ draft, date, rooms, educators, clients, onClose, onCr
       setError("Choose an educator and a client.");
       return;
     }
+    if (repeat !== "none" && !repeatEndsOn) {
+      setError("Choose a date to repeat until.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
-      await createBooking({
-        room_id: Number(roomId),
-        educator_id: Number(educatorId),
-        client_id: Number(clientId),
-        start_utc: combineDateTime(date, time),
-        duration_minutes: Number(duration) as Duration,
-        notes: notes || null,
-      });
-      onCreated();
+      if (repeat === "none") {
+        await createBooking({
+          room_id: Number(roomId),
+          educator_id: Number(educatorId),
+          client_id: Number(clientId),
+          start_utc: combineDateTime(date, time),
+          duration_minutes: Number(duration) as Duration,
+          notes: notes || null,
+        });
+        onCreated();
+      } else {
+        const result = await createBookingSeries({
+          room_id: Number(roomId),
+          educator_id: Number(educatorId),
+          client_id: Number(clientId),
+          weekday: mondayBasedWeekday(date),
+          local_time: `${time}:00`,
+          duration_minutes: Number(duration) as Duration,
+          starts_on: date,
+          ends_on: repeatEndsOn,
+          interval_weeks: repeat === "fortnightly" ? 2 : 1,
+          notes: notes || null,
+        });
+        if (result.skipped.length > 0) {
+          // Some occurrences conflicted — show what happened instead of
+          // silently closing, so the admin knows which dates need a look.
+          setSkipped(result.skipped);
+        } else {
+          onCreated();
+        }
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't create the booking. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (skipped) {
+    return (
+      <div className="l360-modal-backdrop" onClick={onClose}>
+        <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+          <Card eyebrow="Scheduling" title="Repeating booking created">
+            <p style={{ marginBottom: 12 }}>
+              {skipped.length} of the occurrences couldn't be booked — the room or educator was already busy:
+            </p>
+            <ul style={{ marginBottom: 16 }}>
+              {skipped.map((s) => (
+                <li key={s.date}>
+                  {s.date} — {s.reason}
+                </li>
+              ))}
+            </ul>
+            <Button type="button" onClick={onCreated}>
+              Done
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -330,7 +400,9 @@ function NewBookingModal({ draft, date, rooms, educators, clients, onClose, onCr
               onChange={(e) => setClientId(e.target.value)}
               options={clients.map((c) => ({
                 value: String(c.id),
-                label: c.child_reference ? `${c.guardian_name} (${c.child_reference})` : c.guardian_name,
+                label: c.child_name
+                  ? `${c.guardian_first_name} ${c.guardian_surname} (${c.child_name})`
+                  : `${c.guardian_first_name} ${c.guardian_surname}`,
               }))}
             />
             <Input
@@ -349,6 +421,25 @@ function NewBookingModal({ draft, date, rooms, educators, clients, onClose, onCr
               onChange={(e) => setDuration(e.target.value)}
               options={DURATION_OPTIONS}
             />
+            <Select
+              id="nb-repeat"
+              label="Repeat"
+              required
+              value={repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              options={REPEAT_OPTIONS}
+            />
+            {repeat !== "none" && (
+              <Input
+                id="nb-repeat-ends"
+                label="Repeat until"
+                type="date"
+                required
+                min={date}
+                value={repeatEndsOn}
+                onChange={(e) => setRepeatEndsOn(e.target.value)}
+              />
+            )}
             <Textarea
               id="nb-notes"
               label="Notes"

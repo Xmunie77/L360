@@ -79,10 +79,14 @@ class UserOut(BaseModel):
 
 # --- clients -----------------------------------------------------------
 class ClientIn(BaseModel):
-    guardian_name: str = Field(min_length=1, max_length=200)
+    guardian_first_name: str = Field(min_length=1, max_length=100)
+    guardian_surname: str = Field(min_length=1, max_length=100)
     email: EmailStr
     phone: str | None = None
-    child_reference: str | None = None
+    child_name: str | None = None
+    child_dob: date | None = None
+    # Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome).
+    observations: str | None = None
     notes: str | None = None
     active: bool = True
 
@@ -92,10 +96,11 @@ class ClientOut(ClientIn):
 
 
 class ClientBrief(BaseModel):
-    """Minimal shape for non-admin lists — no notes/phone exposed."""
+    """Minimal shape for non-admin lists — no notes/phone/DOB/observations exposed."""
     id: int
-    guardian_name: str
-    child_reference: str | None
+    guardian_first_name: str
+    guardian_surname: str
+    child_name: str | None
 
 
 # --- price list -----------------------------------------------------------
@@ -154,6 +159,8 @@ class BookingSeriesIn(BaseModel):
     duration_minutes: Duration
     starts_on: date
     ends_on: date
+    # 1 = every week, 2 = every other week (fortnightly).
+    interval_weeks: int = Field(default=1, ge=1, le=2)
     notes: str | None = None
 
 

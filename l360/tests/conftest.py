@@ -93,7 +93,7 @@ def booking_env(admin_client):
         "password": "educatorpass123",
     }).json()
     client_row = admin_client.post("/api/admin/clients", json={
-        "guardian_name": "Jane Doe", "email": "jane@example.com", "child_reference": "JD",
+        "guardian_first_name": "Jane", "guardian_surname": "Doe", "email": "jane@example.com", "child_name": "JD",
     }).json()
     for weekday in range(7):
         admin_client.put("/api/admin/facility-hours", json={

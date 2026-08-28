@@ -109,16 +109,24 @@ class Client(Base):
     __table_args__ = _table_args()
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    guardian_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    guardian_first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    guardian_surname: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # Free-text reference to the child (initials/nickname) — not a full record.
-    child_reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    child_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    child_dob: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome) —
+    # special-category data under GDPR; visible to admins only.
+    observations: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, default=_utcnow
     )
+
+    @property
+    def guardian_name(self) -> str:
+        return f"{self.guardian_first_name} {self.guardian_surname}"
 
 
 class Room(Base):
@@ -193,6 +201,8 @@ class BookingSeries(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     starts_on: Mapped[date] = mapped_column(Date, nullable=False)
     ends_on: Mapped[date] = mapped_column(Date, nullable=False)
+    # 1 = every week, 2 = every other week (fortnightly).
+    interval_weeks: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, default=_utcnow
     )

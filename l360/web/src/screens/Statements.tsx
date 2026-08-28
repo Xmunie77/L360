@@ -275,7 +275,7 @@ function ClientStatementCard() {
           id="statement-client"
           label="Client"
           placeholder="Choose a client…"
-          options={clients.map((c) => ({ value: String(c.id), label: c.guardian_name }))}
+          options={clients.map((c) => ({ value: String(c.id), label: `${c.guardian_first_name} ${c.guardian_surname}` }))}
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
         />

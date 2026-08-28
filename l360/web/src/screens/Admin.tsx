@@ -441,6 +441,9 @@ function UsersAdmin() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editLevelId, setEditLevelId] = useState("");
+
   async function refresh() {
     setLoading(true);
     setError(null);
@@ -477,7 +480,7 @@ function UsersAdmin() {
         email: email.trim(),
         full_name: fullName.trim(),
         role,
-        level_id: role === "educator" && levelId ? Number(levelId) : null,
+        level_id: levelId ? Number(levelId) : null,
         password,
       });
       setEmail("");
@@ -501,6 +504,28 @@ function UsersAdmin() {
       } else {
         await adminUpdateUser(user.id, { active: true });
       }
+      await refresh();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't update this user."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function startEditLevel(user: AdminUser) {
+    setEditingId(user.id);
+    setEditLevelId(user.level_id ? String(user.level_id) : "");
+    setError(null);
+  }
+
+  async function saveLevel(user: AdminUser) {
+    setBusyId(user.id);
+    try {
+      // Anyone — admin or educator — can be given a level, which is what
+      // makes them bookable as an educator (e.g. a founder who also
+      // delivers sessions).
+      await adminUpdateUser(user.id, { level_id: editLevelId ? Number(editLevelId) : null });
+      setEditingId(null);
       await refresh();
     } catch (err) {
       setError(errorMessage(err, "Couldn't update this user."));
@@ -534,28 +559,63 @@ function UsersAdmin() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.full_name}</td>
-                  <td>{u.email}</td>
-                  <td style={{ textTransform: "capitalize" }}>{u.role}</td>
-                  <td>{u.role === "educator" ? levelName(u.level_id) : "—"}</td>
-                  <td>
-                    <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
-                  </td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => toggleActive(u)}
-                      loading={busyId === u.id}
-                      loadingLabel="Saving…"
-                    >
-                      {u.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {users.map((u) =>
+                editingId === u.id ? (
+                  <tr key={u.id}>
+                    <td>{u.full_name}</td>
+                    <td>{u.email}</td>
+                    <td style={{ textTransform: "capitalize" }}>{u.role}</td>
+                    <td>
+                      <select
+                        className="l360-select"
+                        aria-label="Level"
+                        value={editLevelId}
+                        onChange={(e) => setEditLevelId(e.target.value)}
+                      >
+                        <option value="">No level</option>
+                        {levels.map((l) => (
+                          <option key={l.id} value={String(l.id)}>{l.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
+                    </td>
+                    <td style={{ display: "flex", gap: 8 }}>
+                      <Button type="button" onClick={() => saveLevel(u)} loading={busyId === u.id} loadingLabel="Saving…">
+                        Save
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </Button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={u.id}>
+                    <td>{u.full_name}</td>
+                    <td>{u.email}</td>
+                    <td style={{ textTransform: "capitalize" }}>{u.role}</td>
+                    <td>{levelName(u.level_id)}</td>
+                    <td>
+                      <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
+                    </td>
+                    <td style={{ display: "flex", gap: 8 }}>
+                      <Button type="button" variant="secondary" onClick={() => startEditLevel(u)}>
+                        Edit level
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => toggleActive(u)}
+                        loading={busyId === u.id}
+                        loadingLabel="Saving…"
+                      >
+                        {u.active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
@@ -581,16 +641,15 @@ function UsersAdmin() {
             { value: "admin", label: "Admin" },
           ]}
         />
-        {role === "educator" && (
-          <Select
-            id="new-user-level"
-            label="Level"
-            placeholder="Choose a level"
-            value={levelId}
-            onChange={(e) => setLevelId(e.target.value)}
-            options={levels.map((l) => ({ value: String(l.id), label: l.name }))}
-          />
-        )}
+        <Select
+          id="new-user-level"
+          label="Level"
+          hint={role === "admin" ? "Optional — only set this if they also deliver sessions" : undefined}
+          placeholder="No level"
+          value={levelId}
+          onChange={(e) => setLevelId(e.target.value)}
+          options={levels.map((l) => ({ value: String(l.id), label: l.name }))}
+        />
         <Input
           id="new-user-password"
           label="Password"
@@ -616,10 +675,13 @@ function ClientsAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  const [guardianName, setGuardianName] = useState("");
+  const [guardianFirstName, setGuardianFirstName] = useState("");
+  const [guardianSurname, setGuardianSurname] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [childReference, setChildReference] = useState("");
+  const [childName, setChildName] = useState("");
+  const [childDob, setChildDob] = useState("");
+  const [observations, setObservations] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -628,6 +690,7 @@ function ClientsAdmin() {
     setLoading(true);
     setError(null);
     try {
+      // Already ordered alphabetically by surname, then first name.
       setClients(await adminListClients());
     } catch (err) {
       setError(errorMessage(err, "Couldn't load clients."));
@@ -642,25 +705,31 @@ function ClientsAdmin() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!guardianName.trim() || !email.trim()) {
-      setFormError("Guardian name and email are required.");
+    if (!guardianFirstName.trim() || !guardianSurname.trim() || !email.trim()) {
+      setFormError("Parent/guardian first name, surname and email are required.");
       return;
     }
     setFormError(null);
     setSubmitting(true);
     try {
       await adminCreateClient({
-        guardian_name: guardianName.trim(),
+        guardian_first_name: guardianFirstName.trim(),
+        guardian_surname: guardianSurname.trim(),
         email: email.trim(),
         phone: phone.trim() || null,
-        child_reference: childReference.trim() || null,
+        child_name: childName.trim() || null,
+        child_dob: childDob || null,
+        observations: observations.trim() || null,
         notes: notes.trim() || null,
         active: true,
       });
-      setGuardianName("");
+      setGuardianFirstName("");
+      setGuardianSurname("");
       setEmail("");
       setPhone("");
-      setChildReference("");
+      setChildName("");
+      setChildDob("");
+      setObservations("");
       setNotes("");
       await refresh();
     } catch (err) {
@@ -674,10 +743,13 @@ function ClientsAdmin() {
     setBusyId(client.id);
     try {
       await adminUpdateClient(client.id, {
-        guardian_name: client.guardian_name,
+        guardian_first_name: client.guardian_first_name,
+        guardian_surname: client.guardian_surname,
         email: client.email,
         phone: client.phone,
-        child_reference: client.child_reference,
+        child_name: client.child_name,
+        child_dob: client.child_dob,
+        observations: client.observations,
         notes: client.notes,
         active: !client.active,
       });
@@ -705,10 +777,10 @@ function ClientsAdmin() {
           <table className="l360-table">
             <thead>
               <tr>
-                <th>Guardian</th>
+                <th>Parent / Guardian</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Child reference</th>
+                <th>Child's name</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -716,10 +788,14 @@ function ClientsAdmin() {
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.guardian_name}</td>
+                  <td>
+                    <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
+                      {c.guardian_first_name} {c.guardian_surname}
+                    </a>
+                  </td>
                   <td>{c.email}</td>
                   <td>{c.phone ?? "—"}</td>
-                  <td>{c.child_reference ?? "—"}</td>
+                  <td>{c.child_name ?? "—"}</td>
                   <td>
                     <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
                   </td>
@@ -748,13 +824,22 @@ function ClientsAdmin() {
             ⚠ {formError}
           </div>
         )}
-        <Input
-          id="new-client-guardian"
-          label="Guardian name"
-          required
-          value={guardianName}
-          onChange={(e) => setGuardianName(e.target.value)}
-        />
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <Input
+            id="new-client-first-name"
+            label="Parent/guardian first name"
+            required
+            value={guardianFirstName}
+            onChange={(e) => setGuardianFirstName(e.target.value)}
+          />
+          <Input
+            id="new-client-surname"
+            label="Parent/guardian surname"
+            required
+            value={guardianSurname}
+            onChange={(e) => setGuardianSurname(e.target.value)}
+          />
+        </div>
         <Input
           id="new-client-email"
           label="Email"
@@ -764,12 +849,27 @@ function ClientsAdmin() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input id="new-client-phone" label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Input
-          id="new-client-child-ref"
-          label="Child reference"
-          hint="Initials or nickname — not a full record"
-          value={childReference}
-          onChange={(e) => setChildReference(e.target.value)}
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <Input
+            id="new-client-child-name"
+            label="Child's name"
+            value={childName}
+            onChange={(e) => setChildName(e.target.value)}
+          />
+          <Input
+            id="new-client-child-dob"
+            label="Child's date of birth"
+            type="date"
+            value={childDob}
+            onChange={(e) => setChildDob(e.target.value)}
+          />
+        </div>
+        <Textarea
+          id="new-client-observations"
+          label="Observations"
+          hint="e.g. dyslexia, Down syndrome — sensitive, admins only"
+          value={observations}
+          onChange={(e) => setObservations(e.target.value)}
         />
         <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <Button type="submit" loading={submitting} loadingLabel="Adding…">

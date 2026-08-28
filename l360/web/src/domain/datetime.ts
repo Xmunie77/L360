@@ -22,6 +22,11 @@ export function dayBoundsISO(dateStr: string): { startISO: string; endISO: strin
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
 
+/** 0=Monday .. 6=Sunday for a "YYYY-MM-DD" date, in local time (matches the API's `weekday`). */
+export function mondayBasedWeekday(dateStr: string): number {
+  return (new Date(`${dateStr}T00:00:00`).getDay() + 6) % 7;
+}
+
 /** Combine a "YYYY-MM-DD" date and "HH:MM" local time into an ISO datetime string. */
 export function combineDateTime(dateStr: string, timeStr: string): string {
   return new Date(`${dateStr}T${timeStr}:00`).toISOString();
