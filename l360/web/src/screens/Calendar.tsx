@@ -68,7 +68,7 @@ export function Calendar({ me }: { me: Me | null }) {
 
   const [newBookingDraft, setNewBookingDraft] = useState<NewBookingDraft | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [nextAvailable, setNextAvailable] = useState<NextAvailableRoom | null | undefined>(undefined);
+  const [nextAvailable, setNextAvailable] = useState<NextAvailableRoom | undefined>(undefined);
 
   // Reference data — fetched once.
   useEffect(() => {
@@ -84,9 +84,11 @@ export function Calendar({ me }: { me: Me | null }) {
   }, []);
 
   function refreshNextAvailable() {
+    // A fetch error here just leaves the bar absent (undefined) rather
+    // than showing a fabricated "nothing available" reason.
     getNextAvailableRoom()
       .then(setNextAvailable)
-      .catch(() => setNextAvailable(null));
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export function Calendar({ me }: { me: Me | null }) {
   }, []);
 
   function bookNextAvailable() {
-    if (!nextAvailable) return;
+    if (!nextAvailable?.room_id || !nextAvailable.start_utc) return;
     const start = new Date(nextAvailable.start_utc);
     setDate(toDateInputValue(start));
     setNewBookingDraft({ roomId: nextAvailable.room_id, time: toTimeInputValue(nextAvailable.start_utc) });
@@ -173,7 +175,7 @@ export function Calendar({ me }: { me: Me | null }) {
 
         {nextAvailable !== undefined && (
           <div className="l360-cal-next-available">
-            {nextAvailable ? (
+            {nextAvailable.room_id && nextAvailable.room_name && nextAvailable.start_utc ? (
               <>
                 <span>
                   Next available: <strong>{nextAvailable.room_name}</strong> — {formatBookingWhen(nextAvailable.start_utc)}
@@ -182,6 +184,10 @@ export function Calendar({ me }: { me: Me | null }) {
                   Book
                 </Button>
               </>
+            ) : nextAvailable.reason === "no_facility_hours" ? (
+              <span>
+                No facility hours are set up yet — add them under Admin → Facility hours before rooms can be booked.
+              </span>
             ) : (
               <span>No rooms free in the next two weeks.</span>
             )}

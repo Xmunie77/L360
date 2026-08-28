@@ -142,9 +142,13 @@ Duration = Literal[60, 90, 120]
 
 
 class NextAvailableOut(BaseModel):
-    room_id: int
-    room_name: str
-    start_utc: datetime
+    room_id: int | None = None
+    room_name: str | None = None
+    start_utc: datetime | None = None
+    # Set (and the room_* fields left null) when nothing was found, so the
+    # UI can tell "no facility hours configured yet" apart from "genuinely
+    # fully booked" instead of showing one flat "nothing available".
+    reason: Literal["no_facility_hours", "fully_booked"] | None = None
 
 
 class BookingIn(BaseModel):

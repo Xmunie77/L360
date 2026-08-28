@@ -57,6 +57,7 @@ describe("Calendar", () => {
       room_id: 2,
       room_name: "Room B (next available)",
       start_utc: new Date(Date.now() + 3600_000).toISOString(),
+      reason: null,
     });
 
     render(<Calendar me={null} />);
@@ -79,5 +80,23 @@ describe("Calendar", () => {
     await waitFor(() => {
       expect(screen.getByText("M. Vella")).toBeTruthy();
     });
+  });
+
+  it("explains when nothing is available because facility hours aren't set up", async () => {
+    mockListRooms.mockResolvedValue([{ id: 1, name: "Room A", sort_order: 0, active: true }]);
+    mockListEducators.mockResolvedValue([]);
+    mockListClients.mockResolvedValue([]);
+    mockListBookings.mockResolvedValue([]);
+    mockGetNextAvailableRoom.mockResolvedValue({
+      room_id: null,
+      room_name: null,
+      start_utc: null,
+      reason: "no_facility_hours",
+    });
+
+    render(<Calendar me={null} />);
+
+    await waitFor(() => expect(screen.getByText(/Facility hours/)).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
   });
 });

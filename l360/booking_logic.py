@@ -110,6 +110,13 @@ def find_conflict(
     return None
 
 
+def facility_hours_configured(db: Session) -> bool:
+    """Whether opening hours have been set for at least one weekday —
+    with none set at all, every day gets skipped and every room looks
+    unavailable regardless of bookings."""
+    return db.scalar(select(FacilityHours.id)) is not None
+
+
 def find_next_available_room(
     db: Session,
     *,

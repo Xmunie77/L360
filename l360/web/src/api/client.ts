@@ -444,13 +444,16 @@ export function createBookingSeries(body: BookingSeriesCreateInput): Promise<Boo
 }
 
 export interface NextAvailableRoom {
-  room_id: number;
-  room_name: string;
-  start_utc: string;
+  room_id: number | null;
+  room_name: string | null;
+  start_utc: string | null;
+  /** Set (with the room_* fields null) when nothing was found — tells
+   *  "facility hours never configured" apart from "genuinely fully booked". */
+  reason: "no_facility_hours" | "fully_booked" | null;
 }
 
-export function getNextAvailableRoom(durationMinutes: Duration = 60): Promise<NextAvailableRoom | null> {
-  return get<NextAvailableRoom | null>(`/api/bookings/next-available?duration_minutes=${durationMinutes}`);
+export function getNextAvailableRoom(durationMinutes: Duration = 60): Promise<NextAvailableRoom> {
+  return get<NextAvailableRoom>(`/api/bookings/next-available?duration_minutes=${durationMinutes}`);
 }
 
 export function moveBooking(id: number, body: BookingMoveInput): Promise<Booking> {

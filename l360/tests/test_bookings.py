@@ -115,6 +115,17 @@ def test_next_available_room_with_explicit_duration_query_param(admin_client, bo
     # default and never exercises FastAPI's query-string coercion).
     r = admin_client.get("/api/bookings/next-available", params={"duration_minutes": 60})
     assert r.status_code == 200, r.text
+
+
+def test_next_available_room_reports_missing_facility_hours(admin_client):
+    # No booking_env here — a fresh admin has no facility hours configured
+    # yet. Every day gets skipped, but the reason should say why rather
+    # than just looking indistinguishable from "genuinely fully booked".
+    r = admin_client.get("/api/bookings/next-available")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["room_id"] is None
+    assert body["reason"] == "no_facility_hours"
     assert r.json() is not None
 
 
