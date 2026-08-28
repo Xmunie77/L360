@@ -8,7 +8,7 @@ system.
 - **Backend:** FastAPI + SQLAlchemy + Neon Postgres, gated Alembic migrations
   (schema `l360`).
 - **Frontend:** React (Vite + TypeScript), built at `l360/web` → `l360/web/dist`.
-- **Fly app:** `rubicon-l360` (region `fra`, matches Neon's recommended EU region).
+- **Fly app:** `l360-os` (region `fra`, matches Neon's recommended EU region).
 
 ```
 l360/
@@ -16,7 +16,7 @@ l360/
   migrations/              Alembic (l360 schema), gated — never on boot
   web/                     Vite + React + TS SPA
   Dockerfile               two-stage: Node builds the SPA → Python serves it + the API
-  fly.toml                 Fly app `rubicon-l360` (fra)
+  fly.toml                 Fly app `l360-os` (fra)
   requirements.txt         backend deps (starting point; may be extended)
 .github/workflows/
   l360-deploy.yml          auto-deploy to Fly on push to main touching l360/**
@@ -51,16 +51,16 @@ region EU (Frankfurt). Copy the **direct / unpooled** connection string (host
 This must be a project separate from kitchentable's — l360 owns its own
 database, not just a separate schema in the same project.
 
-**2 — Fly app + runtime secrets.** Create app `rubicon-l360` (region `fra`).
+**2 — Fly app + runtime secrets.** Create app `l360-os` (region `fra`).
 Either in the Fly dashboard, or CLI:
 ```
-fly apps create rubicon-l360
-fly secrets set -a rubicon-l360 \
+fly apps create l360-os
+fly secrets set -a l360-os \
   DATABASE_URL='<NEON_URL>' \
   L360_SESSION_SECRET='<64 hex chars, e.g. `openssl rand -hex 32`>'
 ```
 Then create a **deploy token** (Fly dashboard → Tokens, or
-`fly tokens create deploy -a rubicon-l360`).
+`fly tokens create deploy -a l360-os`).
 
 **3 — GitHub repo secrets** (this repo → Settings → Secrets and variables →
 Actions), add two:
@@ -81,7 +81,7 @@ touch the DB error until step 5.)
 workflow → command=`upgrade`, revision=`head`. Creates the `l360` schema +
 tables in Neon.
 
-**6 — Verify.** Open `https://rubicon-l360.fly.dev`, confirm `/health`
+**6 — Verify.** Open `https://l360-os.fly.dev`, confirm `/health`
 returns `{"status":"ok"}`, then sign in and confirm the booking flow works.
 
 From then on, any push to `main` that touches `l360/**` auto-deploys.
@@ -114,6 +114,6 @@ wasteful). Run them as a separate Fly process instead:
   app = "sh -c \"python -c 'from l360.db import init_db; init_db()' && uvicorn l360.api:app --host 0.0.0.0 --port 8000 --workers 2\""
   jobs = "python -m l360.jobs"
 ```
-then `fly scale count app=1 jobs=1 -a rubicon-l360`. Not yet wired up —
+then `fly scale count app=1 jobs=1 -a l360-os`. Not yet wired up —
 booking confirmation/change/cancel emails (the synchronous ones) work
 without this; only the T-24h reminder and daily digest need it.

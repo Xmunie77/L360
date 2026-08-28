@@ -1,11 +1,10 @@
-# Learning 360° (l360) — room-booking + billing tool. Its own Fly app,
-# fully separate from kitchentable (own Neon Postgres project, own schema).
+# Learning 360° (l360) — room-booking + billing tool. Its own Fly app, its
+# own repo (Xmunie77/L360), own Neon Postgres project, own schema.
 #
-# Deploy is automated by .github/workflows/l360-deploy.yml on every push to
-# main that touches l360/**. First-time setup (one-off, from a browser or the
-# Fly CLI):
-#     fly apps create rubicon-l360
-#     fly secrets set -a rubicon-l360 \
+# Deploy is automated by .github/workflows/deploy.yml on every push to main.
+# First-time setup (one-off, from a browser or the Fly CLI):
+#     fly apps create l360-os
+#     fly secrets set -a l360-os \
 #         DATABASE_URL='postgresql://…neon.tech/…?sslmode=require' \
 #         L360_SESSION_SECRET='<64 hex chars>'
 #
@@ -22,7 +21,7 @@
 #
 # https://fly.io/docs/reference/configuration/
 
-app = 'rubicon-l360'
+app = 'l360-os'
 primary_region = 'fra'   # Frankfurt — matches Neon's recommended EU region
 
 [build]

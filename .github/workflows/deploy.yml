@@ -11,9 +11,9 @@ name: Deploy — Learning 360° (Fly.io)
 # NOTE in l360/fly.toml).
 #
 # Requires one repo secret:
-#   FLY_API_TOKEN_L360  — a Fly deploy token scoped to app `rubicon-l360`
+#   FLY_API_TOKEN_L360  — a Fly deploy token scoped to app `l360-os`
 #                          (Fly dashboard → Tokens, or
-#                          `fly tokens create deploy -a rubicon-l360`).
+#                          `fly tokens create deploy -a l360-os`).
 #                          Distinct from kitchentable's FLY_API_TOKEN — l360
 #                          is a separate Fly app with its own token.
 
