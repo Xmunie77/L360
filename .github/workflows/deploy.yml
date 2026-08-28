@@ -22,7 +22,7 @@ on:
     branches: [main]
     paths:
       - 'l360/**'
-      - '.github/workflows/l360-deploy.yml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 permissions:

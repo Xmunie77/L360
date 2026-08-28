@@ -9,11 +9,11 @@ on:
     branches: [main]
     paths:
       - 'l360/**'
-      - '.github/workflows/l360-tests.yml'
+      - '.github/workflows/tests.yml'
   pull_request:
     paths:
       - 'l360/**'
-      - '.github/workflows/l360-tests.yml'
+      - '.github/workflows/tests.yml'
 
 permissions:
   contents: read
