@@ -174,7 +174,7 @@ def utilisation_by_room(db: Session, *, period_start: date, period_end: date) ->
         by_room.setdefault(b.room_id, []).append(b)
 
     out = []
-    for room in db.scalars(select(Room).order_by(Room.sort_order)).all():
+    for room in db.scalars(select(Room).order_by(Room.name)).all():
         rows = by_room.get(room.id, [])
         out.append(RoomUtilisation(
             room_id=room.id, room_name=room.name,

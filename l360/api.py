@@ -245,7 +245,7 @@ def me(user: User = Depends(require_user)):
 # --- read-only lists for any authed user ------------------------------
 @app.get("/api/rooms", response_model=list[RoomOut])
 def list_rooms_ro(db: Session = Depends(get_session), _user: User = Depends(require_user)):
-    return db.scalars(select(Room).where(Room.active == True).order_by(Room.sort_order)).all()  # noqa: E712
+    return db.scalars(select(Room).where(Room.active == True).order_by(Room.name)).all()  # noqa: E712
 
 
 @app.get("/api/educators", response_model=list[UserOut])
@@ -314,7 +314,7 @@ def admin_update_level(
 # --- admin: rooms -----------------------------------------------------
 @app.get("/api/admin/rooms", response_model=list[RoomOut])
 def admin_list_rooms(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
-    return db.scalars(select(Room).order_by(Room.sort_order)).all()
+    return db.scalars(select(Room).order_by(Room.name)).all()
 
 
 @app.post("/api/admin/rooms", response_model=RoomOut)

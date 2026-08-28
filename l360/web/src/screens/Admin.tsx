@@ -132,10 +132,9 @@ function RoomsAdmin() {
     setFormError(null);
     setSubmitting(true);
     try {
-      // Rooms are ordered numerically by the order they're added — no
-      // manual "sort order" for admins to manage.
-      const nextSortOrder = rooms.reduce((max, r) => Math.max(max, r.sort_order), -1) + 1;
-      await adminCreateRoom({ name: name.trim(), sort_order: nextSortOrder, active: true });
+      // Rooms are always listed alphabetically by name — no manual
+      // "sort order" for admins to manage.
+      await adminCreateRoom({ name: name.trim(), sort_order: 0, active: true });
       setName("");
       await refresh();
     } catch (err) {
