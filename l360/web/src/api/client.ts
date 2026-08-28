@@ -370,6 +370,14 @@ export function getMe(): Promise<Me> {
   return get<Me>("/api/me");
 }
 
+export function forgotPassword(email: string): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>("/api/forgot-password", { email });
+}
+
+export function resetPassword(token: string, password: string): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>("/api/reset-password", { token, password });
+}
+
 // --- read-only lists -----------------------------------------------------
 
 export function listRooms(): Promise<Room[]> {

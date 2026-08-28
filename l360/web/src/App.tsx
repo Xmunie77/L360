@@ -10,6 +10,7 @@ import { Reconciliation } from "./screens/Reconciliation";
 import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
 import { Login } from "./screens/Login";
+import { ResetPassword } from "./screens/ResetPassword";
 import { getMe, getSession, logout, type Me } from "./api/client";
 
 interface NavItem {
@@ -38,6 +39,9 @@ export function App() {
   const [active, setActive] = useState<string>(NAV_ITEMS[0].key);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [me, setMe] = useState<Me | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("reset"),
+  );
   const activeLabel = NAV_ITEMS.find((n) => n.key === active)?.label ?? "";
 
   useEffect(() => {
@@ -80,6 +84,18 @@ export function App() {
       setAuthState("anon");
       setActive(NAV_ITEMS[0].key);
     }
+  }
+
+  if (resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={() => {
+          window.history.replaceState(null, "", window.location.pathname);
+          setResetToken(null);
+        }}
+      />
+    );
   }
 
   if (authState === "loading") {

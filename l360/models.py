@@ -346,3 +346,22 @@ class CalendarToken(Base):
     token: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=_utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+
+class PasswordResetToken(Base):
+    """Single-use, time-limited token for the forgot-password flow. Each
+    request invalidates any prior unused token for that user (at most one
+    live token per user), so an old emailed link can't be replayed once a
+    newer reset has been requested."""
+
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = _table_args(
+        UniqueConstraint("token", name="uq_password_reset_token"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey(_fk("users.id")), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=_utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

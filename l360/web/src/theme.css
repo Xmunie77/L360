@@ -546,6 +546,22 @@ a {
   margin-bottom: var(--l360-s5);
 }
 
+.l360-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--l360-w-medium);
+  color: var(--l360-orange-deep);
+  cursor: pointer;
+  text-align: left;
+  min-height: 44px;
+}
+
+.l360-link-btn:hover {
+  text-decoration: underline;
+}
+
 /* ---- Calendar day grid -------------------------------------------------- */
 
 .l360-cal-toolbar {

@@ -21,16 +21,17 @@ from datetime import UTC, datetime, timedelta
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, ical, notifications, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, ical, notifications, notify, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
     CANCELLATION_CUTOFF_HOURS,
     COOKIE_SECURE,
     IS_POSTGRES,
+    PUBLIC_BASE_URL,
     SESSION_COOKIE_NAME,
     assert_secure_config,
 )
@@ -46,6 +47,7 @@ from l360.models import (
     FacilityHours,
     Invoice,
     InvoiceLine,
+    PasswordResetToken,
     PriceListEntry,
     Room,
     User,
@@ -73,6 +75,7 @@ from l360.schemas import (
     FacilityClosureOut,
     FacilityHoursIn,
     FacilityHoursOut,
+    ForgotPasswordIn,
     InvoiceDetailOut,
     InvoiceLineOut,
     InvoiceOut,
@@ -83,6 +86,7 @@ from l360.schemas import (
     PriceListEntryIn,
     PriceListEntryOut,
     RecordPaymentIn,
+    ResetPasswordIn,
     RoomIn,
     RoomOut,
     RoomUtilisationOut,
@@ -180,6 +184,57 @@ def logout(response: Response):
 def session(l360_session: str | None = Cookie(default=None), db: Session = Depends(get_session)):
     user = _current_user(db, l360_session)
     return {"authed": user is not None}
+
+
+_RESET_TOKEN_TTL = timedelta(hours=1)
+
+
+@app.post("/api/forgot-password")
+def forgot_password(body: ForgotPasswordIn, db: Session = Depends(get_session)):
+    # Always returns {"ok": True} whether or not the email is registered —
+    # revealing that would let an attacker enumerate real accounts.
+    user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if user is not None and user.active:
+        # At most one live token per user: superseding a request invalidates
+        # any earlier unused link rather than leaving multiple valid ones.
+        db.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+            .values(used_at=datetime.now(UTC))
+        )
+        token = secrets.token_urlsafe(32)
+        db.add(PasswordResetToken(
+            user_id=user.id, token=token, expires_at=datetime.now(UTC) + _RESET_TOKEN_TTL,
+        ))
+        db.commit()
+        link = f"{PUBLIC_BASE_URL}/?reset={token}"
+        notify.send_email(
+            user.email,
+            "Reset your Learning 360° password",
+            f"Hi {user.full_name},\n\n"
+            f"Click the link below to set a new password. It expires in 1 hour "
+            f"and can only be used once.\n\n{link}\n\n"
+            "If you didn't request this, you can ignore this email.",
+        )
+    return {"ok": True}
+
+
+@app.post("/api/reset-password")
+def reset_password(body: ResetPasswordIn, db: Session = Depends(get_session)):
+    row = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token == body.token))
+    if (
+        row is None
+        or row.used_at is not None
+        or row.expires_at < datetime.now(UTC)
+    ):
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
+    user = db.get(User, row.user_id)
+    if user is None or not user.active:
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
+    user.password_hash = auth.hash_password(body.password)
+    row.used_at = datetime.now(UTC)
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/me", response_model=MeResp)

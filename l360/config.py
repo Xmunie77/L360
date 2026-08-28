@@ -42,6 +42,11 @@ CANCELLATION_CUTOFF_HOURS = int(os.environ.get("L360_CANCELLATION_CUTOFF_HOURS",
 INVOICE_NUMBER_PREFIX = os.environ.get("L360_INVOICE_NUMBER_PREFIX", "L360")
 VAT_EXEMPT_NOTE = os.environ.get("L360_VAT_EXEMPT_NOTE", "Exempt from VAT")
 
+# Used to build absolute links in emails (password reset). Defaults to the
+# production URL; override for local dev if you need a working reset link
+# against a non-default port.
+PUBLIC_BASE_URL = os.environ.get("L360_PUBLIC_URL", "https://l360-os.fly.dev")
+
 # --- Email (defined now, unused until the notifications phase) --------------
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))

@@ -33,6 +33,13 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy());
   });
 
+  it("shows the reset-password screen when the URL carries a reset token, regardless of session state", () => {
+    window.history.pushState({}, "", "/?reset=some-token-value");
+    render(<App />);
+    expect(screen.getByRole("button", { name: "Set new password" })).toBeTruthy();
+    window.history.pushState({}, "", "/");
+  });
+
   it("renders the shell with the Calendar screen active by default once authed", async () => {
     mockGetSession.mockResolvedValue({ authed: true });
     mockGetMe.mockResolvedValue({ id: 1, email: "staff@example.org", full_name: "Staff Member", role: "admin", level_id: null });
