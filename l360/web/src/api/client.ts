@@ -443,6 +443,16 @@ export function createBookingSeries(body: BookingSeriesCreateInput): Promise<Boo
   return post<BookingSeriesResult>("/api/bookings/series", body);
 }
 
+export interface NextAvailableRoom {
+  room_id: number;
+  room_name: string;
+  start_utc: string;
+}
+
+export function getNextAvailableRoom(durationMinutes: Duration = 60): Promise<NextAvailableRoom | null> {
+  return get<NextAvailableRoom | null>(`/api/bookings/next-available?duration_minutes=${durationMinutes}`);
+}
+
 export function moveBooking(id: number, body: BookingMoveInput): Promise<Booking> {
   return patch<Booking>(`/api/bookings/${id}`, body);
 }

@@ -82,6 +82,7 @@ from l360.schemas import (
     LoginReq,
     ManualMatchIn,
     MeResp,
+    NextAvailableOut,
     PaymentOut,
     PriceListEntryIn,
     PriceListEntryOut,
@@ -583,6 +584,22 @@ def list_bookings(
         q = q.where(Booking.educator_id == user.id)
     rows = db.scalars(q.order_by(Booking.start_utc)).all()
     return [_booking_out(db, b) for b in rows]
+
+
+@app.get("/api/bookings/next-available", response_model=NextAvailableOut | None)
+def next_available_room(
+    duration_minutes: int = 60, db: Session = Depends(get_session), _user: User = Depends(require_user)
+):
+    # A bare `Literal[60, 90, 120]` query param doesn't coerce a raw query
+    # string ("60") the way a JSON body does, so validate it by hand here
+    # rather than relying on FastAPI/Pydantic to reject a plain int.
+    if duration_minutes not in (60, 90, 120):
+        raise HTTPException(status_code=422, detail="duration_minutes must be 60, 90, or 120")
+    found = booking_logic.find_next_available_room(db, duration_minutes=duration_minutes)
+    if found is None:
+        return None
+    room, start_utc = found
+    return NextAvailableOut(room_id=room.id, room_name=room.name, start_utc=start_utc)
 
 
 @app.get("/api/bookings/{booking_id}", response_model=BookingOut)

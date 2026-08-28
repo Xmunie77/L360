@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from l360.config import TIMEZONE
-from l360.models import Booking, FacilityClosure, FacilityHours
+from l360.models import Booking, FacilityClosure, FacilityHours, Room
 
 # Only these statuses occupy a room/educator slot. Cancelled (any flavour)
 # and no-show bookings free the slot for rebooking — the session isn't
@@ -107,6 +107,61 @@ def find_conflict(
         if row.start_utc < end_utc and row_end > start_utc:
             if row.room_id == room_id or row.educator_id == educator_id:
                 return row
+    return None
+
+
+def find_next_available_room(
+    db: Session,
+    *,
+    duration_minutes: int = 60,
+    now_utc: datetime | None = None,
+    days_ahead: int = 14,
+) -> tuple[Room, datetime] | None:
+    """The earliest (room, start_utc) that's free for a session of the given
+    length, scanning forward from now across facility hours/closures in
+    30-minute steps. Rooms are tried in name order for a given slot, so an
+    earlier slot always wins over an earlier room. None if nothing opens up
+    within `days_ahead` days."""
+    now_utc = now_utc or datetime.now(UTC)
+    rooms = db.scalars(select(Room).where(Room.active == True)).all()  # noqa: E712
+    rooms = sorted(rooms, key=lambda r: r.name)
+    if not rooms:
+        return None
+
+    for day_offset in range(days_ahead):
+        local_date, _ = utc_to_local(now_utc + timedelta(days=day_offset))
+        hours = db.scalar(select(FacilityHours).where(FacilityHours.weekday == local_date.weekday()))
+        if hours is None:
+            continue
+        if db.scalar(
+            select(FacilityClosure).where(FacilityClosure.date == local_date, FacilityClosure.room_id.is_(None))
+        ):
+            continue
+
+        t = hours.open_time
+        while True:
+            end_local = datetime.combine(local_date, t) + timedelta(minutes=duration_minutes)
+            if end_local.date() != local_date or end_local.time() > hours.close_time:
+                break
+            start_utc = local_to_utc(local_date, t)
+            if start_utc >= now_utc:
+                for room in rooms:
+                    room_closed = db.scalar(
+                        select(FacilityClosure).where(
+                            FacilityClosure.date == local_date, FacilityClosure.room_id == room.id
+                        )
+                    )
+                    if room_closed:
+                        continue
+                    conflict = find_conflict(
+                        db, room_id=room.id, educator_id=-1, start_utc=start_utc, duration_minutes=duration_minutes
+                    )
+                    if conflict is None:
+                        return room, start_utc
+            next_dt = datetime.combine(local_date, t) + timedelta(minutes=30)
+            if next_dt.date() != local_date:
+                break
+            t = next_dt.time()
     return None
 
 

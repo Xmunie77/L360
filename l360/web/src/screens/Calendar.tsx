@@ -5,6 +5,7 @@ import {
   cancelBooking,
   createBooking,
   createBookingSeries,
+  getNextAvailableRoom,
   listBookings,
   listClients,
   listEducators,
@@ -15,6 +16,7 @@ import {
   type Duration,
   type Educator,
   type Me,
+  type NextAvailableRoom,
   type Room,
   type SkippedOccurrence,
 } from "../api/client";
@@ -22,9 +24,11 @@ import { statusBadgeProps } from "../domain/status";
 import {
   combineDateTime,
   dayBoundsISO,
+  formatBookingWhen,
   formatHourLabel,
   localHourFraction,
   mondayBasedWeekday,
+  toDateInputValue,
   todayStr,
   toTimeInputValue,
 } from "../domain/datetime";
@@ -64,6 +68,7 @@ export function Calendar({ me }: { me: Me | null }) {
 
   const [newBookingDraft, setNewBookingDraft] = useState<NewBookingDraft | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [nextAvailable, setNextAvailable] = useState<NextAvailableRoom | null | undefined>(undefined);
 
   // Reference data — fetched once.
   useEffect(() => {
@@ -77,6 +82,23 @@ export function Calendar({ me }: { me: Me | null }) {
         setLoadError(err instanceof ApiError ? err.detail : "Couldn't load rooms, educators or clients.");
       });
   }, []);
+
+  function refreshNextAvailable() {
+    getNextAvailableRoom()
+      .then(setNextAvailable)
+      .catch(() => setNextAvailable(null));
+  }
+
+  useEffect(() => {
+    refreshNextAvailable();
+  }, []);
+
+  function bookNextAvailable() {
+    if (!nextAvailable) return;
+    const start = new Date(nextAvailable.start_utc);
+    setDate(toDateInputValue(start));
+    setNewBookingDraft({ roomId: nextAvailable.room_id, time: toTimeInputValue(nextAvailable.start_utc) });
+  }
 
   async function refreshBookings() {
     setLoading(true);
@@ -148,6 +170,23 @@ export function Calendar({ me }: { me: Me | null }) {
             Today
           </Button>
         </div>
+
+        {nextAvailable !== undefined && (
+          <div className="l360-cal-next-available">
+            {nextAvailable ? (
+              <>
+                <span>
+                  Next available: <strong>{nextAvailable.room_name}</strong> — {formatBookingWhen(nextAvailable.start_utc)}
+                </span>
+                <Button type="button" onClick={bookNextAvailable}>
+                  Book
+                </Button>
+              </>
+            ) : (
+              <span>No rooms free in the next two weeks.</span>
+            )}
+          </div>
+        )}
 
         {loadError && (
           <div className="l360-alert l360-alert-danger" role="alert">
@@ -238,6 +277,7 @@ export function Calendar({ me }: { me: Me | null }) {
           onCreated={() => {
             setNewBookingDraft(null);
             refreshBookings();
+            refreshNextAvailable();
           }}
         />
       )}
@@ -250,6 +290,7 @@ export function Calendar({ me }: { me: Me | null }) {
           onChanged={() => {
             setSelectedBooking(null);
             refreshBookings();
+            refreshNextAvailable();
           }}
         />
       )}

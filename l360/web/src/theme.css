@@ -573,6 +573,21 @@ a {
   flex-wrap: wrap;
 }
 
+.l360-cal-next-available {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--l360-s4);
+  padding: var(--l360-s3) var(--l360-s4);
+  margin-bottom: var(--l360-s4);
+  border-radius: var(--l360-r-sm);
+  background: var(--l360-info-bg);
+  color: var(--l360-info);
+  font-size: var(--l360-t8);
+  font-weight: var(--l360-w-medium);
+  flex-wrap: wrap;
+}
+
 .l360-cal-grid-wrap {
   overflow-x: auto;
   border: 1px solid var(--l360-lgrey);

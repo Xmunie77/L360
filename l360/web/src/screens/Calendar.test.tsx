@@ -10,15 +10,17 @@ vi.mock("../api/client", async () => {
     listEducators: vi.fn(),
     listClients: vi.fn(),
     listBookings: vi.fn(),
+    getNextAvailableRoom: vi.fn(),
   };
 });
 
-import { listBookings, listClients, listEducators, listRooms } from "../api/client";
+import { getNextAvailableRoom, listBookings, listClients, listEducators, listRooms } from "../api/client";
 
 const mockListRooms = vi.mocked(listRooms);
 const mockListEducators = vi.mocked(listEducators);
 const mockListClients = vi.mocked(listClients);
 const mockListBookings = vi.mocked(listBookings);
+const mockGetNextAvailableRoom = vi.mocked(getNextAvailableRoom);
 
 describe("Calendar", () => {
   it("renders the date picker and one column per active room without crashing", async () => {
@@ -51,6 +53,11 @@ describe("Calendar", () => {
         cancelled_at: null,
       },
     ]);
+    mockGetNextAvailableRoom.mockResolvedValue({
+      room_id: 2,
+      room_name: "Room B (next available)",
+      start_utc: new Date(Date.now() + 3600_000).toISOString(),
+    });
 
     render(<Calendar me={null} />);
 
@@ -64,6 +71,9 @@ describe("Calendar", () => {
       expect(screen.getByText("Room A")).toBeTruthy();
       expect(screen.getByText("Room B")).toBeTruthy();
     });
+
+    // Next-available-room bar, above the scheduling grid.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Book" })).toBeTruthy());
 
     // The booking for today renders as a block in its room's column.
     await waitFor(() => {

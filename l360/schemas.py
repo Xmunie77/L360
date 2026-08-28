@@ -141,6 +141,12 @@ class FacilityClosureOut(FacilityClosureIn):
 Duration = Literal[60, 90, 120]
 
 
+class NextAvailableOut(BaseModel):
+    room_id: int
+    room_name: str
+    start_utc: datetime
+
+
 class BookingIn(BaseModel):
     room_id: int
     educator_id: int

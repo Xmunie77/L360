@@ -97,6 +97,44 @@ def test_invalid_duration_rejected(admin_client, booking_env):
     assert r.status_code == 422
 
 
+def test_next_available_room(admin_client, booking_env):
+    r = admin_client.get("/api/bookings/next-available")
+    assert r.status_code == 200
+    body = r.json()
+    assert body is not None
+    assert body["room_id"] == booking_env["room_id"]
+    assert body["room_name"] == "Test Room"
+    start = datetime.fromisoformat(body["start_utc"])
+    assert start >= datetime.now(UTC) - timedelta(minutes=1)
+
+
+def test_next_available_room_with_explicit_duration_query_param(admin_client, booking_env):
+    # Regression test: as a raw query string ("?duration_minutes=60") this
+    # must not 422 — the frontend always sends it explicitly (unlike a
+    # request with no query params at all, which just uses the Python
+    # default and never exercises FastAPI's query-string coercion).
+    r = admin_client.get("/api/bookings/next-available", params={"duration_minutes": 60})
+    assert r.status_code == 200, r.text
+    assert r.json() is not None
+
+
+def test_next_available_room_skips_conflict(admin_client, booking_env):
+    first = admin_client.get("/api/bookings/next-available").json()
+    booked = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "start_utc": first["start_utc"],
+        "duration_minutes": 60,
+    })
+    assert booked.status_code == 200, booked.text
+
+    second = admin_client.get("/api/bookings/next-available").json()
+    first_start = datetime.fromisoformat(first["start_utc"])
+    second_start = datetime.fromisoformat(second["start_utc"])
+    assert second_start >= first_start + timedelta(minutes=60)
+
+
 def test_move_booking_success_and_conflict(admin_client, booking_env):
     start_dt = _safe_morning_start()
     booking = admin_client.post("/api/bookings", json={
