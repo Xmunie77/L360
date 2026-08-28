@@ -17,6 +17,7 @@ WORKDIR /web
 COPY l360/web/package.json l360/web/package-lock.json ./
 RUN npm ci
 COPY l360/web/ ./
+COPY l360/design/ /design/
 RUN npm run build          # emits /web/dist
 
 # --- stage 2: python API server --------------------------------------------
