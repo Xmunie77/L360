@@ -531,14 +531,15 @@ a {
   flex-direction: column;
 }
 
+/* The logo PNG is the white lockup — valid only on a dark ground per
+   DESIGN_SYSTEM.md §1, so it needs its own ink-coloured chip here since
+   the login card itself is white. */
 .l360-login-wordmark {
-  color: var(--l360-ink);
-  padding: 0;
-  margin-bottom: var(--l360-s2);
-}
-
-.l360-login-wordmark .degree {
-  color: var(--l360-orange-deep);
+  align-self: flex-start;
+  background: var(--l360-ink);
+  border-radius: var(--l360-r-sm);
+  padding: var(--l360-s3) var(--l360-s4);
+  margin-bottom: var(--l360-s4);
 }
 
 .l360-login-intro {
