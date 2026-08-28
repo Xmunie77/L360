@@ -1,0 +1,49 @@
+name: Create Admin — Learning 360°
+
+# One-off bootstrap for the very first admin account (or a rescue account if
+# every admin somehow gets locked out). Gated behind workflow_dispatch —
+# never runs automatically, never on boot. Generates a random password and
+# prints it once in this run's log; log in immediately afterward and change
+# it via Admin -> Users -> edit yourself.
+#
+# Refuses if the email already exists — never silently resets a password.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Admin email address"
+        type: string
+        required: true
+      full_name:
+        description: "Admin full name"
+        type: string
+        default: "Admin"
+
+permissions:
+  contents: read
+
+jobs:
+  create-admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Create admin
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          L360_ADMIN_EMAIL: ${{ inputs.email }}
+          L360_ADMIN_NAME: ${{ inputs.full_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.create_admin
