@@ -226,6 +226,10 @@ a {
     width: 100%;
   }
 
+  .l360-wordmark {
+    padding: var(--l360-s3) var(--l360-s4);
+  }
+
   .l360-nav {
     flex-direction: row;
     overflow-x: auto;
@@ -233,7 +237,20 @@ a {
   }
 
   .l360-nav-item {
+    width: auto;
     flex-shrink: 0;
+    padding: 0 var(--l360-s4);
+  }
+
+  .l360-nav-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--l360-s3) var(--l360-s4);
+  }
+
+  .l360-nav-org {
+    display: none;
   }
 
   .l360-content {
