@@ -1,0 +1,134 @@
+"""Pure/DB-light booking logic: local-time<->UTC conversion (DST-safe via
+zoneinfo), weekly-series date expansion, facility-hours/closure checks, and
+conflict detection. Kept separate from api.py so it's directly unit-testable.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, time, timedelta, UTC
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from l360.config import TIMEZONE
+from l360.models import Booking, FacilityClosure, FacilityHours
+
+# Only these statuses occupy a room/educator slot. Cancelled (any flavour)
+# and no-show bookings free the slot for rebooking — the session isn't
+# happening, even though a late-cancel/no-show may still be billable.
+_ACTIVE_STATUSES = ("confirmed", "completed")
+
+# Widest possible session length — used to narrow the conflict pre-filter.
+_MAX_DURATION_MINUTES = 120
+
+
+def local_to_utc(d: date, t: time, tz_name: str = TIMEZONE) -> datetime:
+    """Convert a Europe/Malta wall-clock date+time to an aware UTC datetime.
+
+    zoneinfo resolves the correct UTC offset for that specific date, so this
+    is correct across DST transitions without any special-casing.
+    """
+    local_dt = datetime.combine(d, t, tzinfo=ZoneInfo(tz_name))
+    return local_dt.astimezone(UTC)
+
+
+def utc_to_local(dt: datetime, tz_name: str = TIMEZONE) -> tuple[date, time]:
+    local_dt = dt.astimezone(ZoneInfo(tz_name))
+    return local_dt.date(), local_dt.time()
+
+
+def expand_weekly_dates(starts_on: date, ends_on: date, weekday: int) -> list[date]:
+    """All dates in [starts_on, ends_on] falling on the given weekday
+    (0=Monday .. 6=Sunday, matching date.weekday())."""
+    if ends_on < starts_on:
+        return []
+    delta = (weekday - starts_on.weekday()) % 7
+    d = starts_on + timedelta(days=delta)
+    dates = []
+    while d <= ends_on:
+        dates.append(d)
+        d += timedelta(days=7)
+    return dates
+
+
+class SlotError(Exception):
+    """Raised when a requested slot is outside hours, on a closure, or
+    conflicts with an existing booking. `reason` is a short, user-facing
+    string."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+def check_within_hours_and_open(db: Session, room_id: int, start_utc: datetime, duration_minutes: int) -> None:
+    local_date, local_start = utc_to_local(start_utc)
+    local_end_dt = datetime.combine(local_date, local_start) + timedelta(minutes=duration_minutes)
+    if local_end_dt.date() != local_date:
+        raise SlotError("Session crosses midnight — not supported")
+    local_end = local_end_dt.time()
+
+    hours = db.scalar(select(FacilityHours).where(FacilityHours.weekday == local_date.weekday()))
+    if hours is None or local_start < hours.open_time or local_end > hours.close_time:
+        raise SlotError("Outside facility opening hours")
+
+    closure = db.scalar(
+        select(FacilityClosure).where(
+            FacilityClosure.date == local_date,
+            or_(FacilityClosure.room_id == room_id, FacilityClosure.room_id.is_(None)),
+        )
+    )
+    if closure is not None:
+        raise SlotError(f"Facility closed: {closure.reason}")
+
+
+def find_conflict(
+    db: Session,
+    *,
+    room_id: int,
+    educator_id: int,
+    start_utc: datetime,
+    duration_minutes: int,
+    exclude_booking_id: int | None = None,
+) -> Booking | None:
+    end_utc = start_utc + timedelta(minutes=duration_minutes)
+    window_start = start_utc - timedelta(minutes=_MAX_DURATION_MINUTES)
+    q = select(Booking).where(
+        Booking.status.in_(_ACTIVE_STATUSES),
+        Booking.start_utc < end_utc,
+        Booking.start_utc >= window_start,
+        or_(Booking.room_id == room_id, Booking.educator_id == educator_id),
+    )
+    if exclude_booking_id is not None:
+        q = q.where(Booking.id != exclude_booking_id)
+    for row in db.scalars(q):
+        row_end = row.start_utc + timedelta(minutes=row.duration_minutes)
+        if row.start_utc < end_utc and row_end > start_utc:
+            if row.room_id == room_id or row.educator_id == educator_id:
+                return row
+    return None
+
+
+def validate_slot(
+    db: Session,
+    *,
+    room_id: int,
+    educator_id: int,
+    start_utc: datetime,
+    duration_minutes: int,
+    exclude_booking_id: int | None = None,
+) -> None:
+    """Raises SlotError if the slot can't be booked. Order: hours/closure
+    first (cheap, no query needed beyond two small lookups), then conflicts."""
+    check_within_hours_and_open(db, room_id, start_utc, duration_minutes)
+    conflict = find_conflict(
+        db,
+        room_id=room_id,
+        educator_id=educator_id,
+        start_utc=start_utc,
+        duration_minutes=duration_minutes,
+        exclude_booking_id=exclude_booking_id,
+    )
+    if conflict is not None:
+        what = "room" if conflict.room_id == room_id else "educator"
+        raise SlotError(f"That {what} is already booked at this time")

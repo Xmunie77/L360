@@ -1,0 +1,147 @@
+"""Billing computation: which bookings are billable, what they cost (priced
+at the session's own date, not today's price), draft-invoice generation,
+and sequential invoice numbering at issue time.
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta, UTC
+
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from l360.booking_logic import utc_to_local
+from l360.config import INVOICE_NUMBER_PREFIX
+from l360.models import Booking, Invoice, InvoiceLine, PriceListEntry, User
+
+# Bookings in these states are billable — the session happened, or the
+# family is being charged for missing/late-cancelling it. `confirmed`
+# (still upcoming) and plain `cancelled` (outside the cutoff, free) are not.
+BILLABLE_STATUSES = ("completed", "cancelled_late", "no_show")
+
+
+def price_for(db: Session, *, level_id: int, duration_minutes: int, as_of: date) -> PriceListEntry | None:
+    """The price tier in effect on `as_of` — the entry with the latest
+    valid_from <= as_of. Never edited in place, so this always reproduces
+    what a booking was actually priced at, even if rates changed since."""
+    rows = db.scalars(
+        select(PriceListEntry).where(
+            PriceListEntry.level_id == level_id,
+            PriceListEntry.duration_minutes == duration_minutes,
+            PriceListEntry.valid_from <= as_of,
+        )
+    ).all()
+    if not rows:
+        return None
+    return max(rows, key=lambda r: r.valid_from)
+
+
+def billable_bookings_for_client(db: Session, *, client_id: int, period_start: date, period_end: date) -> list[Booking]:
+    """Bookings for this client in [period_start, period_end] (by local
+    session date) that are billable and not already on any invoice line."""
+    # select(InvoiceLine.booking_id) selects a single column, so .scalars()
+    # already unwraps each row to that column's value — iterating gives
+    # plain ints directly, not InvoiceLine-like objects with a .booking_id.
+    already_invoiced = set(db.scalars(select(InvoiceLine.booking_id).where(InvoiceLine.booking_id.is_not(None))))
+    period_start_utc = datetime.combine(period_start, datetime.min.time(), tzinfo=UTC) - timedelta(days=1)
+    period_end_utc = datetime.combine(period_end, datetime.min.time(), tzinfo=UTC) + timedelta(days=1)
+    candidates = db.scalars(
+        select(Booking).where(
+            Booking.client_id == client_id,
+            Booking.status.in_(BILLABLE_STATUSES),
+            Booking.start_utc >= period_start_utc,
+            Booking.start_utc <= period_end_utc,
+        )
+    ).all()
+    out = []
+    for b in candidates:
+        if b.id in already_invoiced:
+            continue
+        local_date, _ = utc_to_local(b.start_utc)
+        if period_start <= local_date <= period_end:
+            out.append(b)
+    return out
+
+
+class BillingError(Exception):
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+def generate_draft_invoice(
+    db: Session, *, client_id: int, period_start: date, period_end: date, created_by: int
+) -> Invoice:
+    bookings = billable_bookings_for_client(db, client_id=client_id, period_start=period_start, period_end=period_end)
+    if not bookings:
+        raise BillingError("No billable sessions for this client in the given period")
+
+    invoice = Invoice(
+        client_id=client_id,
+        period_start=period_start,
+        period_end=period_end,
+        status="draft",
+        created_by=created_by,
+    )
+    db.add(invoice)
+    db.flush()
+
+    total = 0
+    for b in bookings:
+        educator = db.get(User, b.educator_id)
+        level_id = educator.level_id if educator else None
+        local_date, _ = utc_to_local(b.start_utc)
+        entry = price_for(db, level_id=level_id, duration_minutes=b.duration_minutes, as_of=local_date) if level_id else None
+        unit_price = entry.client_price_cents if entry else 0
+        line = InvoiceLine(
+            invoice_id=invoice.id,
+            booking_id=b.id,
+            description=f"Session {local_date.isoformat()} ({b.duration_minutes} min, {b.status})",
+            unit_price_cents=unit_price,
+            quantity=1,
+            amount_cents=unit_price,
+        )
+        db.add(line)
+        total += unit_price
+
+    invoice.total_cents = total
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+def _next_invoice_number(db: Session, year: int) -> str:
+    existing = db.scalars(
+        select(Invoice.number).where(
+            Invoice.number.is_not(None), Invoice.number.like(f"{INVOICE_NUMBER_PREFIX}-{year}-%")
+        )
+    ).all()
+    next_seq = len(existing) + 1
+    return f"{INVOICE_NUMBER_PREFIX}-{year}-{next_seq:04d}"
+
+
+def issue_invoice(db: Session, invoice: Invoice, *, due_in_days: int = 14) -> Invoice:
+    if invoice.status != "draft":
+        raise BillingError(f"Cannot issue a {invoice.status} invoice")
+
+    now = datetime.now(UTC)
+    year = now.year
+    # Small retry loop: two concurrent issues in the same year could both
+    # compute the same "next" number — the unique constraint on `number`
+    # catches that and we just recompute and try again.
+    for _ in range(5):
+        candidate = _next_invoice_number(db, year)
+        invoice.number = candidate
+        invoice.status = "issued"
+        invoice.issued_at = now
+        invoice.due_date = (now + timedelta(days=due_in_days)).date()
+        db.add(invoice)
+        try:
+            db.commit()
+            db.refresh(invoice)
+            return invoice
+        except IntegrityError:
+            db.rollback()
+            db.refresh(invoice)
+            continue
+    raise BillingError("Could not allocate an invoice number — try again")

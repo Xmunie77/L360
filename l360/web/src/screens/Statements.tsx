@@ -1,0 +1,385 @@
+import { useEffect, useState } from "react";
+import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
+import {
+  ApiError,
+  createOrRotateCalendarToken,
+  getClientStatement,
+  getEducatorSummary,
+  getMyCalendarToken,
+  getUtilisationReport,
+  listClients,
+  listEducators,
+  revokeCalendarToken,
+  type CalendarToken,
+  type Client,
+  type ClientStatement,
+  type Educator,
+  type EducatorSummary,
+  type Me,
+  type RoomUtilisation,
+} from "../api/client";
+import { todayStr } from "../domain/datetime";
+
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    return err.status === 403 ? "Admins only — you don't have access to this section." : err.detail;
+  }
+  return fallback;
+}
+
+function firstOfMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+interface StatementsProps {
+  me: Me | null;
+}
+
+export function Statements({ me }: StatementsProps) {
+  return (
+    <>
+      <CalendarFeedCard />
+      <EducatorSummaryCard me={me} />
+      {me?.role === "admin" && <ClientStatementCard />}
+      {me?.role === "admin" && <UtilisationCard />}
+    </>
+  );
+}
+
+// --- calendar feed subscribe/revoke ---------------------------------------
+
+function CalendarFeedCard() {
+  const [token, setToken] = useState<CalendarToken | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    setLoading(true);
+    setError(null);
+    try {
+      setToken(await getMyCalendarToken());
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't load your calendar link."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function handleCreate() {
+    setBusy(true);
+    setError(null);
+    try {
+      setToken(await createOrRotateCalendarToken());
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't create your calendar link."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevoke() {
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeCalendarToken();
+      setToken(null);
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't revoke your calendar link."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const feedUrl = token ? `${window.location.origin}${token.feed_path}` : null;
+
+  return (
+    <Card eyebrow="Your calendar" title="Subscribe to your sessions">
+      <p style={{ marginBottom: 12 }}>
+        A read-only link you can add to Google, Apple or Outlook calendar so your confirmed
+        sessions show up alongside your personal calendar. Anyone with this link can see your
+        session times — revoke and create a new one if it ever leaks.
+      </p>
+      {loading && <p className="l360-empty">Loading…</p>}
+      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
+      {!loading && !feedUrl && (
+        <Button variant="primary" onClick={handleCreate} loading={busy} loadingLabel="Creating…">
+          Get my calendar link
+        </Button>
+      )}
+      {!loading && feedUrl && (
+        <>
+          <Input
+            id="calendar-feed-url"
+            label="Feed URL"
+            hint="Paste this into your calendar app's “subscribe by URL” option."
+            readOnly
+            value={feedUrl}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+            <Button variant="secondary" onClick={handleCreate} loading={busy} loadingLabel="Rotating…">
+              Get a new link
+            </Button>
+            <Button variant="destructive" onClick={handleRevoke} loading={busy} loadingLabel="Revoking…">
+              Revoke
+            </Button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// --- educator monthly pay summary ------------------------------------------
+
+function EducatorSummaryCard({ me }: { me: Me | null }) {
+  const isAdmin = me?.role === "admin";
+  const [educators, setEducators] = useState<Educator[]>([]);
+  const [educatorId, setEducatorId] = useState<string>("");
+  const [periodStart, setPeriodStart] = useState(firstOfMonth());
+  const [periodEnd, setPeriodEnd] = useState(todayStr());
+  const [summary, setSummary] = useState<EducatorSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    listEducators()
+      .then(setEducators)
+      .catch(() => setError("Couldn't load educators."));
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!me) return;
+    const targetId = isAdmin ? educatorId : String(me.id);
+    if (!targetId) {
+      setSummary(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    getEducatorSummary(Number(targetId), periodStart, periodEnd)
+      .then(setSummary)
+      .catch((err) => setError(errorMessage(err, "Couldn't load the summary.")))
+      .finally(() => setLoading(false));
+  }, [me, isAdmin, educatorId, periodStart, periodEnd]);
+
+  return (
+    <Card eyebrow="Pay" title={isAdmin ? "Educator monthly summary" : "Your monthly summary"}>
+      <p style={{ marginBottom: 12 }}>
+        Sessions delivered in the period and the rate they're paid at — use this to invoice
+        Learning 360° Foundation.
+      </p>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        {isAdmin && (
+          <Select
+            id="summary-educator"
+            label="Educator"
+            placeholder="Choose an educator…"
+            options={educators.map((e) => ({ value: String(e.id), label: e.full_name }))}
+            value={educatorId}
+            onChange={(e) => setEducatorId(e.target.value)}
+          />
+        )}
+        <Input id="summary-start" label="Period start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        <Input id="summary-end" label="Period end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+      </div>
+
+      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
+      {loading && <p className="l360-empty">Loading…</p>}
+      {!loading && isAdmin && !educatorId && <p className="l360-empty">Choose an educator to see their summary.</p>}
+      {!loading && summary && (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table className="l360-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.sessions.length === 0 && (
+                  <tr><td colSpan={5} className="l360-empty">No billable sessions in this period.</td></tr>
+                )}
+                {summary.sessions.map((s) => (
+                  <tr key={s.booking_id}>
+                    <td>{s.local_date}</td>
+                    <td>{s.client_label}</td>
+                    <td>{s.duration_minutes} min</td>
+                    <td>{s.status.replace("_", " ")}</td>
+                    <td><Money cents={s.rate_cents} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ marginTop: 12, fontWeight: 600 }}>
+            Total payable: <Money cents={summary.total_payable_cents} />
+          </p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// --- admin: client statement -----------------------------------------------
+
+const STATEMENT_STATUS_VARIANT: Record<string, StatusVariant> = {
+  draft: "pending",
+  issued: "info",
+  paid: "success",
+  partially_paid: "info",
+  void: "pending",
+};
+
+function ClientStatementCard() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientId, setClientId] = useState("");
+  const [periodStart, setPeriodStart] = useState(firstOfMonth());
+  const [periodEnd, setPeriodEnd] = useState(todayStr());
+  const [statement, setStatement] = useState<ClientStatement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listClients().then(setClients).catch(() => setError("Couldn't load clients."));
+  }, []);
+
+  useEffect(() => {
+    if (!clientId) {
+      setStatement(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    getClientStatement(Number(clientId), periodStart, periodEnd)
+      .then(setStatement)
+      .catch((err) => setError(errorMessage(err, "Couldn't load the statement.")))
+      .finally(() => setLoading(false));
+  }, [clientId, periodStart, periodEnd]);
+
+  return (
+    <Card eyebrow="Finance" title="Client statement">
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Select
+          id="statement-client"
+          label="Client"
+          placeholder="Choose a client…"
+          options={clients.map((c) => ({ value: String(c.id), label: c.guardian_name }))}
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+        />
+        <Input id="statement-start" label="Period start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        <Input id="statement-end" label="Period end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+      </div>
+
+      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
+      {loading && <p className="l360-empty">Loading…</p>}
+      {!loading && !clientId && <p className="l360-empty">Choose a client to see their statement.</p>}
+      {!loading && statement && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="l360-table">
+            <tbody>
+              <tr><td>Opening balance</td><td><Money cents={statement.opening_balance_cents} /></td></tr>
+            </tbody>
+          </table>
+
+          <h3 style={{ marginTop: 20 }}>Invoices</h3>
+          <table className="l360-table">
+            <thead><tr><th>Number</th><th>Status</th><th>Issued</th><th>Total</th></tr></thead>
+            <tbody>
+              {statement.invoices.length === 0 && (
+                <tr><td colSpan={4} className="l360-empty">None in this period.</td></tr>
+              )}
+              {statement.invoices.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.number ?? "—"}</td>
+                  <td><StatusBadge variant={STATEMENT_STATUS_VARIANT[i.status] ?? "pending"} label={i.status.replace("_", " ")} /></td>
+                  <td>{i.issued_at ? i.issued_at.slice(0, 10) : "—"}</td>
+                  <td><Money cents={i.total_cents} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h3 style={{ marginTop: 20 }}>Payments</h3>
+          <table className="l360-table">
+            <thead><tr><th>Received</th><th>Method</th><th>Amount</th></tr></thead>
+            <tbody>
+              {statement.payments.length === 0 && (
+                <tr><td colSpan={3} className="l360-empty">None in this period.</td></tr>
+              )}
+              {statement.payments.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.received_at.slice(0, 10)}</td>
+                  <td>{p.method.replace("_", " ")}</td>
+                  <td><Money cents={p.amount_cents} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <p style={{ marginTop: 16, fontWeight: 600 }}>
+            Closing balance: <Money cents={statement.closing_balance_cents} />
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// --- admin: room utilisation ------------------------------------------------
+
+function UtilisationCard() {
+  const [periodStart, setPeriodStart] = useState(firstOfMonth());
+  const [periodEnd, setPeriodEnd] = useState(todayStr());
+  const [rows, setRows] = useState<RoomUtilisation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    getUtilisationReport(periodStart, periodEnd)
+      .then(setRows)
+      .catch((err) => setError(errorMessage(err, "Couldn't load the utilisation report.")))
+      .finally(() => setLoading(false));
+  }, [periodStart, periodEnd]);
+
+  return (
+    <Card eyebrow="Reports" title="Room utilisation">
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Input id="util-start" label="Period start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        <Input id="util-end" label="Period end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+      </div>
+      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
+      {loading && <p className="l360-empty">Loading…</p>}
+      {!loading && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="l360-table">
+            <thead><tr><th>Room</th><th>Sessions</th><th>Booked time</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.room_id}>
+                  <td>{r.room_name}</td>
+                  <td>{r.session_count}</td>
+                  <td>{Math.round((r.booked_minutes / 60) * 10) / 10} h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}

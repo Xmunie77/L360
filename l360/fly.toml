@@ -1,0 +1,51 @@
+# Learning 360° (l360) — room-booking + billing tool. Its own Fly app,
+# fully separate from kitchentable (own Neon Postgres project, own schema).
+#
+# Deploy is automated by .github/workflows/l360-deploy.yml on every push to
+# main that touches l360/**. First-time setup (one-off, from a browser or the
+# Fly CLI):
+#     fly apps create rubicon-l360
+#     fly secrets set -a rubicon-l360 \
+#         DATABASE_URL='postgresql://…neon.tech/…?sslmode=require' \
+#         L360_SESSION_SECRET='<64 hex chars>'
+#
+# Then run the gated migration once (creates the `l360` schema + tables) via
+# the "Migrate — Alembic (l360 DB)" GitHub Action. See l360/DEPLOY.md.
+#
+# NOTE: l360/Dockerfile expects the *repo root* as its build context (it
+# COPYs paths like `l360/web` and `l360/requirements.txt`), but this fly.toml
+# lives inside l360/. Manual deploys must therefore be run from the repo
+# root with explicit flags, not from within l360/:
+#     fly deploy --config l360/fly.toml --dockerfile l360/Dockerfile
+# (the CI workflow does exactly this). The `dockerfile` path below is only a
+# fallback/documentation value; the flag above always wins.
+#
+# https://fly.io/docs/reference/configuration/
+
+app = 'rubicon-l360'
+primary_region = 'fra'   # Frankfurt — matches Neon's recommended EU region
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0   # scales to zero when idle — first-request cold start ~2s
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpus = 1
+  memory_mb = 512
+
+# No persistent volume — Neon holds all state.

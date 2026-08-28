@@ -1,0 +1,14 @@
+# Learning 360° (l360) — FastAPI backend + gated Alembic migrations.
+# Standalone app, separate from kitchentable and the retail stack.
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+psycopg2-binary>=2.9.9
+pydantic>=2.6.0
+email-validator>=2.0.0   # pydantic EmailStr validation
+httpx>=0.27.0            # Revolut API client
+apscheduler>=3.10.4      # python -m l360.jobs — reminders/digest, run as a separate process
+
+# Tests
+pytest>=8.0.0

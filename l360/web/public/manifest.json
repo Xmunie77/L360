@@ -1,0 +1,14 @@
+{
+  "name": "Learning 360°",
+  "short_name": "Learning 360",
+  "description": "Room booking, billing and reconciliation for Learning 360° Foundation",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#202020",
+  "lang": "en-GB",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

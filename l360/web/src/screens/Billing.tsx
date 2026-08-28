@@ -1,0 +1,364 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
+import {
+  ApiError,
+  getInvoice,
+  issueInvoice,
+  listInvoices,
+  runBilling,
+  type BillingRunResult,
+  type Invoice,
+  type InvoiceDetail,
+  type InvoiceStatus,
+} from "../api/client";
+import { todayStr } from "../domain/datetime";
+
+const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
+  draft: "Draft",
+  issued: "Issued",
+  paid: "Paid",
+  partially_paid: "Partially paid",
+  void: "Void",
+};
+
+const INVOICE_STATUS_VARIANT: Record<InvoiceStatus, StatusVariant> = {
+  draft: "pending",
+  issued: "info",
+  paid: "success",
+  partially_paid: "info",
+  void: "pending",
+};
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "", label: "All statuses" },
+  ...(Object.keys(INVOICE_STATUS_LABEL) as InvoiceStatus[]).map((s) => ({
+    value: s,
+    label: INVOICE_STATUS_LABEL[s],
+  })),
+];
+
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    return err.status === 403 ? "Admins only — you don't have access to this section." : err.detail;
+  }
+  return fallback;
+}
+
+// Monthly billing: run a billing cycle over a period, then list/issue the
+// resulting invoices. Draft invoices are created by the run; issuing sends
+// the client their invoice email and locks the numbering.
+export function Billing() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+
+  async function refreshInvoices() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const rows = await listInvoices(statusFilter ? { status: statusFilter } : {});
+      setInvoices(rows);
+      setForbidden(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setForbidden(true);
+      setLoadError(errorMessage(err, "Couldn't load invoices."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  if (forbidden) {
+    return (
+      <Card eyebrow="Finance" title="Billing">
+        <p className="l360-empty">Admins only — you don't have access to this section.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <RunBillingPanel onRun={refreshInvoices} />
+
+      <Card eyebrow="Finance" title="Invoices">
+        <div style={{ marginBottom: 16, maxWidth: 260 }}>
+          <Select
+            id="invoice-status-filter"
+            label="Filter by status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | "")}
+            options={STATUS_FILTER_OPTIONS}
+          />
+        </div>
+
+        {loadError && (
+          <div className="l360-alert l360-alert-danger" role="alert">
+            ⚠ {loadError}
+          </div>
+        )}
+
+        {loading ? (
+          <p className="l360-empty">Loading…</p>
+        ) : invoices.length === 0 ? (
+          <p className="l360-empty">No invoices for this filter yet.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="l360-table">
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Client</th>
+                  <th>Period</th>
+                  <th>Status</th>
+                  <th>Total</th>
+                  <th>Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    onClick={() => setSelectedInvoiceId(inv.id)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td>{inv.number ?? "draft"}</td>
+                    <td>{inv.client_label}</td>
+                    <td>
+                      {inv.period_start} – {inv.period_end}
+                    </td>
+                    <td>
+                      <StatusBadge
+                        variant={INVOICE_STATUS_VARIANT[inv.status]}
+                        label={INVOICE_STATUS_LABEL[inv.status]}
+                      />
+                    </td>
+                    <td><Money cents={inv.total_cents} /></td>
+                    <td><Money cents={inv.outstanding_cents} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {selectedInvoiceId !== null && (
+        <InvoiceDetailModal
+          invoiceId={selectedInvoiceId}
+          onClose={() => setSelectedInvoiceId(null)}
+          onChanged={() => {
+            setSelectedInvoiceId(null);
+            refreshInvoices();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// --- run billing panel -------------------------------------------------
+
+function RunBillingPanel({ onRun }: { onRun: () => void }) {
+  const [periodStart, setPeriodStart] = useState(todayStr());
+  const [periodEnd, setPeriodEnd] = useState(todayStr());
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<BillingRunResult | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setResult(null);
+    setRunning(true);
+    try {
+      const res = await runBilling(periodStart, periodEnd);
+      setResult(res);
+      onRun();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't run billing for this period."));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Card eyebrow="Finance" title="Run billing">
+      <p style={{ marginBottom: 16 }}>
+        Drafts one invoice per active client for completed bookings in the period below. Clients with
+        nothing billable are skipped, not invoiced for zero.
+      </p>
+      <form onSubmit={handleSubmit} noValidate>
+        {error && (
+          <div className="l360-alert l360-alert-danger" role="alert">
+            ⚠ {error}
+          </div>
+        )}
+        {result && (
+          <div className="l360-alert l360-alert-info" role="status">
+            {result.created.length} invoice{result.created.length === 1 ? "" : "s"} drafted,{" "}
+            {result.skipped_clients.length} client{result.skipped_clients.length === 1 ? "" : "s"} had
+            nothing to bill.
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <Input
+            id="billing-period-start"
+            label="Period start"
+            type="date"
+            required
+            value={periodStart}
+            onChange={(e) => setPeriodStart(e.target.value)}
+          />
+          <Input
+            id="billing-period-end"
+            label="Period end"
+            type="date"
+            required
+            value={periodEnd}
+            onChange={(e) => setPeriodEnd(e.target.value)}
+          />
+          <div style={{ marginBottom: 16 }}>
+            <Button type="submit" loading={running} loadingLabel="Running…">
+              Run billing
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+// --- invoice detail modal ------------------------------------------------
+
+interface InvoiceDetailModalProps {
+  invoiceId: number;
+  onClose: () => void;
+  onChanged: () => void;
+}
+
+function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModalProps) {
+  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [issueError, setIssueError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getInvoice(invoiceId)
+      .then((inv) => {
+        if (!cancelled) setInvoice(inv);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(errorMessage(err, "Couldn't load this invoice."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoiceId]);
+
+  async function handleIssue() {
+    setIssueError(null);
+    setIssuing(true);
+    try {
+      await issueInvoice(invoiceId);
+      onChanged();
+    } catch (err) {
+      setIssueError(errorMessage(err, "Couldn't issue this invoice."));
+    } finally {
+      setIssuing(false);
+    }
+  }
+
+  return (
+    <div className="l360-modal-backdrop" onClick={onClose}>
+      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+        <Card eyebrow="Invoice" title={invoice?.number ?? "Draft invoice"}>
+          {loading && <p className="l360-empty">Loading…</p>}
+          {loadError && (
+            <div className="l360-alert l360-alert-danger" role="alert">
+              ⚠ {loadError}
+            </div>
+          )}
+
+          {invoice && (
+            <>
+              <p style={{ marginBottom: 8 }}>{invoice.client_label}</p>
+              <p style={{ marginBottom: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <StatusBadge
+                  variant={INVOICE_STATUS_VARIANT[invoice.status]}
+                  label={INVOICE_STATUS_LABEL[invoice.status]}
+                />
+                <span className="l360-mono">
+                  {invoice.period_start} – {invoice.period_end}
+                </span>
+              </p>
+
+              <div style={{ overflowX: "auto", marginBottom: 16 }}>
+                <table className="l360-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Qty</th>
+                      <th>Unit price</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoice.lines.map((line) => (
+                      <tr key={line.id}>
+                        <td>{line.description}</td>
+                        <td>{line.quantity}</td>
+                        <td><Money cents={line.unit_price_cents} /></td>
+                        <td><Money cents={line.amount_cents} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p style={{ marginBottom: 16 }}>
+                Total: <Money cents={invoice.total_cents} /> · Outstanding:{" "}
+                <Money cents={invoice.outstanding_cents} />
+              </p>
+
+              {issueError && (
+                <div className="l360-alert l360-alert-danger" role="alert">
+                  ⚠ {issueError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {invoice.status === "draft" && (
+                  <Button type="button" onClick={handleIssue} loading={issuing} loadingLabel="Issuing…">
+                    Issue invoice
+                  </Button>
+                )}
+                <Button type="button" variant="secondary" onClick={onClose}>
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+
+          {!loading && !invoice && !loadError && (
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}

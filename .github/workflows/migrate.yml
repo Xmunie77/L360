@@ -1,0 +1,72 @@
+name: Migrate — Alembic (l360 DB)
+
+# Gated schema migrations for the app's `l360` Postgres schema. Run manually
+# (workflow_dispatch) — the schema is NEVER mutated on app boot.
+#
+# Requires one repo secret:
+#   DATABASE_URL_L360  — the Neon direct/unpooled connection string (host
+#                         WITHOUT `-pooler`), ending `?sslmode=require`, for
+#                         l360's own Neon project. Named distinctly from
+#                         kitchentable's DATABASE_URL secret since these are
+#                         separate Neon projects/databases and GitHub Actions
+#                         secrets are shared across every workflow in the repo
+#                         — reusing the same name would silently point this
+#                         job at the wrong database (or vice versa).
+#
+# Typical use:
+#   command=upgrade  revision=head   → apply pending migrations (creates the
+#                                        `l360` schema + tables)
+#   command=stamp    revision=head   → record a revision as applied WITHOUT
+#                                        running it (one-time adoption)
+#   command=check / current / history → inspect state
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Alembic command"
+        type: choice
+        default: upgrade
+        options:
+          - upgrade
+          - downgrade
+          - stamp
+          - check
+          - current
+          - history
+      revision:
+        description: "Revision for upgrade/downgrade/stamp (ignored otherwise). 'head' = latest."
+        type: string
+        default: head
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Run Alembic
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          COMMAND: ${{ inputs.command }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          echo "alembic ${COMMAND} (revision: ${REVISION})"
+          case "${COMMAND}" in
+            upgrade|downgrade|stamp)
+              alembic -c l360/alembic.ini "${COMMAND}" "${REVISION}" ;;
+            *)
+              alembic -c l360/alembic.ini "${COMMAND}" ;;
+          esac

@@ -1,0 +1,46 @@
+name: Tests — Learning 360°
+
+# Runs the l360 backend (pytest, SQLite) and frontend (vitest, tsc) test
+# suites on every push/PR that touches l360/**. Path-filtered so changes
+# to other apps in this repo don't trigger it, and vice versa.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'l360/**'
+      - '.github/workflows/l360-tests.yml'
+  pull_request:
+    paths:
+      - 'l360/**'
+      - '.github/workflows/l360-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - run: python -m pytest l360/tests/
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: l360/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run

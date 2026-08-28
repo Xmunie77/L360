@@ -1,0 +1,54 @@
+import { useEffect, useState } from "react";
+import { Card } from "../ui/ui";
+import { ApiError, listClients, type Client } from "../api/client";
+
+// Read-only client directory. The brief (non-admin) shape from /api/clients
+// — no phone/notes exposed to non-admin staff. Admin create/edit lands in a
+// later phase.
+export function Clients() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listClients()
+      .then(setClients)
+      .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load clients."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <Card eyebrow="Directory" title="Clients">
+      {error && (
+        <div className="l360-alert l360-alert-danger" role="alert">
+          ⚠ {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="l360-empty">Loading…</p>
+      ) : clients.length === 0 ? (
+        <p className="l360-empty">No clients configured yet.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="l360-table">
+            <thead>
+              <tr>
+                <th>Guardian</th>
+                <th>Child reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.guardian_name}</td>
+                  <td>{c.child_reference ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
