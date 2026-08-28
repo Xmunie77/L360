@@ -100,10 +100,12 @@ function RoomsAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [sortOrder, setSortOrder] = useState("0");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -130,9 +132,11 @@ function RoomsAdmin() {
     setFormError(null);
     setSubmitting(true);
     try {
-      await adminCreateRoom({ name: name.trim(), sort_order: Number(sortOrder) || 0, active: true });
+      // Rooms are ordered numerically by the order they're added — no
+      // manual "sort order" for admins to manage.
+      const nextSortOrder = rooms.reduce((max, r) => Math.max(max, r.sort_order), -1) + 1;
+      await adminCreateRoom({ name: name.trim(), sort_order: nextSortOrder, active: true });
       setName("");
-      setSortOrder("0");
       await refresh();
     } catch (err) {
       setFormError(errorMessage(err, "Couldn't create the room."));
@@ -157,6 +161,33 @@ function RoomsAdmin() {
     }
   }
 
+  function startEdit(room: Room) {
+    setEditingId(room.id);
+    setEditName(room.name);
+    setError(null);
+  }
+
+  async function saveEdit(room: Room) {
+    if (!editName.trim()) {
+      setError("Give the room a name.");
+      return;
+    }
+    setBusyId(room.id);
+    try {
+      await adminUpdateRoom(room.id, {
+        name: editName.trim(),
+        sort_order: room.sort_order,
+        active: room.active,
+      });
+      setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't save this room."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <Card eyebrow="Facilities" title="Rooms">
       {error && (
@@ -174,32 +205,62 @@ function RoomsAdmin() {
             <thead>
               <tr>
                 <th>Room</th>
-                <th>Sort order</th>
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {rooms.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.name}</td>
-                  <td className="l360-mono">{r.sort_order}</td>
-                  <td>
-                    <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
-                  </td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => toggleActive(r)}
-                      loading={busyId === r.id}
-                      loadingLabel="Saving…"
-                    >
-                      {r.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {rooms.map((r) =>
+                editingId === r.id ? (
+                  <tr key={r.id}>
+                    <td>
+                      <input
+                        className="l360-input"
+                        aria-label="Room name"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
+                    </td>
+                    <td style={{ display: "flex", gap: 8 }}>
+                      <Button
+                        type="button"
+                        onClick={() => saveEdit(r)}
+                        loading={busyId === r.id}
+                        loadingLabel="Saving…"
+                      >
+                        Save
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </Button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={r.id}>
+                    <td>{r.name}</td>
+                    <td>
+                      <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
+                    </td>
+                    <td style={{ display: "flex", gap: 8 }}>
+                      <Button type="button" variant="secondary" onClick={() => startEdit(r)}>
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => toggleActive(r)}
+                        loading={busyId === r.id}
+                        loadingLabel="Saving…"
+                      >
+                        {r.active ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
@@ -214,13 +275,6 @@ function RoomsAdmin() {
         )}
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
           <Input id="new-room-name" label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
-          <Input
-            id="new-room-sort"
-            label="Sort order"
-            type="number"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-          />
           <div style={{ marginBottom: 16 }}>
             <Button type="submit" loading={submitting} loadingLabel="Adding…">
               Add room
