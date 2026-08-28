@@ -1,0 +1,35 @@
+name: Seed Test Clients — Learning 360°
+
+# One-off: inserts 10 obviously-fake test clients (Test Client 1..10) for
+# trying out bookings/invoicing before real client data lands. Idempotent —
+# safe to re-run, skips any that already exist. Gated behind
+# workflow_dispatch — never runs automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-test-clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Seed test clients
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.seed_test_clients

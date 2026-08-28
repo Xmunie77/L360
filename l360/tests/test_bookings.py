@@ -2,11 +2,21 @@
 cancellation-cutoff billing matrix, and role permissions."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, time as time_cls, timedelta, UTC
+
+from l360.booking_logic import local_to_utc
 
 
 def _future_start(hours_ahead: int) -> str:
     return (datetime.now(UTC) + timedelta(hours=hours_ahead)).replace(microsecond=0).isoformat()
+
+
+def _safe_morning_start(days_ahead: int = 2):
+    """A start time anchored to local mid-morning, days_ahead from today —
+    unlike a pure now()+timedelta(hours=N) offset, this stays clear of
+    local midnight even after a few hours' further offset is added on top
+    (as the move tests do), regardless of what time of day the suite runs."""
+    return local_to_utc((datetime.now(UTC) + timedelta(days=days_ahead)).date(), time_cls(9, 0))
 
 
 def test_create_booking_and_list(admin_client, booking_env):
@@ -76,7 +86,7 @@ def test_invalid_duration_rejected(admin_client, booking_env):
 
 
 def test_move_booking_success_and_conflict(admin_client, booking_env):
-    start_dt = datetime.now(UTC) + timedelta(hours=48)
+    start_dt = _safe_morning_start()
     booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],

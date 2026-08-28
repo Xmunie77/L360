@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Button, Card, Input, Money, Select, StatusBadge } from "../ui/ui";
+import { Button, Card, Input, Money, Select, StatusBadge, Textarea } from "../ui/ui";
 import {
   ApiError,
+  adminCreateClient,
   adminCreateClosure,
   adminCreateEducatorLevel,
   adminCreatePriceEntry,
@@ -10,16 +11,19 @@ import {
   adminDeactivateRoom,
   adminDeactivateUser,
   adminDeleteClosure,
+  adminListClients,
   adminListClosures,
   adminListEducatorLevels,
   adminListFacilityHours,
   adminListPriceList,
   adminListRooms,
   adminListUsers,
+  adminUpdateClient,
   adminUpdateEducatorLevel,
   adminUpdateRoom,
   adminUpdateUser,
   adminUpsertFacilityHours,
+  type AdminClient,
   type AdminUser,
   type Duration,
   type EducatorLevel,
@@ -28,11 +32,6 @@ import {
   type Room,
   type UserRole,
 } from "../api/client";
-
-// Note on scope: Clients admin CRUD is intentionally left out — Clients.tsx
-// already gives staff a read-only directory, and client create/edit wasn't
-// worth the extra surface area for this pass. Every other admin section
-// listed in the brief is here.
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
@@ -48,12 +47,13 @@ const DURATION_OPTIONS = [
   { value: "120", label: "120 minutes" },
 ];
 
-type TabKey = "rooms" | "levels" | "users" | "price-list" | "hours" | "closures";
+type TabKey = "rooms" | "levels" | "users" | "clients" | "price-list" | "hours" | "closures";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "rooms", label: "Rooms" },
   { key: "levels", label: "Educator levels" },
   { key: "users", label: "Users" },
+  { key: "clients", label: "Clients" },
   { key: "price-list", label: "Price list" },
   { key: "hours", label: "Facility hours" },
   { key: "closures", label: "Closures" },
@@ -85,6 +85,7 @@ export function Admin() {
       {tab === "rooms" && <RoomsAdmin />}
       {tab === "levels" && <LevelsAdmin />}
       {tab === "users" && <UsersAdmin />}
+      {tab === "clients" && <ClientsAdmin />}
       {tab === "price-list" && <PriceListAdmin />}
       {tab === "hours" && <FacilityHoursAdmin />}
       {tab === "closures" && <ClosuresAdmin />}
@@ -548,6 +549,178 @@ function UsersAdmin() {
         />
         <Button type="submit" loading={submitting} loadingLabel="Adding…">
           Add user
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+// --- clients -----------------------------------------------------------
+
+function ClientsAdmin() {
+  const [clients, setClients] = useState<AdminClient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const [guardianName, setGuardianName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [childReference, setChildReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function refresh() {
+    setLoading(true);
+    setError(null);
+    try {
+      setClients(await adminListClients());
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't load clients."));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    if (!guardianName.trim() || !email.trim()) {
+      setFormError("Guardian name and email are required.");
+      return;
+    }
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await adminCreateClient({
+        guardian_name: guardianName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || null,
+        child_reference: childReference.trim() || null,
+        notes: notes.trim() || null,
+        active: true,
+      });
+      setGuardianName("");
+      setEmail("");
+      setPhone("");
+      setChildReference("");
+      setNotes("");
+      await refresh();
+    } catch (err) {
+      setFormError(errorMessage(err, "Couldn't add this client."));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function toggleActive(client: AdminClient) {
+    setBusyId(client.id);
+    try {
+      await adminUpdateClient(client.id, {
+        guardian_name: client.guardian_name,
+        email: client.email,
+        phone: client.phone,
+        child_reference: client.child_reference,
+        notes: client.notes,
+        active: !client.active,
+      });
+      await refresh();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't update this client."));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <Card eyebrow="Directory" title="Clients">
+      {error && (
+        <div className="l360-alert l360-alert-danger" role="alert">
+          ⚠ {error}
+        </div>
+      )}
+      {loading ? (
+        <p className="l360-empty">Loading…</p>
+      ) : clients.length === 0 ? (
+        <p className="l360-empty">No clients configured yet.</p>
+      ) : (
+        <div style={{ overflowX: "auto", marginBottom: 20 }}>
+          <table className="l360-table">
+            <thead>
+              <tr>
+                <th>Guardian</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Child reference</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.guardian_name}</td>
+                  <td>{c.email}</td>
+                  <td>{c.phone ?? "—"}</td>
+                  <td>{c.child_reference ?? "—"}</td>
+                  <td>
+                    <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
+                  </td>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => toggleActive(c)}
+                      loading={busyId === c.id}
+                      loadingLabel="Saving…"
+                    >
+                      {c.active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h4 style={{ marginBottom: 12 }}>Add a client</h4>
+      <form onSubmit={handleCreate} noValidate>
+        {formError && (
+          <div className="l360-alert l360-alert-danger" role="alert">
+            ⚠ {formError}
+          </div>
+        )}
+        <Input
+          id="new-client-guardian"
+          label="Guardian name"
+          required
+          value={guardianName}
+          onChange={(e) => setGuardianName(e.target.value)}
+        />
+        <Input
+          id="new-client-email"
+          label="Email"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input id="new-client-phone" label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <Input
+          id="new-client-child-ref"
+          label="Child reference"
+          hint="Initials or nickname — not a full record"
+          value={childReference}
+          onChange={(e) => setChildReference(e.target.value)}
+        />
+        <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Button type="submit" loading={submitting} loadingLabel="Adding…">
+          Add client
         </Button>
       </form>
     </Card>

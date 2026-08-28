@@ -56,7 +56,11 @@ def test_cancel_sends_cancel_notification(admin_client, booking_env, _capture_em
 
 
 def test_move_sends_change_notification(admin_client, booking_env, _capture_emails):
-    start_dt = datetime.now(UTC) + timedelta(hours=48)
+    # Anchored to local mid-morning, not a pure now()+hours offset — the
+    # move below adds another 5h on top, which can cross local midnight
+    # (and get correctly rejected by the app) depending what time of day
+    # the suite happens to run.
+    start_dt = local_to_utc((datetime.now(UTC) + timedelta(days=2)).date(), time(9, 0))
     booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
