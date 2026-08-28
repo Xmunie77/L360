@@ -229,15 +229,11 @@ export function Money({ cents, className = "" }: MoneyProps) {
 }
 
 // --- Wordmark ----------------------------------------------------------
-// Real PNGs aren't available yet (see ../../design/ASSETS.md) — render the
-// wordmark as styled Work Sans text. Once learning360-logo-white.png lands
-// in ../../design/, swap the returned JSX for a single <img> tag; callers
-// (App.tsx) don't need to change.
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
     <span className={`l360-wordmark ${className}`.trim()}>
-      Learning 360<span className="degree">°</span>
+      <img src="/learning360-logo-white.png" alt="Learning 360°" className="l360-wordmark-img" />
     </span>
   );
 }

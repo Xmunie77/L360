@@ -3,7 +3,7 @@
 // — this is a live booking/billing system, so a stale cached calendar or
 // invoice status would be actively misleading, not a convenience.
 const CACHE_NAME = "l360-shell-v1";
-const SHELL_URLS = ["/", "/manifest.json", "/icon.svg"];
+const SHELL_URLS = ["/", "/manifest.json", "/learning360-logo-white.png", "/learning360-mark-orange.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_URLS)));

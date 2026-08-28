@@ -106,17 +106,13 @@ a {
 
 .l360-wordmark {
   display: flex;
-  align-items: baseline;
-  gap: 2px;
+  align-items: center;
   padding: var(--l360-s5) var(--l360-s4);
-  font-size: var(--l360-t5);
-  font-weight: var(--l360-w-bold);
-  color: var(--l360-white);
-  line-height: 1.2;
 }
 
-.l360-wordmark .degree {
-  color: var(--l360-orange);
+.l360-wordmark-img {
+  height: 32px;
+  width: auto;
 }
 
 .l360-nav {

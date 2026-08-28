@@ -38,7 +38,7 @@ describe("App", () => {
     mockGetMe.mockResolvedValue({ id: 1, email: "staff@example.org", full_name: "Staff Member", role: "admin", level_id: null });
     render(<App />);
     await waitFor(() => expect(screen.getAllByText("Calendar").length).toBeGreaterThan(0));
-    expect(screen.getByText("Learning 360")).toBeTruthy();
+    expect(screen.getByAltText("Learning 360°")).toBeTruthy();
     expect(screen.getByText("Bookings")).toBeTruthy();
     expect(screen.getByText("Statements")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
