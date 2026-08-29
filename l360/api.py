@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, educator_onboarding, ical, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -712,6 +712,28 @@ def admin_save_educator_checklist(
     form.internal = body.model_dump()
     db.commit()
     return _educator_onboarding_out(form)
+
+
+
+@app.get("/api/admin/users/{user_id}/onboarding/contract")
+def admin_generate_contract(user_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """Pre-filled tutor Services Agreement (.docx) from the submitted
+    onboarding form — a starting point for the written agreement, reviewed
+    and signed on paper (rates, founders' IDs and the foundation email stay
+    blank for hand-completion)."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.user_id == user_id))
+    if form is None or form.status != "submitted" or not form.answers:
+        raise HTTPException(status_code=409, detail="The educator's onboarding form must be submitted first — the contract is pre-filled from it.")
+    data = contract.build_contract(form.answers)
+    safe_name = "".join(c if c.isalnum() or c in " -_" else "_" for c in (user.full_name or "tutor")).strip() or "tutor"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="Services Agreement - {safe_name}.docx"'},
+    )
 
 
 def _educator_form_by_token(db: Session, token: str) -> tuple[EducatorOnboardingForm, User]:

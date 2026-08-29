@@ -160,3 +160,28 @@ def test_internal_checklist_roundtrip(admin_client, educator_client):
     assert educator_client.put(f"/api/admin/users/{created['id']}/onboarding/checklist", json={"items": {}}).status_code == 403
     admins = [u for u in admin_client.get("/api/admin/users").json() if u["role"] == "admin"]
     assert admin_client.put(f"/api/admin/users/{admins[0]['id']}/onboarding/checklist", json={"items": {}}).status_code == 409
+
+
+def test_contract_generation(admin_client, client):
+    created = _create_educator(admin_client)
+    # Refused before the form is submitted — nothing to pre-fill from.
+    assert admin_client.get(f"/api/admin/users/{created['id']}/onboarding/contract").status_code == 409
+
+    token = _token_for(created["id"])
+    assert client.post(f"/api/educator-onboarding/{token}", json=_valid_submission()).status_code == 200
+
+    r = admin_client.get(f"/api/admin/users/{created['id']}/onboarding/contract")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+    assert "Services Agreement" in r.headers["content-disposition"]
+    assert r.content[:2] == b"PK"  # a real docx (zip container)
+
+    import io
+    from docx import Document
+    text = "\n".join(p.text for p in Document(io.BytesIO(r.content)).paragraphs)
+    assert "Edward Educator" in text            # tutor name merged
+    assert "1234567M" in text                   # ID merged
+    assert "MT00TEST0000000000000000000" in text  # IBAN merged
+    assert "GOVERNING LAW AND JURISDICTION" in text
+    # Founders' personal ID numbers must never appear (public repo).
+    assert "0307016L" not in text

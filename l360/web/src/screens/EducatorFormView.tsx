@@ -296,6 +296,14 @@ export function EducatorFormView({ userId, onClose }: { userId: number; onClose:
                 {form?.submitted_at && (
                   <span style={{ color: "var(--l360-bgrey)" }}>
                     Submitted {new Date(form.submitted_at).toLocaleDateString("en-GB")}
+                {submitted && (
+                  <a
+                    className="l360-link-btn"
+                    href={`/api/admin/users/${userId}/onboarding/contract`}
+                  >
+                    Download pre-filled contract (.docx)
+                  </a>
+                )}
                   </span>
                 )}
                 {form?.sent_at && !submitted && (
