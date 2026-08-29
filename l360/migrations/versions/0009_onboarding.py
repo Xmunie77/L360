@@ -3,8 +3,8 @@ Google "Client Onboarding Form"). Adds the richer client fields (guardian ID,
 second guardian, school, address, allergies) and the onboarding_forms table
 that carries the tokenised form link, status, consent record and signatures.
 
-Revision ID: 0008_onboarding
-Revises: 0007_series_interval_weeks
+Revision ID: 0009_onboarding
+Revises: 0008_service_types
 Create Date: 2026-08-29
 """
 from alembic import op
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 from l360.config import IS_POSTGRES, L360_SCHEMA
 
-revision = "0008_onboarding"
-down_revision = "0007_series_interval_weeks"
+revision = "0009_onboarding"
+down_revision = "0008_service_types"
 branch_labels = None
 depends_on = None
 
