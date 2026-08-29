@@ -1,5 +1,5 @@
 """One-off: seed the price list from the foundation's real per-hour rates,
-prorated for 90/120-minute sessions. Creates the Junior/Senior/Specialist
+prorated for 90/120-minute sessions. Creates the Junior/Senior/Consultant
 educator levels if they don't already exist. Idempotent — skips any
 (level, duration) combination that already has a price effective today,
 and the DB's own unique constraint (level, duration, valid_from) is a
@@ -11,7 +11,7 @@ Rates (per hour, client / educator — the difference is the foundation's
 contribution, matching the founders' own pricing sheet):
     Junior      (Educator I)   EUR 35 / EUR 30
     Senior      (Educator II)  EUR 40 / EUR 33
-    Specialist  (Consultant)   EUR 45 / EUR 35
+    Consultant                 EUR 45 / EUR 35
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from l360.models import EducatorLevel, PriceListEntry
 HOURLY_RATES = {
     "Junior": (0, 3500, 3000),
     "Senior": (1, 4000, 3300),
-    "Specialist": (2, 4500, 3500),
+    "Consultant": (2, 4500, 3500),
 }
 DURATIONS = (60, 90, 120)
 

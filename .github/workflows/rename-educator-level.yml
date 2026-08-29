@@ -1,0 +1,47 @@
+name: Rename Educator Level — Learning 360°
+
+# One-off: renames an existing educator level in place (e.g. "Specialist"
+# to "Consultant", matching the L360 pricing sheet's own tier names).
+# Idempotent — a no-op if the old name is already gone or the new name
+# already exists. Gated behind workflow_dispatch — never runs
+# automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      old_name:
+        description: "Current educator level name"
+        type: string
+        required: true
+      new_name:
+        description: "New educator level name"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rename-educator-level:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Rename educator level
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          L360_LEVEL_OLD_NAME: ${{ inputs.old_name }}
+          L360_LEVEL_NEW_NAME: ${{ inputs.new_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.rename_educator_level

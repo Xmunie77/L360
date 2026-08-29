@@ -22,14 +22,14 @@ from l360.config import IS_POSTGRES
 from l360.db import init_db, session_scope
 from l360.models import EducatorLevel, FacilityHours, PriceListEntry, Room, User
 
-LEVELS = ["Junior", "Senior", "Specialist"]
+LEVELS = ["Junior", "Senior", "Consultant"]
 ROOMS = [f"Room {i}" for i in range(1, 6)]
 
 # client_price_cents by (level name, duration_minutes)
 CLIENT_PRICES = {
     ("Junior", 60): 3000, ("Junior", 90): 4200, ("Junior", 120): 5500,
     ("Senior", 60): 3800, ("Senior", 90): 5400, ("Senior", 120): 7000,
-    ("Specialist", 60): 4800, ("Specialist", 90): 6800, ("Specialist", 120): 8800,
+    ("Consultant", 60): 4800, ("Consultant", 90): 6800, ("Consultant", 120): 8800,
 }
 PRICE_VALID_FROM = date(2026, 9, 1)
 
