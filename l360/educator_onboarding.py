@@ -20,6 +20,32 @@ from l360.config import PUBLIC_BASE_URL
 from l360.models import EducatorOnboardingForm, NotificationLog, User
 
 
+# Section 15 of the paper form — the internal onboarding checklist. Key →
+# label; the schema validates submitted checklist keys against this set.
+# "Do not schedule unsupervised learner contact until all mandatory checks
+# for the role are complete and authorised."
+CHECKLIST_ITEMS = {
+    "application_reviewed": "Application reviewed and role confirmed",
+    "interview": "Interview completed",
+    "identity": "Identity verified against original",
+    "right_to_work": "Right to work verified",
+    "qualifications": "Qualifications / warrant verified",
+    "police_cert": "Police conduct certificate reviewed",
+    "minors_clearance": "Applicable minors / safeguarding clearance completed",
+    "references": "Two references received and satisfactory",
+    "employment_status": "Employment status confirmed",
+    "contract": "Contract / service agreement signed",
+    "rate_approved": "Rate and payment terms approved",
+    "payroll_setup": "Payroll / supplier setup completed",
+    "emergency_contact": "Emergency contact recorded",
+    "sg_induction": "Safeguarding induction completed",
+    "policies_issued": "Policies issued and acknowledgements received",
+    "it_access": "IT / system access approved",
+    "timetable": "Timetable, location and reporting line confirmed",
+    "data_access": "Data access restricted to role requirements",
+}
+
+
 def get_or_create_form(db: Session, user: User) -> EducatorOnboardingForm:
     form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.user_id == user.id))
     if form is None:

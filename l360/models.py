@@ -247,6 +247,11 @@ class EducatorOnboardingForm(Base):
     # The validated submission payload (see schemas.EducatorOnboardingSubmitIn).
     answers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Admin-side state: the paper form's section 15 "internal onboarding
+    # checklist" (18 checks, each pending/complete/na + who/when) and the
+    # final-approval block. Never exposed on the public token endpoints.
+    internal: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     signature_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     signed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 

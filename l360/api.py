@@ -87,6 +87,7 @@ from l360.schemas import (
     ManualMatchIn,
     MeResp,
     NextAvailableOut,
+    EducatorChecklistIn,
     EducatorOnboardingAdminOut,
     EducatorOnboardingPrefillOut,
     EducatorOnboardingSubmitIn,
@@ -667,7 +668,7 @@ def _educator_onboarding_out(form: EducatorOnboardingForm) -> EducatorOnboarding
         id=form.id, user_id=form.user_id, status=form.status, source=form.source,
         link=educator_onboarding.form_link(form), sent_at=form.sent_at,
         submitted_at=form.submitted_at, signature_name=form.signature_name,
-        signed_date=form.signed_date, answers=form.answers,
+        signed_date=form.signed_date, answers=form.answers, internal=form.internal,
     )
 
 
@@ -690,6 +691,26 @@ def admin_send_educator_onboarding(user_id: int, db: Session = Depends(get_sessi
     if form.status == "submitted":
         raise HTTPException(status_code=409, detail="This educator's onboarding form is already submitted.")
     educator_onboarding.send_invite(db, user, form)
+    return _educator_onboarding_out(form)
+
+
+
+@app.put("/api/admin/users/{user_id}/onboarding/checklist", response_model=EducatorOnboardingAdminOut)
+def admin_save_educator_checklist(
+    user_id: int, body: EducatorChecklistIn, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    """Save the section-15 internal checklist + final approval. Works from
+    the moment the educator account exists — the checks (interview, identity,
+    references) run alongside the educator filling in their own form, so the
+    checklist doesn't wait for submission."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if user.role != "educator":
+        raise HTTPException(status_code=409, detail="Onboarding checklists are for educator accounts.")
+    form = educator_onboarding.get_or_create_form(db, user)
+    form.internal = body.model_dump()
+    db.commit()
     return _educator_onboarding_out(form)
 
 

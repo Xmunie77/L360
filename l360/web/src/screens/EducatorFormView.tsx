@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
-import { Button, Card, StatusBadge } from "../ui/ui";
+import { Button, Card, Input, StatusBadge } from "../ui/ui";
 import {
   ApiError,
   adminGetEducatorOnboarding,
+  adminSaveEducatorChecklist,
   adminSendEducatorOnboarding,
+  getMe,
+  type ChecklistApproval,
+  type ChecklistItem,
+  type ChecklistStatus,
+  type EducatorChecklist,
   type AvailabilityRow,
   type EducatorOnboardingAdmin,
   type ExperienceRow,
@@ -66,14 +72,182 @@ function Rows({ rows }: { rows: [string, string][] }) {
   );
 }
 
+
+// Section 15 of the paper form — the internal onboarding checklist. Keys
+// mirror educator_onboarding.CHECKLIST_ITEMS server-side.
+const CHECKLIST_ITEMS: [string, string][] = [
+  ["application_reviewed", "Application reviewed and role confirmed"],
+  ["interview", "Interview completed"],
+  ["identity", "Identity verified against original"],
+  ["right_to_work", "Right to work verified"],
+  ["qualifications", "Qualifications / warrant verified"],
+  ["police_cert", "Police conduct certificate reviewed"],
+  ["minors_clearance", "Applicable minors / safeguarding clearance completed"],
+  ["references", "Two references received and satisfactory"],
+  ["employment_status", "Employment status confirmed"],
+  ["contract", "Contract / service agreement signed"],
+  ["rate_approved", "Rate and payment terms approved"],
+  ["payroll_setup", "Payroll / supplier setup completed"],
+  ["emergency_contact", "Emergency contact recorded"],
+  ["sg_induction", "Safeguarding induction completed"],
+  ["policies_issued", "Policies issued and acknowledgements received"],
+  ["it_access", "IT / system access approved"],
+  ["timetable", "Timetable, location and reporting line confirmed"],
+  ["data_access", "Data access restricted to role requirements"],
+];
+
+const emptyItem = (): ChecklistItem => ({ status: "pending", checked_by: "", date: "" });
+const emptyApproval = (): ChecklistApproval => ({
+  educator_ref: "", approved_roles: "", approved_locations: "", sg_restrictions: "",
+  start_date: "", approved_by: "", signature: "", approval_date: "",
+});
+
+function InternalChecklist({
+  userId, initial, adminName,
+}: {
+  userId: number;
+  initial: EducatorChecklist | null;
+  adminName: string;
+}) {
+  const [items, setItems] = useState<Record<string, ChecklistItem>>(() => {
+    const base: Record<string, ChecklistItem> = {};
+    for (const [key] of CHECKLIST_ITEMS) base[key] = initial?.items?.[key] ?? emptyItem();
+    return base;
+  });
+  const [approval, setApproval] = useState<ChecklistApproval>(initial?.approval ?? emptyApproval());
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const doneCount = CHECKLIST_ITEMS.filter(([k]) => items[k].status !== "pending").length;
+  const allDone = doneCount === CHECKLIST_ITEMS.length;
+
+  function setStatus(key: string, status: ChecklistStatus) {
+    setItems((prev) => ({
+      ...prev,
+      [key]: {
+        status,
+        // Auto-stamp who/when the first time a check moves off pending;
+        // both stay editable below.
+        checked_by: status === "pending" ? prev[key].checked_by : prev[key].checked_by || adminName,
+        date: status === "pending" ? prev[key].date : prev[key].date || new Date().toISOString().slice(0, 10),
+      },
+    }));
+  }
+
+  function setItemField(key: string, field: "checked_by" | "date", value: string) {
+    setItems((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  }
+
+  function setApprovalField(field: keyof ChecklistApproval, value: string) {
+    setApproval((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await adminSaveEducatorChecklist(userId, { items, approval });
+      setMessage("Checklist saved.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Couldn't save the checklist.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card eyebrow="15 · Internal" title={`Internal onboarding checklist — ${doneCount}/${CHECKLIST_ITEMS.length} addressed`}>
+      <p style={{ color: allDone ? "var(--l360-bgrey)" : "var(--l360-danger)", marginBottom: 12 }}>
+        Internal use only. Do not schedule unsupervised learner contact until all mandatory
+        checks for the role are complete and authorised.
+      </p>
+      {error && <div className="l360-alert l360-alert-danger" role="alert">⚠ {error}</div>}
+      {message && <div className="l360-alert l360-alert-info" role="status">{message}</div>}
+      <div style={{ overflowX: "auto", marginBottom: 16 }}>
+        <table className="l360-table">
+          <thead>
+            <tr>
+              <th>Check / action</th>
+              <th>Status</th>
+              <th>Checked by</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CHECKLIST_ITEMS.map(([key, label]) => (
+              <tr key={key}>
+                <td>{label}</td>
+                <td>
+                  <select
+                    className="l360-select"
+                    aria-label={`${label} — status`}
+                    value={items[key].status}
+                    onChange={(e) => setStatus(key, e.target.value as ChecklistStatus)}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="complete">Complete</option>
+                    <option value="na">N/A</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    className="l360-input"
+                    aria-label={`${label} — checked by`}
+                    value={items[key].checked_by}
+                    onChange={(e) => setItemField(key, "checked_by", e.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="l360-input"
+                    type="date"
+                    aria-label={`${label} — date`}
+                    value={items[key].date}
+                    onChange={(e) => setItemField(key, "date", e.target.value)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h4 style={{ marginBottom: 12 }}>Final approval</h4>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <Input id="cl-ref" label="Educator / contractor ID" value={approval.educator_ref} onChange={(e) => setApprovalField("educator_ref", e.target.value)} />
+        <Input id="cl-roles" label="Approved role(s)" value={approval.approved_roles} onChange={(e) => setApprovalField("approved_roles", e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <Input id="cl-locations" label="Approved locations / modes" value={approval.approved_locations} onChange={(e) => setApprovalField("approved_locations", e.target.value)} />
+        <Input id="cl-restrictions" label="Safeguarding restrictions / supervision" value={approval.sg_restrictions} onChange={(e) => setApprovalField("sg_restrictions", e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <Input id="cl-start" label="Start date" type="date" value={approval.start_date} onChange={(e) => setApprovalField("start_date", e.target.value)} />
+        <Input id="cl-approved-by" label="Approved by" value={approval.approved_by} onChange={(e) => setApprovalField("approved_by", e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <Input id="cl-signature" label="Signature (type full name)" value={approval.signature} onChange={(e) => setApprovalField("signature", e.target.value)} />
+        <Input id="cl-approval-date" label="Date" type="date" value={approval.approval_date} onChange={(e) => setApprovalField("approval_date", e.target.value)} />
+      </div>
+      <Button type="button" onClick={handleSave} loading={saving} loadingLabel="Saving…">
+        Save checklist
+      </Button>
+    </Card>
+  );
+}
+
 export function EducatorFormView({ userId, onClose }: { userId: number; onClose: () => void }) {
   const [form, setForm] = useState<EducatorOnboardingAdmin | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [adminName, setAdminName] = useState("");
 
   useEffect(() => {
+    getMe().then((m) => setAdminName(m.full_name)).catch(() => {});
     adminGetEducatorOnboarding(userId)
       .then(setForm)
       .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load this onboarding form."))
@@ -140,6 +314,13 @@ export function EducatorFormView({ userId, onClose }: { userId: number; onClose:
                 </div>
               )}
             </Card>
+
+            <InternalChecklist
+              key={form?.id ?? "new"}
+              userId={userId}
+              initial={form?.internal ?? null}
+              adminName={adminName}
+            />
 
             {submitted && (
               <>

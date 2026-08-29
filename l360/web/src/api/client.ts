@@ -807,6 +807,30 @@ export interface EducatorOnboardingSubmitInput {
   signed_date: string;
 }
 
+export type ChecklistStatus = "pending" | "complete" | "na";
+
+export interface ChecklistItem {
+  status: ChecklistStatus;
+  checked_by: string;
+  date: string;
+}
+
+export interface ChecklistApproval {
+  educator_ref: string;
+  approved_roles: string;
+  approved_locations: string;
+  sg_restrictions: string;
+  start_date: string;
+  approved_by: string;
+  signature: string;
+  approval_date: string;
+}
+
+export interface EducatorChecklist {
+  items: Record<string, ChecklistItem>;
+  approval: ChecklistApproval;
+}
+
 export interface EducatorOnboardingAdmin {
   id: number;
   user_id: number;
@@ -818,6 +842,8 @@ export interface EducatorOnboardingAdmin {
   signature_name: string | null;
   signed_date: string | null;
   answers: Record<string, unknown> | null;
+  /** Section-15 internal checklist + final approval — admin-side only. */
+  internal: EducatorChecklist | null;
 }
 
 export function getEducatorOnboarding(token: string): Promise<EducatorOnboardingPrefill> {
@@ -834,6 +860,10 @@ export function adminGetEducatorOnboarding(userId: number): Promise<EducatorOnbo
 
 export function adminSendEducatorOnboarding(userId: number): Promise<EducatorOnboardingAdmin> {
   return post<EducatorOnboardingAdmin>(`/api/admin/users/${userId}/onboarding/send`);
+}
+
+export function adminSaveEducatorChecklist(userId: number, body: EducatorChecklist): Promise<EducatorOnboardingAdmin> {
+  return put<EducatorOnboardingAdmin>(`/api/admin/users/${userId}/onboarding/checklist`, body);
 }
 
 export function adminGetClientOnboarding(id: number): Promise<OnboardingAdmin | null> {

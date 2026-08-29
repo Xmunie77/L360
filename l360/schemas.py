@@ -427,6 +427,40 @@ class EducatorOnboardingSubmitIn(BaseModel):
         return self
 
 
+class ChecklistItemIn(BaseModel):
+    status: Literal["pending", "complete", "na"] = "pending"
+    checked_by: str = Field(default="", max_length=200)
+    date: str = Field(default="", max_length=50)
+
+
+class ChecklistApprovalIn(BaseModel):
+    educator_ref: str = Field(default="", max_length=100)
+    approved_roles: str = Field(default="", max_length=300)
+    approved_locations: str = Field(default="", max_length=300)
+    sg_restrictions: str = Field(default="", max_length=500)
+    start_date: str = Field(default="", max_length=50)
+    approved_by: str = Field(default="", max_length=200)
+    signature: str = Field(default="", max_length=200)
+    approval_date: str = Field(default="", max_length=50)
+
+
+class EducatorChecklistIn(BaseModel):
+    """The admin-side section-15 internal checklist (paper form v1.0).
+    Item keys must come from educator_onboarding.CHECKLIST_ITEMS."""
+
+    items: dict[str, ChecklistItemIn] = Field(default_factory=dict)
+    approval: ChecklistApprovalIn = Field(default_factory=ChecklistApprovalIn)
+
+    @model_validator(mode="after")
+    def _known_keys(self) -> "EducatorChecklistIn":
+        from l360.educator_onboarding import CHECKLIST_ITEMS
+
+        unknown = [k for k in self.items if k not in CHECKLIST_ITEMS]
+        if unknown:
+            raise ValueError(f"Unknown checklist item(s): {', '.join(unknown)}")
+        return self
+
+
 class EducatorOnboardingPrefillOut(BaseModel):
     status: str
     full_name: str
@@ -444,6 +478,8 @@ class EducatorOnboardingAdminOut(BaseModel):
     signature_name: str | None
     signed_date: date | None
     answers: dict | None
+    # Section-15 internal checklist + approval (admin-side; never public).
+    internal: dict | None
 
 
 class ClientBrief(BaseModel):

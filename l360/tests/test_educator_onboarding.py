@@ -130,3 +130,33 @@ def test_unknown_token_and_resend(admin_client, client):
     with session_scope() as db:
         sends = db.scalars(select(NotificationLog).where(NotificationLog.kind == "educator_onboarding_invite")).all()
         assert len(sends) == 2  # auto-send + resend
+
+
+def test_internal_checklist_roundtrip(admin_client, educator_client):
+    created = _create_educator(admin_client)
+
+    # Saving works before the educator has submitted anything.
+    r = admin_client.put(f"/api/admin/users/{created['id']}/onboarding/checklist", json={
+        "items": {
+            "interview": {"status": "complete", "checked_by": "Test Admin", "date": "2026-08-29"},
+            "identity": {"status": "na", "checked_by": "Test Admin", "date": "2026-08-29"},
+        },
+        "approval": {"approved_by": "Test Admin", "start_date": "2026-09-15"},
+    })
+    assert r.status_code == 200, r.text
+    internal = r.json()["internal"]
+    assert internal["items"]["interview"]["status"] == "complete"
+    assert internal["approval"]["start_date"] == "2026-09-15"
+
+    # Persisted and returned on GET.
+    form = admin_client.get(f"/api/admin/users/{created['id']}/onboarding").json()
+    assert form["internal"]["items"]["identity"]["status"] == "na"
+
+    # Unknown item keys rejected; admins only; educator accounts only.
+    r = admin_client.put(f"/api/admin/users/{created['id']}/onboarding/checklist", json={
+        "items": {"made_up_check": {"status": "complete"}},
+    })
+    assert r.status_code == 422
+    assert educator_client.put(f"/api/admin/users/{created['id']}/onboarding/checklist", json={"items": {}}).status_code == 403
+    admins = [u for u in admin_client.get("/api/admin/users").json() if u["role"] == "admin"]
+    assert admin_client.put(f"/api/admin/users/{admins[0]['id']}/onboarding/checklist", json={"items": {}}).status_code == 409
