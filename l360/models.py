@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, time
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
@@ -209,6 +210,44 @@ class OnboardingForm(Base):
     # Typed signatures (the Google Form did the same — typed full names).
     signature_guardian1: Mapped[str | None] = mapped_column(String(200), nullable=True)
     signature_guardian2: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    signed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=_utcnow
+    )
+
+
+class EducatorOnboardingForm(Base):
+    """The educator-onboarding questionnaire — one per educator (User), the
+    staff-side sibling of OnboardingForm. Created with an unguessable token
+    when an educator account is added; the link is emailed so the educator
+    fills it in without signing in. The full answer set (mirroring the paper
+    "Educator Onboarding Form" v1.0 — personal details, right to work,
+    emergency contact, qualifications, experience, availability,
+    safeguarding declarations, referees, payment details, policy
+    acknowledgements, GDPR consents) is stored as one JSON document,
+    validated field-by-field by the submit schema; the signed declaration is
+    kept as first-class columns as the legal record."""
+
+    __tablename__ = "educator_onboarding_forms"
+    __table_args__ = _table_args(
+        UniqueConstraint("token", name="uq_educator_onboarding_token"),
+        UniqueConstraint("user_id", name="uq_educator_onboarding_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey(_fk("users.id")), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), nullable=False)
+    # pending | submitted
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="app")
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+    # The validated submission payload (see schemas.EducatorOnboardingSubmitIn).
+    answers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    signature_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     signed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

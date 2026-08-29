@@ -428,6 +428,21 @@ function LevelsAdmin() {
 
 // --- users -----------------------------------------------------------------
 
+// Onboarding-form cell for the Users table: educators link through to the
+// read-only form view (?educator-form=<id>), which also hosts send/re-send.
+function UserOnboardingCell({ user }: { user: AdminUser }) {
+  if (user.role !== "educator") return <>—</>;
+  const status = user.onboarding_status;
+  return (
+    <a href={`?educator-form=${user.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
+      <StatusBadge
+        variant={status === "submitted" ? "success" : status === "pending" ? "info" : "pending"}
+        label={status === "submitted" ? "Submitted" : status === "pending" ? "Awaiting form" : "Not sent"}
+      />
+    </a>
+  );
+}
+
 function UsersAdmin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [levels, setLevels] = useState<EducatorLevel[]>([]);
@@ -556,6 +571,7 @@ function UsersAdmin() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Level</th>
+                <th>Onboarding</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -580,6 +596,7 @@ function UsersAdmin() {
                         ))}
                       </select>
                     </td>
+                    <td><UserOnboardingCell user={u} /></td>
                     <td>
                       <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
                     </td>
@@ -598,6 +615,7 @@ function UsersAdmin() {
                     <td>{u.email}</td>
                     <td style={{ textTransform: "capitalize" }}>{u.role}</td>
                     <td>{levelName(u.level_id)}</td>
+                    <td><UserOnboardingCell user={u} /></td>
                     <td>
                       <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
                     </td>
@@ -624,6 +642,11 @@ function UsersAdmin() {
       )}
 
       <h4 style={{ marginBottom: 12 }}>Add a user</h4>
+      <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
+        New educators are automatically emailed the educator onboarding form
+        (qualifications, availability, safeguarding declarations, referees,
+        payment details) as soon as the account is created.
+      </p>
       <form onSubmit={handleCreate} noValidate>
         {formError && (
           <div className="l360-alert l360-alert-danger" role="alert">

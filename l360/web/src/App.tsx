@@ -9,6 +9,8 @@ import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
 import { ClientDetail } from "./screens/ClientDetail";
 import { Login } from "./screens/Login";
+import { EducatorFormView } from "./screens/EducatorFormView";
+import { EducatorOnboarding } from "./screens/EducatorOnboarding";
 import { Onboarding } from "./screens/Onboarding";
 import { ResetPassword } from "./screens/ResetPassword";
 import { getMe, getSession, logout, type Me } from "./api/client";
@@ -44,6 +46,12 @@ export function App() {
   // no account, so this renders before any auth check, like the reset flow.
   const [onboardingToken] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("onboarding"),
+  );
+  const [educatorOnboardingToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("educator-onboarding"),
+  );
+  const [educatorFormId] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("educator-form"),
   );
   const [clientDetailId] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("client"),
@@ -96,6 +104,10 @@ export function App() {
     return <Onboarding token={onboardingToken} />;
   }
 
+  if (educatorOnboardingToken) {
+    return <EducatorOnboarding token={educatorOnboardingToken} />;
+  }
+
   if (resetToken) {
     return (
       <ResetPassword
@@ -122,6 +134,10 @@ export function App() {
 
   if (clientDetailId) {
     return <ClientDetail id={Number(clientDetailId)} onClose={() => window.close()} />;
+  }
+
+  if (educatorFormId) {
+    return <EducatorFormView userId={Number(educatorFormId)} onClose={() => window.close()} />;
   }
 
   return (

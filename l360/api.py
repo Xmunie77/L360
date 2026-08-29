@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, ical, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, educator_onboarding, ical, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -48,6 +48,7 @@ from l360.models import (
     Invoice,
     InvoiceLine,
     AppSetting,
+    EducatorOnboardingForm,
     OnboardingForm,
     PasswordResetToken,
     PriceListEntry,
@@ -86,6 +87,9 @@ from l360.schemas import (
     ManualMatchIn,
     MeResp,
     NextAvailableOut,
+    EducatorOnboardingAdminOut,
+    EducatorOnboardingPrefillOut,
+    EducatorOnboardingSubmitIn,
     EmailSettingsIn,
     EmailSettingsOut,
     EmailTestOut,
@@ -427,9 +431,23 @@ def admin_deactivate_service_type(
 
 
 # --- admin: users (educators/admins) --------------------------------------
+def _user_out(db: Session, row: User) -> UserOut:
+    out = UserOut.model_validate(row, from_attributes=True)
+    form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.user_id == row.id))
+    out.onboarding_status = form.status if form else None
+    return out
+
+
 @app.get("/api/admin/users", response_model=list[UserOut])
 def admin_list_users(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
-    return db.scalars(select(User).order_by(User.full_name)).all()
+    rows = db.scalars(select(User).order_by(User.full_name)).all()
+    statuses = {f.user_id: f.status for f in db.scalars(select(EducatorOnboardingForm)).all()}
+    out = []
+    for r in rows:
+        u = UserOut.model_validate(r, from_attributes=True)
+        u.onboarding_status = statuses.get(r.id)
+        out.append(u)
+    return out
 
 
 @app.post("/api/admin/users", response_model=UserOut)
@@ -448,7 +466,12 @@ def admin_create_user(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    # New educators get the onboarding questionnaire automatically, same as
+    # new learners; admins don't (nothing to onboard).
+    if row.role == "educator":
+        form = educator_onboarding.get_or_create_form(db, row)
+        educator_onboarding.send_invite(db, row, form)
+    return _user_out(db, row)
 
 
 @app.put("/api/admin/users/{user_id}", response_model=UserOut)
@@ -635,6 +658,82 @@ def admin_test_email(db: Session = Depends(get_session), admin: User = Depends(r
     except Exception as e:  # surface the SMTP error verbatim to the admin
         return EmailTestOut(ok=False, detail=f"Send failed: {e}")
     return EmailTestOut(ok=True, detail=f"Test email sent to {admin.email}.")
+
+
+
+# --- educator onboarding ----------------------------------------------------
+def _educator_onboarding_out(form: EducatorOnboardingForm) -> EducatorOnboardingAdminOut:
+    return EducatorOnboardingAdminOut(
+        id=form.id, user_id=form.user_id, status=form.status, source=form.source,
+        link=educator_onboarding.form_link(form), sent_at=form.sent_at,
+        submitted_at=form.submitted_at, signature_name=form.signature_name,
+        signed_date=form.signed_date, answers=form.answers,
+    )
+
+
+@app.get("/api/admin/users/{user_id}/onboarding", response_model=EducatorOnboardingAdminOut | None)
+def admin_get_educator_onboarding(user_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    if db.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.user_id == user_id))
+    return _educator_onboarding_out(form) if form else None
+
+
+@app.post("/api/admin/users/{user_id}/onboarding/send", response_model=EducatorOnboardingAdminOut)
+def admin_send_educator_onboarding(user_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if user.role != "educator":
+        raise HTTPException(status_code=409, detail="Onboarding forms are for educator accounts.")
+    form = educator_onboarding.get_or_create_form(db, user)
+    if form.status == "submitted":
+        raise HTTPException(status_code=409, detail="This educator's onboarding form is already submitted.")
+    educator_onboarding.send_invite(db, user, form)
+    return _educator_onboarding_out(form)
+
+
+def _educator_form_by_token(db: Session, token: str) -> tuple[EducatorOnboardingForm, User]:
+    # Public by design — the educator has no session yet when they fill this
+    # in; the unguessable token is the auth (same pattern as the client form).
+    form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.token == token))
+    user = db.get(User, form.user_id) if form else None
+    if form is None or user is None or not user.active:
+        raise HTTPException(status_code=404, detail="Unknown or expired onboarding link")
+    return form, user
+
+
+@app.get("/api/educator-onboarding/{token}", response_model=EducatorOnboardingPrefillOut)
+def get_educator_onboarding(token: str, db: Session = Depends(get_session)):
+    form, user = _educator_form_by_token(db, token)
+    return EducatorOnboardingPrefillOut(status=form.status, full_name=user.full_name, email=user.email)
+
+
+@app.post("/api/educator-onboarding/{token}")
+def submit_educator_onboarding(token: str, body: EducatorOnboardingSubmitIn, db: Session = Depends(get_session)):
+    form, user = _educator_form_by_token(db, token)
+    if form.status == "submitted":
+        raise HTTPException(status_code=409, detail="This onboarding form has already been submitted.")
+    educator_onboarding.apply_submission(db, form, body)
+    notify.send_once(
+        db,
+        to=user.email,
+        subject="Learning 360\u00b0 — onboarding form received",
+        body=(
+            f"Dear {user.full_name},\n\n"
+            "Thank you — we've received your educator onboarding form. We'll "
+            "review it and complete the remaining checks, and be in touch about "
+            "next steps.\n\n"
+            "Warm regards,\n"
+            "Learning 360\u00b0 Foundation\n"
+            "Swatar, Malta"
+        ),
+        booking_id=None,
+        user_id=user.id,
+        kind="educator_onboarding_submitted",
+        dedupe_key=f"educator_onboarding_submitted:{form.id}",
+    )
+    return {"ok": True}
 
 
 # --- public onboarding questionnaire ---------------------------------------

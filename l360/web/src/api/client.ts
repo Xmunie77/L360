@@ -22,6 +22,8 @@ export interface Educator {
   role: string;
   level_id: number | null;
   active: boolean;
+  /** "pending" | "submitted" | null — educator onboarding form status. */
+  onboarding_status?: string | null;
 }
 
 /** GET /api/clients returns the minimal ClientBrief shape — no notes/phone/DOB/observations. */
@@ -155,6 +157,8 @@ export interface AdminUser {
   role: string;
   level_id: number | null;
   active: boolean;
+  /** "pending" | "submitted" | null — educator onboarding form status (null for admins). */
+  onboarding_status?: string | null;
 }
 
 export interface UserCreateInput {
@@ -666,6 +670,170 @@ export function adminGetClient(id: number): Promise<AdminClient> {
 
 export function adminCreateClient(body: ClientInput): Promise<AdminClient> {
   return post<AdminClient>("/api/admin/clients", body);
+}
+
+export interface EducatorOnboardingPrefill {
+  status: "pending" | "submitted";
+  full_name: string;
+  email: string;
+}
+
+export interface QualificationRow {
+  qualification: string;
+  institution: string;
+  year: string;
+  level_result: string;
+}
+
+export interface ExperienceRow {
+  organisation: string;
+  role_subjects: string;
+  learner_ages: string;
+  from_when: string;
+  to_when: string;
+}
+
+export interface AvailabilityRow {
+  day: string;
+  available_from: string;
+  available_until: string;
+  on_site: boolean;
+  online: boolean;
+  notes: string;
+}
+
+export interface RefereeInput {
+  name_position: string;
+  organisation: string;
+  relationship: string;
+  email: string;
+  phone: string;
+  known_since: string;
+  contact_now: boolean | null;
+  contact_after: string;
+}
+
+/** Mirrors schemas.EducatorOnboardingSubmitIn — see that model for field rules. */
+export interface EducatorOnboardingSubmitInput {
+  role_applied_for: string;
+  subjects_services: string;
+  preferred_start_date: string;
+  engagement_type: "employee" | "self_employed" | "sessional" | "tbc";
+  referred_by: string;
+  existing_contact: string;
+  full_legal_name: string;
+  preferred_name: string;
+  former_names: string;
+  date_of_birth: string;
+  id_passport_number: string;
+  nationality: string;
+  residential_address: string;
+  postcode_country: string;
+  mobile: string;
+  email: string;
+  preferred_contact: "phone" | "email" | "whatsapp";
+  right_to_work: "yes" | "no" | "pending";
+  permit_basis: "maltese_eu" | "single_permit" | "other" | "";
+  permit_basis_other: string;
+  permit_number: string;
+  permit_expiry: string;
+  emergency_name: string;
+  emergency_relationship: string;
+  emergency_phone: string;
+  emergency_alt_phone: string;
+  medical_conditions: string;
+  medication_action: string;
+  accessibility_needs: string;
+  qualifications: QualificationRow[];
+  credentials: string[];
+  warrant_number: string;
+  issuing_body: string;
+  warrant_expiry: string;
+  languages_spoken: string;
+  languages_taught: string;
+  experience: ExperienceRow[];
+  experience_areas: string[];
+  teaching_profile: string;
+  subjects_levels_boards: string;
+  inclusive_approach: string;
+  digital_skills: string[];
+  own_device: boolean | null;
+  reliable_internet: boolean | null;
+  other_software: string;
+  availability: AvailabilityRow[];
+  min_hours_weekly: string;
+  max_hours_weekly: string;
+  holidays_available: "yes" | "no" | "some" | "";
+  notice_needed: string;
+  unavailable_dates: string;
+  preferred_ages: string;
+  preferred_locations: string;
+  willing_travel: "yes" | "no" | "within" | "";
+  travel_within: string;
+  own_transport: "yes" | "no" | "na" | "";
+  session_preferences: string[];
+  session_restrictions: string;
+  sg_convicted: "no" | "yes";
+  sg_proceedings: "no" | "yes";
+  sg_dismissed: "no" | "yes";
+  sg_other_matters: "no" | "yes";
+  sg_documents: string[];
+  clearance_date: string;
+  clearance_reference: string;
+  clearance_renewal: string;
+  b_follow_procedures: boolean;
+  b_report_concerns: boolean;
+  b_approved_channels: boolean;
+  b_no_sharing: boolean;
+  b_boundaries: boolean;
+  referee1: RefereeInput;
+  referee2: RefereeInput;
+  referee_authorisation: boolean;
+  payment_basis: "payroll" | "self_invoice" | "other" | "";
+  payment_basis_other: string;
+  tax_vat_number: string;
+  social_security_number: string;
+  business_name: string;
+  invoice_email: string;
+  bank_account_holder: string;
+  iban: string;
+  bic: string;
+  policies_ack: string[];
+  dp_accuracy: boolean;
+  dp_processing: boolean;
+  dp_marketing: boolean;
+  dp_queries: string;
+  signature_name: string;
+  signed_date: string;
+}
+
+export interface EducatorOnboardingAdmin {
+  id: number;
+  user_id: number;
+  status: "pending" | "submitted";
+  source: string;
+  link: string;
+  sent_at: string | null;
+  submitted_at: string | null;
+  signature_name: string | null;
+  signed_date: string | null;
+  answers: Record<string, unknown> | null;
+}
+
+export function getEducatorOnboarding(token: string): Promise<EducatorOnboardingPrefill> {
+  return get<EducatorOnboardingPrefill>(`/api/educator-onboarding/${encodeURIComponent(token)}`);
+}
+
+export function submitEducatorOnboarding(token: string, body: EducatorOnboardingSubmitInput): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(`/api/educator-onboarding/${encodeURIComponent(token)}`, body);
+}
+
+export function adminGetEducatorOnboarding(userId: number): Promise<EducatorOnboardingAdmin | null> {
+  return get<EducatorOnboardingAdmin | null>(`/api/admin/users/${userId}/onboarding`);
+}
+
+export function adminSendEducatorOnboarding(userId: number): Promise<EducatorOnboardingAdmin> {
+  return post<EducatorOnboardingAdmin>(`/api/admin/users/${userId}/onboarding/send`);
 }
 
 export function adminGetClientOnboarding(id: number): Promise<OnboardingAdmin | null> {

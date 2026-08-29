@@ -91,6 +91,9 @@ class UserOut(BaseModel):
     role: str
     level_id: int | None
     active: bool
+    # pending | submitted | None — educator onboarding form status (always
+    # None for admins and for accounts predating the feature).
+    onboarding_status: str | None = None
 
 
 # --- clients -----------------------------------------------------------
@@ -243,6 +246,204 @@ class OnboardingAdminOut(BaseModel):
     signature_guardian1: str | None
     signature_guardian2: str | None
     signed_date: date | None
+
+
+# --- educator onboarding ---------------------------------------------------
+class QualificationRow(BaseModel):
+    qualification: str = Field(default="", max_length=200)
+    institution: str = Field(default="", max_length=200)
+    year: str = Field(default="", max_length=20)
+    level_result: str = Field(default="", max_length=100)
+
+
+class ExperienceRow(BaseModel):
+    organisation: str = Field(default="", max_length=200)
+    role_subjects: str = Field(default="", max_length=200)
+    learner_ages: str = Field(default="", max_length=100)
+    from_when: str = Field(default="", max_length=50)
+    to_when: str = Field(default="", max_length=50)
+
+
+class AvailabilityRow(BaseModel):
+    day: str = Field(max_length=12)
+    available_from: str = Field(default="", max_length=20)
+    available_until: str = Field(default="", max_length=20)
+    on_site: bool = False
+    online: bool = False
+    notes: str = Field(default="", max_length=300)
+
+
+class RefereeIn(BaseModel):
+    name_position: str = Field(default="", max_length=200)
+    organisation: str = Field(default="", max_length=200)
+    relationship: str = Field(default="", max_length=200)
+    email: str = Field(default="", max_length=255)
+    phone: str = Field(default="", max_length=50)
+    known_since: str = Field(default="", max_length=50)
+    contact_now: bool | None = None
+    contact_after: str = Field(default="", max_length=100)
+
+
+class EducatorOnboardingSubmitIn(BaseModel):
+    """The educator's completed questionnaire — in-app version of the paper
+    "Educator Onboarding Form" v1.0. Mandatory: identity/contact basics,
+    right-to-work answer, emergency contact, all four safeguarding
+    declarations, all five professional-boundary acknowledgements, referee
+    authorisation, the two data-protection confirmations, and the signed
+    declaration. Everything else mirrors the paper form's "mark N/A"
+    tolerance and is optional."""
+
+    # 1. Application overview
+    role_applied_for: str = Field(default="", max_length=200)
+    subjects_services: str = Field(default="", max_length=300)
+    preferred_start_date: str = Field(default="", max_length=50)
+    engagement_type: Literal["employee", "self_employed", "sessional", "tbc"] = "tbc"
+    referred_by: str = Field(default="", max_length=200)
+    existing_contact: str = Field(default="", max_length=200)
+
+    # 2. Personal and contact details
+    full_legal_name: str = Field(min_length=1, max_length=200)
+    preferred_name: str = Field(default="", max_length=200)
+    former_names: str = Field(default="", max_length=200)
+    date_of_birth: date
+    id_passport_number: str = Field(min_length=1, max_length=50)
+    nationality: str = Field(default="", max_length=100)
+    residential_address: str = Field(min_length=1, max_length=500)
+    postcode_country: str = Field(default="", max_length=100)
+    mobile: str = Field(min_length=1, max_length=50)
+    email: EmailStr
+    preferred_contact: Literal["phone", "email", "whatsapp"] = "email"
+    right_to_work: Literal["yes", "no", "pending"]
+    permit_basis: Literal["maltese_eu", "single_permit", "other", ""] = ""
+    permit_basis_other: str = Field(default="", max_length=200)
+    permit_number: str = Field(default="", max_length=100)
+    permit_expiry: str = Field(default="", max_length=50)
+
+    # 3. Emergency contact and health
+    emergency_name: str = Field(min_length=1, max_length=200)
+    emergency_relationship: str = Field(default="", max_length=100)
+    emergency_phone: str = Field(min_length=1, max_length=50)
+    emergency_alt_phone: str = Field(default="", max_length=50)
+    medical_conditions: str = Field(default="", max_length=1000)
+    medication_action: str = Field(default="", max_length=1000)
+    accessibility_needs: str = Field(default="", max_length=1000)
+
+    # 4. Education / qualifications
+    qualifications: list[QualificationRow] = Field(default_factory=list, max_length=10)
+    credentials: list[str] = Field(default_factory=list, max_length=20)
+    warrant_number: str = Field(default="", max_length=100)
+    issuing_body: str = Field(default="", max_length=200)
+    warrant_expiry: str = Field(default="", max_length=50)
+    languages_spoken: str = Field(default="", max_length=300)
+    languages_taught: str = Field(default="", max_length=300)
+
+    # 5. Experience
+    experience: list[ExperienceRow] = Field(default_factory=list, max_length=10)
+    experience_areas: list[str] = Field(default_factory=list, max_length=20)
+    teaching_profile: str = Field(default="", max_length=3000)
+    subjects_levels_boards: str = Field(default="", max_length=2000)
+    inclusive_approach: str = Field(default="", max_length=3000)
+
+    # 6. Digital skills
+    digital_skills: list[str] = Field(default_factory=list, max_length=20)
+    own_device: bool | None = None
+    reliable_internet: bool | None = None
+    other_software: str = Field(default="", max_length=500)
+
+    # 7. Availability
+    availability: list[AvailabilityRow] = Field(default_factory=list, max_length=7)
+    min_hours_weekly: str = Field(default="", max_length=20)
+    max_hours_weekly: str = Field(default="", max_length=20)
+    holidays_available: Literal["yes", "no", "some", ""] = ""
+    notice_needed: str = Field(default="", max_length=200)
+    unavailable_dates: str = Field(default="", max_length=500)
+    preferred_ages: str = Field(default="", max_length=200)
+    preferred_locations: str = Field(default="", max_length=200)
+    willing_travel: Literal["yes", "no", "within", ""] = ""
+    travel_within: str = Field(default="", max_length=200)
+    own_transport: Literal["yes", "no", "na", ""] = ""
+
+    # 8. Session preferences
+    session_preferences: list[str] = Field(default_factory=list, max_length=10)
+    session_restrictions: str = Field(default="", max_length=1000)
+
+    # 9. Safeguarding — all four must be answered; "yes" is allowed and
+    # assessed fairly, but blank is not.
+    sg_convicted: Literal["no", "yes"]
+    sg_proceedings: Literal["no", "yes"]
+    sg_dismissed: Literal["no", "yes"]
+    sg_other_matters: Literal["no", "yes"]
+    sg_documents: list[str] = Field(default_factory=list, max_length=10)
+    clearance_date: str = Field(default="", max_length=50)
+    clearance_reference: str = Field(default="", max_length=100)
+    clearance_renewal: str = Field(default="", max_length=50)
+    b_follow_procedures: bool
+    b_report_concerns: bool
+    b_approved_channels: bool
+    b_no_sharing: bool
+    b_boundaries: bool
+
+    # 10. References
+    referee1: RefereeIn = Field(default_factory=RefereeIn)
+    referee2: RefereeIn = Field(default_factory=RefereeIn)
+    referee_authorisation: bool
+
+    # 11. Payment and tax
+    payment_basis: Literal["payroll", "self_invoice", "other", ""] = ""
+    payment_basis_other: str = Field(default="", max_length=200)
+    tax_vat_number: str = Field(default="", max_length=100)
+    social_security_number: str = Field(default="", max_length=100)
+    business_name: str = Field(default="", max_length=200)
+    invoice_email: str = Field(default="", max_length=255)
+    bank_account_holder: str = Field(default="", max_length=200)
+    iban: str = Field(default="", max_length=50)
+    bic: str = Field(default="", max_length=20)
+
+    # 12. Policies
+    policies_ack: list[str] = Field(default_factory=list, max_length=20)
+
+    # 13. Data protection
+    dp_accuracy: bool
+    dp_processing: bool
+    dp_marketing: bool = False
+    dp_queries: str = Field(default="", max_length=1000)
+
+    # 14. Declaration
+    signature_name: str = Field(min_length=1, max_length=200)
+    signed_date: date
+
+    @model_validator(mode="after")
+    def _check(self) -> "EducatorOnboardingSubmitIn":
+        problems = []
+        if not all([self.b_follow_procedures, self.b_report_concerns, self.b_approved_channels,
+                    self.b_no_sharing, self.b_boundaries]):
+            problems.append("all five professional-boundaries acknowledgements")
+        if not self.referee_authorisation:
+            problems.append("the referee-contact authorisation")
+        if not self.dp_accuracy or not self.dp_processing:
+            problems.append("the data-protection confirmations")
+        if problems:
+            raise ValueError("Please agree to " + ", ".join(problems) + ".")
+        return self
+
+
+class EducatorOnboardingPrefillOut(BaseModel):
+    status: str
+    full_name: str
+    email: str
+
+
+class EducatorOnboardingAdminOut(BaseModel):
+    id: int
+    user_id: int
+    status: str
+    source: str
+    link: str
+    sent_at: datetime | None
+    submitted_at: datetime | None
+    signature_name: str | None
+    signed_date: date | None
+    answers: dict | None
 
 
 class ClientBrief(BaseModel):
