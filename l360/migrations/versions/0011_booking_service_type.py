@@ -5,8 +5,8 @@ Nullable — existing rows have none, and older code paths that don't know
 about it keep working; billing/statements treat a null service_type_id as
 unpriced going forward.
 
-Revision ID: 0010_booking_service_type
-Revises: 0009_onboarding
+Revision ID: 0011_booking_service_type
+Revises: 0010_app_settings
 Create Date: 2026-08-29
 """
 from alembic import op
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 from l360.config import IS_POSTGRES, L360_SCHEMA
 
-revision = "0010_booking_service_type"
-down_revision = "0009_onboarding"
+revision = "0011_booking_service_type"
+down_revision = "0010_app_settings"
 branch_labels = None
 depends_on = None
 

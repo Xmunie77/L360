@@ -668,6 +668,36 @@ export function adminGetClientOnboarding(id: number): Promise<OnboardingAdmin | 
   return get<OnboardingAdmin | null>(`/api/admin/clients/${id}/onboarding`);
 }
 
+export interface EmailSettings {
+  host: string;
+  port: number;
+  user: string;
+  email_from: string;
+  /** Whether a password is stored (DB or env) — the password itself is never returned. */
+  password_set: boolean;
+}
+
+export interface EmailSettingsInput {
+  host: string;
+  port: number;
+  user: string;
+  email_from: string;
+  /** Omit or send blank to keep the stored password. */
+  password?: string | null;
+}
+
+export function adminGetEmailSettings(): Promise<EmailSettings> {
+  return get<EmailSettings>("/api/admin/email-settings");
+}
+
+export function adminSaveEmailSettings(body: EmailSettingsInput): Promise<EmailSettings> {
+  return put<EmailSettings>("/api/admin/email-settings", body);
+}
+
+export function adminTestEmail(): Promise<{ ok: boolean; detail: string }> {
+  return post<{ ok: boolean; detail: string }>("/api/admin/email-settings/test");
+}
+
 export function adminSendOnboarding(id: number): Promise<OnboardingAdmin> {
   return post<OnboardingAdmin>(`/api/admin/clients/${id}/onboarding/send`);
 }

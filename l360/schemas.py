@@ -124,6 +124,33 @@ class ClientOut(ClientIn):
     onboarding_status: str | None = None
 
 
+class EmailSettingsIn(BaseModel):
+    """Admin → Email settings. Blank host/port/user/from reverts that field
+    to the env-var fallback; password is write-only — blank/omitted keeps
+    the stored one, so re-saving the form never wipes it."""
+
+    host: str = Field(default="", max_length=255)
+    port: int = Field(default=587, ge=1, le=65535)
+    user: str = Field(default="", max_length=255)
+    email_from: str = Field(default="", max_length=255)
+    password: str | None = Field(default=None, max_length=255)
+
+
+class EmailSettingsOut(BaseModel):
+    host: str
+    port: int
+    user: str
+    email_from: str
+    # Whether a password is available (DB or env) — the password itself is
+    # never returned by the API.
+    password_set: bool
+
+
+class EmailTestOut(BaseModel):
+    ok: bool
+    detail: str
+
+
 class OnboardingPrefillOut(BaseModel):
     """What the public questionnaire page gets for a valid token: the form
     status plus the client details already on record (entered by the admin,
