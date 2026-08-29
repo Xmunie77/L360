@@ -79,7 +79,7 @@ export function Calendar({ me }: { me: Me | null }) {
         setClients(c);
       })
       .catch((err) => {
-        setLoadError(err instanceof ApiError ? err.detail : "Couldn't load rooms, educators or clients.");
+        setLoadError(err instanceof ApiError ? err.detail : "Couldn't load rooms, educators or learners.");
       });
   }, []);
 
@@ -338,7 +338,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!educatorId || !clientId) {
-      setError("Choose an educator and a client.");
+      setError("Choose an educator and a learner.");
       return;
     }
     if (repeat !== "none" && !repeatEndsOn) {
@@ -440,9 +440,9 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
             />
             <Select
               id="nb-client"
-              label="Client"
+              label="Learner"
               required
-              placeholder="Choose a client"
+              placeholder="Choose a learner"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               options={clients.map((c) => ({

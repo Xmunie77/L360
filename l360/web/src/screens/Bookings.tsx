@@ -72,7 +72,7 @@ export function Bookings() {
                 <th>When</th>
                 <th>Room</th>
                 <th>Educator</th>
-                <th>Client</th>
+                <th>Learner</th>
                 <th>Duration</th>
                 <th>Status</th>
                 <th>

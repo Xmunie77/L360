@@ -53,7 +53,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "rooms", label: "Rooms" },
   { key: "levels", label: "Educator levels" },
   { key: "users", label: "Users" },
-  { key: "clients", label: "Clients" },
+  { key: "clients", label: "Learners" },
   { key: "price-list", label: "Price list" },
   { key: "hours", label: "Facility hours" },
   { key: "closures", label: "Closures" },
@@ -693,7 +693,7 @@ function ClientsAdmin() {
       // Already ordered alphabetically by surname, then first name.
       setClients(await adminListClients());
     } catch (err) {
-      setError(errorMessage(err, "Couldn't load clients."));
+      setError(errorMessage(err, "Couldn't load learners."));
     } finally {
       setLoading(false);
     }
@@ -733,7 +733,7 @@ function ClientsAdmin() {
       setNotes("");
       await refresh();
     } catch (err) {
-      setFormError(errorMessage(err, "Couldn't add this client."));
+      setFormError(errorMessage(err, "Couldn't add this learner."));
     } finally {
       setSubmitting(false);
     }
@@ -755,14 +755,14 @@ function ClientsAdmin() {
       });
       await refresh();
     } catch (err) {
-      setError(errorMessage(err, "Couldn't update this client."));
+      setError(errorMessage(err, "Couldn't update this learner."));
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <Card eyebrow="Directory" title="Clients">
+    <Card eyebrow="Directory" title="Learners">
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">
           ⚠ {error}
@@ -771,7 +771,7 @@ function ClientsAdmin() {
       {loading ? (
         <p className="l360-empty">Loading…</p>
       ) : clients.length === 0 ? (
-        <p className="l360-empty">No clients configured yet.</p>
+        <p className="l360-empty">No learners configured yet.</p>
       ) : (
         <div style={{ overflowX: "auto", marginBottom: 20 }}>
           <table className="l360-table">
@@ -817,7 +817,7 @@ function ClientsAdmin() {
         </div>
       )}
 
-      <h4 style={{ marginBottom: 12 }}>Add a client</h4>
+      <h4 style={{ marginBottom: 12 }}>Add a learner</h4>
       <form onSubmit={handleCreate} noValidate>
         {formError && (
           <div className="l360-alert l360-alert-danger" role="alert">
@@ -873,7 +873,7 @@ function ClientsAdmin() {
         />
         <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <Button type="submit" loading={submitting} loadingLabel="Adding…">
-          Add client
+          Add learner
         </Button>
       </form>
     </Card>
@@ -971,7 +971,7 @@ function PriceListAdmin() {
               <tr>
                 <th>Level</th>
                 <th>Duration</th>
-                <th>Client price</th>
+                <th>Learner price</th>
                 <th>Educator rate</th>
                 <th>Effective from</th>
               </tr>
@@ -1021,7 +1021,7 @@ function PriceListAdmin() {
         />
         <Input
           id="new-price-client"
-          label="Client price (€)"
+          label="Learner price (€)"
           type="number"
           step="0.01"
           min="0"

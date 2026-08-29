@@ -13,12 +13,12 @@ export function Clients() {
   useEffect(() => {
     listClients()
       .then(setClients)
-      .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load clients."))
+      .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load learners."))
       .finally(() => setLoading(false));
   }, []);
 
   return (
-    <Card eyebrow="Directory" title="Clients">
+    <Card eyebrow="Directory" title="Learners">
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">
           ⚠ {error}
@@ -28,7 +28,7 @@ export function Clients() {
       {loading ? (
         <p className="l360-empty">Loading…</p>
       ) : clients.length === 0 ? (
-        <p className="l360-empty">No clients configured yet.</p>
+        <p className="l360-empty">No learners configured yet.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">

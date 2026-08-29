@@ -114,7 +114,7 @@ export function Billing() {
               <thead>
                 <tr>
                   <th>Number</th>
-                  <th>Client</th>
+                  <th>Learner</th>
                   <th>Period</th>
                   <th>Status</th>
                   <th>Total</th>

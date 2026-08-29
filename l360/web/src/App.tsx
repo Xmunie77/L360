@@ -22,7 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: "calendar", label: "Calendar" },
   { key: "bookings", label: "Bookings" },
-  { key: "clients", label: "Clients" },
+  { key: "clients", label: "Learners" },
   { key: "rooms", label: "Rooms" },
   { key: "educators", label: "Educators" },
   { key: "billing", label: "Billing" },

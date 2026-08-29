@@ -74,7 +74,7 @@ def generate_draft_invoice(
 ) -> Invoice:
     bookings = billable_bookings_for_client(db, client_id=client_id, period_start=period_start, period_end=period_end)
     if not bookings:
-        raise BillingError("No billable sessions for this client in the given period")
+        raise BillingError("No billable sessions for this learner in the given period")
 
     invoice = Invoice(
         client_id=client_id,

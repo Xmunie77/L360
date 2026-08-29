@@ -43,7 +43,7 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
         setObservations(c.observations ?? "");
         setNotes(c.notes ?? "");
       })
-      .catch((err) => setLoadError(errorMessage(err, "Couldn't load this client.")))
+      .catch((err) => setLoadError(errorMessage(err, "Couldn't load this learner.")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -71,7 +71,7 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
       setClient(updated);
       setSaved(true);
     } catch (err) {
-      setSaveError(errorMessage(err, "Couldn't save this client."));
+      setSaveError(errorMessage(err, "Couldn't save this learner."));
     } finally {
       setSaving(false);
     }
@@ -80,7 +80,7 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
   return (
     <div className="l360-app">
       <header className="l360-topbar">
-        <h1>Client details</h1>
+        <h1>Learner details</h1>
         <span className="l360-topbar-meta">Learning 360°</span>
       </header>
       <main className="l360-content" style={{ maxWidth: 640 }}>

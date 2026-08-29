@@ -201,7 +201,7 @@ function EducatorSummaryCard({ me }: { me: Me | null }) {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Client</th>
+                  <th>Learner</th>
                   <th>Duration</th>
                   <th>Status</th>
                   <th>Rate</th>
@@ -252,7 +252,7 @@ function ClientStatementCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listClients().then(setClients).catch(() => setError("Couldn't load clients."));
+    listClients().then(setClients).catch(() => setError("Couldn't load learners."));
   }, []);
 
   useEffect(() => {
@@ -269,12 +269,12 @@ function ClientStatementCard() {
   }, [clientId, periodStart, periodEnd]);
 
   return (
-    <Card eyebrow="Finance" title="Client statement">
+    <Card eyebrow="Finance" title="Learner statement">
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         <Select
           id="statement-client"
-          label="Client"
-          placeholder="Choose a client…"
+          label="Learner"
+          placeholder="Choose a learner…"
           options={clients.map((c) => ({ value: String(c.id), label: `${c.guardian_first_name} ${c.guardian_surname}` }))}
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
@@ -285,7 +285,7 @@ function ClientStatementCard() {
 
       {error && <p className="l360-alert l360-alert-danger">{error}</p>}
       {loading && <p className="l360-empty">Loading…</p>}
-      {!loading && !clientId && <p className="l360-empty">Choose a client to see their statement.</p>}
+      {!loading && !clientId && <p className="l360-empty">Choose a learner to see their statement.</p>}
       {!loading && statement && (
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">

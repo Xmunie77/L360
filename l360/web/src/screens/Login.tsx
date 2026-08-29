@@ -103,7 +103,7 @@ export function Login({ onSignedIn }: LoginProps) {
     <div className="l360-login-page">
       <form className="l360-login-card" onSubmit={handleSubmit} noValidate>
         <Wordmark className="l360-login-wordmark" />
-        <p className="l360-login-intro">Sign in to manage rooms, bookings and clients.</p>
+        <p className="l360-login-intro">Sign in to manage rooms, bookings and learners.</p>
 
         {error && (
           <div className="l360-alert l360-alert-danger" role="alert">

@@ -86,10 +86,10 @@ describe("Admin", () => {
     ]);
 
     render(<Admin />);
-    fireEvent.click(screen.getByRole("button", { name: "Clients" }));
+    fireEvent.click(screen.getByRole("button", { name: "Learners" }));
 
     await waitFor(() => expect(screen.getByText("Aġius family")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Add client" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add learner" })).toBeTruthy();
   });
 
   it("saving one day's facility hours doesn't clear another day's Saved confirmation", async () => {

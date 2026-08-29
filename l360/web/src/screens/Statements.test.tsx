@@ -75,7 +75,7 @@ describe("Statements", () => {
 
     render(<Statements me={ADMIN_ME} />);
 
-    await waitFor(() => expect(screen.getByText("Client statement")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Learner statement")).toBeTruthy());
     expect(screen.getByText("Room utilisation")).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Room 1")).toBeTruthy());
   });
