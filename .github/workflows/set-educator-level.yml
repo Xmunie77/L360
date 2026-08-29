@@ -1,0 +1,48 @@
+name: Set Educator Level — Learning 360°
+
+# Reusable one-off: assigns an existing user an educator level by email.
+# Having a level is what makes someone bookable as an educator (shows up
+# in the booking form's "Educator" dropdown, the monthly summary, etc.) —
+# independent of their admin/educator role, so an admin who also delivers
+# sessions can be both. Gated behind workflow_dispatch — never runs
+# automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Email of the existing user to update"
+        type: string
+        required: true
+      level_name:
+        description: "Educator level name (e.g. Junior, Senior, Specialist)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  set-educator-level:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Set educator level
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          L360_USER_EMAIL: ${{ inputs.email }}
+          L360_LEVEL_NAME: ${{ inputs.level_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.set_educator_level
