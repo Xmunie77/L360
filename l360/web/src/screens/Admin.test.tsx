@@ -27,6 +27,10 @@ vi.mock("../api/client", async () => {
     adminListClients: vi.fn(),
     adminCreateClient: vi.fn(),
     adminUpdateClient: vi.fn(),
+    adminListServiceTypes: vi.fn(),
+    adminCreateServiceType: vi.fn(),
+    adminUpdateServiceType: vi.fn(),
+    adminDeactivateServiceType: vi.fn(),
   };
 });
 
@@ -35,6 +39,7 @@ import {
   adminListClients,
   adminListFacilityHours,
   adminListRooms,
+  adminListServiceTypes,
   adminUpsertFacilityHours,
 } from "../api/client";
 
@@ -43,6 +48,7 @@ const mockAdminDeactivateRoom = vi.mocked(adminDeactivateRoom);
 const mockAdminListClients = vi.mocked(adminListClients);
 const mockAdminListFacilityHours = vi.mocked(adminListFacilityHours);
 const mockAdminUpsertFacilityHours = vi.mocked(adminUpsertFacilityHours);
+const mockAdminListServiceTypes = vi.mocked(adminListServiceTypes);
 
 describe("Admin", () => {
   it("renders the tab bar and the rooms section without crashing", async () => {
@@ -113,5 +119,21 @@ describe("Admin", () => {
     await waitFor(() => expect(saveButtons()[1].textContent).toBe("Saved"));
     // Monday must still read "Saved" — this is the regression the bug report caught.
     expect(saveButtons()[0].textContent).toBe("Saved");
+  });
+
+  it("splits service types into Sessions and Additional services tables", async () => {
+    mockAdminListRooms.mockResolvedValue([]);
+    mockAdminListServiceTypes.mockResolvedValue([
+      { id: 1, name: "Onboarding Meeting", category: "session", client_price_cents: 3000, tutor_payment_cents: 2500, requires_room: true, sort_order: 0, active: true },
+      { id: 2, name: "Flashcards A4", category: "additional_service", client_price_cents: 120, tutor_payment_cents: 50, requires_room: false, sort_order: 0, active: true },
+    ]);
+
+    render(<Admin />);
+    fireEvent.click(screen.getByRole("button", { name: "Sessions & services" }));
+
+    await waitFor(() => expect(screen.getByText("Onboarding Meeting")).toBeTruthy());
+    expect(screen.getByText("Flashcards A4")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sessions" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Additional services" })).toBeTruthy();
   });
 });

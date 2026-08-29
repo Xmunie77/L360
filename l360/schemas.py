@@ -41,6 +41,22 @@ class EducatorLevelOut(EducatorLevelIn):
     id: int
 
 
+# --- service types (named sessions/additional services outside the
+# level+duration price list) --------------------------------------------
+class ServiceTypeIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    category: Literal["session", "additional_service"]
+    client_price_cents: int = Field(ge=0)
+    tutor_payment_cents: int = Field(ge=0)
+    requires_room: bool = True
+    sort_order: int = 0
+    active: bool = True
+
+
+class ServiceTypeOut(ServiceTypeIn):
+    id: int
+
+
 # --- rooms -----------------------------------------------------------------
 class RoomIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)

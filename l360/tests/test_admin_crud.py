@@ -146,6 +146,57 @@ def test_facility_hours_upsert(admin_client):
     assert len([x for x in rows if x["weekday"] == 0]) == 1
 
 
+def test_service_type_crud_roundtrip(admin_client):
+    r = admin_client.post("/api/admin/service-types", json={
+        "name": "Onboarding Meeting", "category": "session",
+        "client_price_cents": 3000, "tutor_payment_cents": 2500,
+    })
+    assert r.status_code == 200
+    service_type = r.json()
+    assert service_type["name"] == "Onboarding Meeting"
+    assert service_type["category"] == "session"
+    assert service_type["requires_room"] is True  # defaults true for sessions
+
+    r = admin_client.post("/api/admin/service-types", json={
+        "name": "Consultant Home Visit", "category": "session",
+        "client_price_cents": 4000, "tutor_payment_cents": 3500,
+        "requires_room": False,
+    })
+    assert r.status_code == 200
+    assert r.json()["requires_room"] is False  # off-site — no facility room needed
+
+    r = admin_client.post("/api/admin/service-types", json={
+        "name": "Flashcards A4", "category": "additional_service",
+        "client_price_cents": 120, "tutor_payment_cents": 50,
+        "requires_room": False,
+    })
+    assert r.status_code == 200
+
+    r = admin_client.get("/api/admin/service-types")
+    assert r.status_code == 200
+    names = [x["name"] for x in r.json()]
+    assert "Onboarding Meeting" in names
+    assert "Flashcards A4" in names
+
+    r = admin_client.put(f"/api/admin/service-types/{service_type['id']}", json={
+        "name": "Onboarding Meeting", "category": "session",
+        "client_price_cents": 3200, "tutor_payment_cents": 2600,
+    })
+    assert r.status_code == 200
+    assert r.json()["client_price_cents"] == 3200
+
+    r = admin_client.delete(f"/api/admin/service-types/{service_type['id']}")
+    assert r.status_code == 200
+    # deactivated, not hard-deleted
+    updated = next(x for x in admin_client.get("/api/admin/service-types").json() if x["id"] == service_type["id"])
+    assert updated["active"] is False
+
+    assert admin_client.put("/api/admin/service-types/999999", json={
+        "name": "X", "category": "session", "client_price_cents": 0, "tutor_payment_cents": 0,
+    }).status_code == 404
+    assert admin_client.delete("/api/admin/service-types/999999").status_code == 404
+
+
 def test_facility_closure_crud(admin_client):
     r = admin_client.post("/api/admin/closures", json={"date": str(date(2026, 12, 25)), "reason": "Christmas"})
     assert r.status_code == 200

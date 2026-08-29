@@ -139,6 +139,29 @@ class Room(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
+class ServiceType(Base):
+    """A priced offering outside the level/duration session-price model —
+    named meetings, programmes and one-off items from the foundation's own
+    price list, each with a flat client price and tutor/educator payment
+    (the difference is the foundation's contribution). "session" items are
+    delivered as a booked session; "additional_service" items (flashcards,
+    etc.) are not calendar bookings."""
+
+    __tablename__ = "service_types"
+    __table_args__ = _table_args()
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)  # "session" | "additional_service"
+    client_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    tutor_payment_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Some sessions happen off-site (home/school visits) and never occupy a
+    # facility room; additional services aren't bookings at all.
+    requires_room: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class PriceListEntry(Base):
     """Dated price tiers: never edited in place — new rows with a later
     valid_from supersede older ones. All money is integer cents (EUR)."""

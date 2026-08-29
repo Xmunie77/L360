@@ -148,7 +148,7 @@ def test_reminder_is_idempotent_across_runs(admin_client, booking_env, _capture_
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
-        "start_utc": _future_start(12),
+        "start_utc": _safe_future_start(12),
         "duration_minutes": 60,
     })
     _capture_emails.clear()

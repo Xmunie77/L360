@@ -50,6 +50,7 @@ def test_logout_clears_session(admin_client):
 def test_educator_gets_403_on_admin_routes(educator_client):
     assert educator_client.get("/api/admin/rooms").status_code == 403
     assert educator_client.post("/api/admin/rooms", json={"name": "X"}).status_code == 403
+    assert educator_client.get("/api/admin/service-types").status_code == 403
 
 
 def test_educator_can_read_public_lists(educator_client):

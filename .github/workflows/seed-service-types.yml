@@ -1,0 +1,37 @@
+name: Seed Service Types — Learning 360°
+
+# One-off: seeds the named session/additional-service price list (the full
+# pricing sheet items that don't fit the level+duration price list — named
+# meetings, programmes, group sessions, flashcards) from the foundation's
+# real pricing sheet. Idempotent — safe to re-run, skips any name that
+# already exists. Gated behind workflow_dispatch — never runs automatically,
+# never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-service-types:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Seed service types
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.seed_service_types

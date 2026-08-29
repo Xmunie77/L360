@@ -50,6 +50,7 @@ from l360.models import (
     PasswordResetToken,
     PriceListEntry,
     Room,
+    ServiceType,
     User,
 )
 from l360.payments.provider import ProviderNotConfigured
@@ -91,6 +92,8 @@ from l360.schemas import (
     RoomIn,
     RoomOut,
     RoomUtilisationOut,
+    ServiceTypeIn,
+    ServiceTypeOut,
     SkippedOccurrence,
     StatementInvoiceLineOut,
     StatementPaymentLineOut,
@@ -354,6 +357,49 @@ def admin_deactivate_room(
 ):
     # Rooms are never hard-deleted (bookings may reference them) — deactivate.
     row = db.get(Room, room_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    row.active = False
+    db.commit()
+    return {"ok": True}
+
+
+# --- admin: service types (named sessions/additional services) -------------
+@app.get("/api/admin/service-types", response_model=list[ServiceTypeOut])
+def admin_list_service_types(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    return db.scalars(select(ServiceType).order_by(ServiceType.category, ServiceType.sort_order, ServiceType.name)).all()
+
+
+@app.post("/api/admin/service-types", response_model=ServiceTypeOut)
+def admin_create_service_type(
+    body: ServiceTypeIn, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    row = ServiceType(**body.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.put("/api/admin/service-types/{service_type_id}", response_model=ServiceTypeOut)
+def admin_update_service_type(
+    service_type_id: int, body: ServiceTypeIn, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    row = db.get(ServiceType, service_type_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in body.model_dump().items():
+        setattr(row, k, v)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/admin/service-types/{service_type_id}")
+def admin_deactivate_service_type(
+    service_type_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    row = db.get(ServiceType, service_type_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
     row.active = False

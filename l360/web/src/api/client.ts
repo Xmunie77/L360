@@ -210,6 +210,35 @@ export interface PriceListEntryInput {
   valid_from: string;
 }
 
+export type ServiceTypeCategory = "session" | "additional_service";
+
+/** A flat, named price for a session or service that doesn't fit the
+ *  level+duration price list (e.g. "Onboarding Meeting", "Flashcards A4") —
+ *  editable in place, unlike the append-only price list. */
+export interface ServiceType {
+  id: number;
+  name: string;
+  category: ServiceTypeCategory;
+  client_price_cents: number;
+  tutor_payment_cents: number;
+  /** Whether this session occupies one of the foundation's own rooms — false
+   *  for home/school visits, which happen off-site. Not applicable to
+   *  additional services (never a calendar booking). */
+  requires_room: boolean;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface ServiceTypeInput {
+  name: string;
+  category: ServiceTypeCategory;
+  client_price_cents: number;
+  tutor_payment_cents: number;
+  requires_room: boolean;
+  sort_order: number;
+  active: boolean;
+}
+
 export interface FacilityHours {
   id: number;
   weekday: number;
@@ -542,6 +571,24 @@ export function adminListPriceList(): Promise<PriceListEntry[]> {
 
 export function adminCreatePriceEntry(body: PriceListEntryInput): Promise<PriceListEntry> {
   return post<PriceListEntry>("/api/admin/price-list", body);
+}
+
+// --- admin: service types (named sessions/additional services) --------------
+
+export function adminListServiceTypes(): Promise<ServiceType[]> {
+  return get<ServiceType[]>("/api/admin/service-types");
+}
+
+export function adminCreateServiceType(body: ServiceTypeInput): Promise<ServiceType> {
+  return post<ServiceType>("/api/admin/service-types", body);
+}
+
+export function adminUpdateServiceType(id: number, body: ServiceTypeInput): Promise<ServiceType> {
+  return put<ServiceType>(`/api/admin/service-types/${id}`, body);
+}
+
+export function adminDeactivateServiceType(id: number): Promise<{ ok: boolean }> {
+  return del<{ ok: boolean }>(`/api/admin/service-types/${id}`);
 }
 
 // --- admin: facility hours / closures ---------------------------------------
