@@ -1,0 +1,46 @@
+name: Add Educator Level — Learning 360°
+
+# One-off: creates a new educator level. Idempotent — a no-op if a level
+# with this name already exists. Gated behind workflow_dispatch — never
+# runs automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Educator level name"
+        type: string
+        required: true
+      sort_order:
+        description: "Sort order (lower sorts first, e.g. -1 to go before an existing 0)"
+        type: string
+        required: true
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  add-educator-level:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Add educator level
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          L360_LEVEL_NAME: ${{ inputs.name }}
+          L360_LEVEL_SORT_ORDER: ${{ inputs.sort_order }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.add_educator_level
