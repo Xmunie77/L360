@@ -1,0 +1,49 @@
+name: Import Clients — Learning 360°
+
+# One-off bulk import of real clients from CSV. The CSV lives in the
+# CLIENTS_CSV_DATA repository secret, not a committed file — secrets are
+# encrypted at rest and masked in Action logs, so the data never enters
+# git history. Delete that secret once the import's done; it isn't
+# needed again. Gated behind workflow_dispatch — never runs automatically.
+#
+# Set CLIENTS_CSV_DATA the same way you set DATABASE_URL_L360: repo
+# Settings -> Secrets and variables -> Actions -> New repository secret.
+# Value is the raw CSV content, header row:
+#   guardian_first_name,guardian_surname,email,phone,child_name,child_dob,observations,notes
+#
+# Idempotent — safe to re-run, skips any email already in the DB.
+#
+# Requires DATABASE_URL_L360 (same secret as the migrate workflow) and
+# CLIENTS_CSV_DATA.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  import-clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Import clients
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          CLIENTS_CSV: ${{ secrets.CLIENTS_CSV_DATA }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          if [ -z "${CLIENTS_CSV}" ]; then
+            echo "CLIENTS_CSV_DATA secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.import_clients
