@@ -171,12 +171,24 @@ export interface AdminClient {
   guardian_surname: string;
   email: string;
   phone: string | null;
+  guardian_id_number: string | null;
+  guardian2_name: string | null;
+  guardian2_id_number: string | null;
+  guardian2_email: string | null;
+  guardian2_phone: string | null;
   child_name: string | null;
   child_dob: string | null;
+  school: string | null;
+  address: string | null;
+  /** null = the allergies question hasn't been answered yet. */
+  has_allergies: boolean | null;
+  allergy_details: string | null;
   /** Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome) — admins only. */
   observations: string | null;
   notes: string | null;
   active: boolean;
+  /** "pending" | "submitted" | null (no onboarding form created yet). */
+  onboarding_status: string | null;
 }
 
 export interface ClientInput {
@@ -184,11 +196,91 @@ export interface ClientInput {
   guardian_surname: string;
   email: string;
   phone?: string | null;
+  guardian_id_number?: string | null;
+  guardian2_name?: string | null;
+  guardian2_id_number?: string | null;
+  guardian2_email?: string | null;
+  guardian2_phone?: string | null;
   child_name?: string | null;
   child_dob?: string | null;
+  school?: string | null;
+  address?: string | null;
+  has_allergies?: boolean | null;
+  allergy_details?: string | null;
   observations?: string | null;
   notes?: string | null;
   active: boolean;
+}
+
+/** GET /api/onboarding/:token — form status + whatever's already on record. */
+export interface OnboardingPrefill {
+  status: "pending" | "submitted";
+  guardian_first_name: string;
+  guardian_surname: string;
+  email: string;
+  phone: string | null;
+  guardian_id_number: string | null;
+  guardian2_name: string | null;
+  guardian2_id_number: string | null;
+  guardian2_email: string | null;
+  guardian2_phone: string | null;
+  child_name: string | null;
+  child_dob: string | null;
+  school: string | null;
+  address: string | null;
+  has_allergies: boolean | null;
+  allergy_details: string | null;
+}
+
+export interface OnboardingSubmitInput {
+  guardian_first_name: string;
+  guardian_surname: string;
+  email: string;
+  phone: string;
+  guardian_id_number: string;
+  guardian2_name?: string | null;
+  guardian2_id_number?: string | null;
+  guardian2_email?: string | null;
+  guardian2_phone?: string | null;
+  child_name: string;
+  child_dob: string;
+  school?: string | null;
+  address: string;
+  has_allergies: boolean;
+  allergy_details?: string | null;
+  fee_undertaking: boolean;
+  termination_60d_ack: boolean;
+  info_storage_consent: boolean;
+  marketing_opt_in: boolean;
+  epinephrine_ack: boolean;
+  accident_ack: boolean;
+  cancellation_policy_ack: boolean;
+  illness_policy_ack: boolean;
+  signature_guardian1: string;
+  signature_guardian2?: string | null;
+  signed_date: string;
+}
+
+/** GET /api/admin/clients/:id/onboarding — the consent/signature record. */
+export interface OnboardingAdmin {
+  id: number;
+  client_id: number;
+  status: "pending" | "submitted";
+  source: "app" | "google_form";
+  link: string;
+  sent_at: string | null;
+  submitted_at: string | null;
+  fee_undertaking: boolean | null;
+  termination_60d_ack: boolean | null;
+  info_storage_consent: boolean | null;
+  marketing_opt_in: boolean | null;
+  epinephrine_ack: boolean | null;
+  accident_ack: boolean | null;
+  cancellation_policy_ack: boolean | null;
+  illness_policy_ack: boolean | null;
+  signature_guardian1: string | null;
+  signature_guardian2: string | null;
+  signed_date: string | null;
 }
 
 /** Append-only — there is no update endpoint. A new row with a later
@@ -557,6 +649,22 @@ export function adminGetClient(id: number): Promise<AdminClient> {
 
 export function adminCreateClient(body: ClientInput): Promise<AdminClient> {
   return post<AdminClient>("/api/admin/clients", body);
+}
+
+export function adminGetClientOnboarding(id: number): Promise<OnboardingAdmin | null> {
+  return get<OnboardingAdmin | null>(`/api/admin/clients/${id}/onboarding`);
+}
+
+export function adminSendOnboarding(id: number): Promise<OnboardingAdmin> {
+  return post<OnboardingAdmin>(`/api/admin/clients/${id}/onboarding/send`);
+}
+
+export function getOnboarding(token: string): Promise<OnboardingPrefill> {
+  return get<OnboardingPrefill>(`/api/onboarding/${encodeURIComponent(token)}`);
+}
+
+export function submitOnboarding(token: string, body: OnboardingSubmitInput): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(`/api/onboarding/${encodeURIComponent(token)}`, body);
 }
 
 export function adminUpdateClient(id: number, body: ClientInput): Promise<AdminClient> {

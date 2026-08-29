@@ -113,8 +113,22 @@ class Client(Base):
     guardian_surname: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guardian_id_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Second parent/guardian — optional, single free-text name (the
+    # onboarding form asks "name and surname" as one field).
+    guardian2_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    guardian2_id_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guardian2_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    guardian2_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     child_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     child_dob: Mapped[date | None] = mapped_column(Date, nullable=True)
+    school: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Tri-state: None = not yet answered on the onboarding form.
+    # Allergy details are health data (special-category under GDPR) —
+    # admins only, same handling as `observations`.
+    has_allergies: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    allergy_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome) —
     # special-category data under GDPR; visible to admins only.
     observations: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -127,6 +141,57 @@ class Client(Base):
     @property
     def guardian_name(self) -> str:
         return f"{self.guardian_first_name} {self.guardian_surname}"
+
+
+class OnboardingForm(Base):
+    """The client-onboarding questionnaire — one per client. Created (with an
+    unguessable token) when the client is added; the token link is emailed to
+    the guardian, who fills the form without an account (the token itself is
+    the auth, same pattern as CalendarToken). Consent/acknowledgement answers
+    and typed signatures live HERE, not on Client — they're a point-in-time
+    legal record of what was agreed, kept even as the client's details evolve.
+
+    All consent fields are tri-state: None = not yet answered. The submit
+    endpoint requires the mandatory ones to be true; `marketing_opt_in` is
+    the only genuinely optional consent (an honest no is stored as False).
+    """
+
+    __tablename__ = "onboarding_forms"
+    __table_args__ = _table_args(
+        UniqueConstraint("token", name="uq_onboarding_token"),
+        UniqueConstraint("client_id", name="uq_onboarding_client"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey(_fk("clients.id")), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), nullable=False)
+    # pending | submitted
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    # app (filled via the emailed link / by an admin) | google_form (imported
+    # from the legacy Google Form responses sheet).
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="app")
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+    # Payment + data consents (must be true to submit, except marketing).
+    fee_undertaking: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    termination_60d_ack: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    info_storage_consent: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    marketing_opt_in: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Liability acknowledgements + policies.
+    epinephrine_ack: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    accident_ack: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    cancellation_policy_ack: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    illness_policy_ack: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    # Typed signatures (the Google Form did the same — typed full names).
+    signature_guardian1: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    signature_guardian2: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    signed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=_utcnow
+    )
 
 
 class Room(Base):

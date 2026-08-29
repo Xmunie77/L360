@@ -11,6 +11,7 @@ import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
 import { ClientDetail } from "./screens/ClientDetail";
 import { Login } from "./screens/Login";
+import { Onboarding } from "./screens/Onboarding";
 import { ResetPassword } from "./screens/ResetPassword";
 import { getMe, getSession, logout, type Me } from "./api/client";
 
@@ -42,6 +43,11 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("reset"),
+  );
+  // Public onboarding questionnaire (?onboarding=<token>) — guardians have
+  // no account, so this renders before any auth check, like the reset flow.
+  const [onboardingToken] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("onboarding"),
   );
   const [clientDetailId] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("client"),
@@ -88,6 +94,10 @@ export function App() {
       setAuthState("anon");
       setActive(NAV_ITEMS[0].key);
     }
+  }
+
+  if (onboardingToken) {
+    return <Onboarding token={onboardingToken} />;
   }
 
   if (resetToken) {

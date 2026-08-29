@@ -39,6 +39,7 @@ def _safe_future_start(hours_ahead: int) -> str:
 
 
 def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, booking_env, _capture_emails):
+    _capture_emails.clear()  # drop the onboarding invite from booking_env's client creation
     r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -96,6 +97,7 @@ def test_retrying_same_event_does_not_double_send(admin_client, booking_env, _ca
     from l360.db import session_scope
     from l360.models import Booking
 
+    _capture_emails.clear()  # drop the onboarding invite from booking_env's client creation
     booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -144,13 +146,17 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
 def test_reminder_is_idempotent_across_runs(admin_client, booking_env, _capture_emails):
     from l360.db import session_scope
 
-    admin_client.post("/api/bookings", json={
+    # _safe_future_start, not _future_start — around local 11:00 a +12h slot
+    # lands on local hour 23 and is correctly rejected for crossing midnight,
+    # which made this test flaky depending on when the suite ran.
+    r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "start_utc": _safe_future_start(12),
         "duration_minutes": 60,
     })
+    assert r.status_code == 200, r.text
     _capture_emails.clear()
 
     with session_scope() as db:

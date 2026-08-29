@@ -789,6 +789,7 @@ function ClientsAdmin() {
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Child's name</th>
+                <th>Onboarding</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -804,6 +805,12 @@ function ClientsAdmin() {
                   <td>{c.email}</td>
                   <td>{c.phone ?? "—"}</td>
                   <td>{c.child_name ?? "—"}</td>
+                  <td>
+                    <StatusBadge
+                      variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}
+                      label={c.onboarding_status === "submitted" ? "Submitted" : c.onboarding_status === "pending" ? "Awaiting form" : "Not sent"}
+                    />
+                  </td>
                   <td>
                     <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
                   </td>
@@ -826,6 +833,12 @@ function ClientsAdmin() {
       )}
 
       <h4 style={{ marginBottom: 12 }}>Add a learner</h4>
+      <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
+        Just the basics — as soon as the learner is added, the full onboarding
+        questionnaire is emailed to the parent/guardian automatically. The rest
+        of their record fills itself in when they submit it (or you can complete
+        it yourself from their detail page).
+      </p>
       <form onSubmit={handleCreate} noValidate>
         {formError && (
           <div className="l360-alert l360-alert-danger" role="alert">

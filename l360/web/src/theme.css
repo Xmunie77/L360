@@ -752,3 +752,127 @@ a {
   width: 100%;
   max-width: var(--l360-maxw-form);
 }
+
+/* ---- Public onboarding questionnaire ------------------------------------ */
+/* Same ink ground as the login screen, but a wider, scrollable card — the
+   form is long. All copy/labels stay visible above fields per §accessibility. */
+
+.l360-ob-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--l360-ink);
+  padding: var(--l360-s6) var(--l360-s4);
+}
+
+.l360-ob-card {
+  width: 100%;
+  max-width: 720px;
+  background: var(--l360-white);
+  border-radius: var(--l360-r-md);
+  padding: var(--l360-s6) var(--l360-s5);
+  display: flex;
+  flex-direction: column;
+}
+
+.l360-ob-title {
+  font-size: 1.5rem;
+  font-weight: var(--l360-w-semibold);
+  color: var(--l360-ink);
+  margin-bottom: var(--l360-s3);
+}
+
+.l360-ob-intro {
+  color: var(--l360-bgrey);
+  margin-bottom: var(--l360-s5);
+}
+
+.l360-ob-section {
+  border-top: 1px solid var(--l360-lgrey);
+  padding-top: var(--l360-s5);
+  margin-bottom: var(--l360-s5);
+}
+
+.l360-ob-section-title {
+  font-size: 1.05rem;
+  font-weight: var(--l360-w-semibold);
+  color: var(--l360-ink);
+  margin-bottom: var(--l360-s2);
+}
+
+.l360-ob-section-hint {
+  color: var(--l360-bgrey);
+  font-size: 0.9rem;
+  margin-bottom: var(--l360-s4);
+}
+
+.l360-ob-grid {
+  display: flex;
+  gap: var(--l360-s4);
+  flex-wrap: wrap;
+}
+
+.l360-ob-grid > .l360-field {
+  flex: 1 1 240px;
+}
+
+.l360-ob-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--l360-s3);
+  margin: var(--l360-s3) 0;
+}
+
+.l360-ob-check input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--l360-orange-deep);
+}
+
+.l360-ob-check label {
+  color: var(--l360-ink);
+  line-height: 1.45;
+}
+
+.l360-ob-radio-group {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--l360-s4);
+}
+
+.l360-ob-radio-row {
+  display: flex;
+  gap: var(--l360-s5);
+  margin-top: var(--l360-s2);
+}
+
+.l360-ob-radio-row label {
+  display: flex;
+  align-items: center;
+  gap: var(--l360-s2);
+  min-height: 44px;
+  color: var(--l360-ink);
+}
+
+.l360-ob-radio-row input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--l360-orange-deep);
+}
+
+.l360-ob-policy {
+  color: var(--l360-ink);
+  line-height: 1.5;
+  margin-bottom: var(--l360-s2);
+}
+
+.l360-ob-footnote {
+  color: var(--l360-bgrey);
+  font-size: 0.85rem;
+  text-align: center;
+  margin-top: var(--l360-s4);
+}

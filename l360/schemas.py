@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 # --- auth ---------------------------------------------------------------
@@ -99,8 +99,18 @@ class ClientIn(BaseModel):
     guardian_surname: str = Field(min_length=1, max_length=100)
     email: EmailStr
     phone: str | None = None
+    guardian_id_number: str | None = Field(default=None, max_length=50)
+    guardian2_name: str | None = Field(default=None, max_length=200)
+    guardian2_id_number: str | None = Field(default=None, max_length=50)
+    guardian2_email: str | None = Field(default=None, max_length=255)
+    guardian2_phone: str | None = Field(default=None, max_length=50)
     child_name: str | None = None
     child_dob: date | None = None
+    school: str | None = Field(default=None, max_length=200)
+    address: str | None = None
+    # Tri-state: None = the allergies question hasn't been answered yet.
+    has_allergies: bool | None = None
+    allergy_details: str | None = None
     # Onboarding notes on the child's needs (e.g. dyslexia, Down syndrome).
     observations: str | None = None
     notes: str | None = None
@@ -109,6 +119,103 @@ class ClientIn(BaseModel):
 
 class ClientOut(ClientIn):
     id: int
+    # pending | submitted | None (no onboarding form created yet — e.g. a
+    # client added before this feature existed).
+    onboarding_status: str | None = None
+
+
+class OnboardingPrefillOut(BaseModel):
+    """What the public questionnaire page gets for a valid token: the form
+    status plus the client details already on record (entered by the admin,
+    or from an earlier partial save) so the guardian doesn't retype them.
+    Never includes admin-only fields (observations, notes)."""
+
+    status: str
+    guardian_first_name: str
+    guardian_surname: str
+    email: str
+    phone: str | None
+    guardian_id_number: str | None
+    guardian2_name: str | None
+    guardian2_id_number: str | None
+    guardian2_email: str | None
+    guardian2_phone: str | None
+    child_name: str | None
+    child_dob: date | None
+    school: str | None
+    address: str | None
+    has_allergies: bool | None
+    allergy_details: str | None
+
+
+class OnboardingSubmitIn(BaseModel):
+    """The guardian's completed questionnaire. Field-level requirements mirror
+    the original Google Form: guardian 2 and school are optional, everything
+    else is required — including every consent except marketing_opt_in, which
+    is a genuine choice (an honest "no" is stored)."""
+
+    guardian_first_name: str = Field(min_length=1, max_length=100)
+    guardian_surname: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    phone: str = Field(min_length=1, max_length=50)
+    guardian_id_number: str = Field(min_length=1, max_length=50)
+    guardian2_name: str | None = Field(default=None, max_length=200)
+    guardian2_id_number: str | None = Field(default=None, max_length=50)
+    guardian2_email: str | None = Field(default=None, max_length=255)
+    guardian2_phone: str | None = Field(default=None, max_length=50)
+    child_name: str = Field(min_length=1, max_length=200)
+    child_dob: date
+    school: str | None = Field(default=None, max_length=200)
+    address: str = Field(min_length=1)
+    has_allergies: bool
+    allergy_details: str | None = None
+
+    fee_undertaking: bool
+    termination_60d_ack: bool
+    info_storage_consent: bool
+    marketing_opt_in: bool
+    epinephrine_ack: bool
+    accident_ack: bool
+    cancellation_policy_ack: bool
+    illness_policy_ack: bool
+
+    signature_guardian1: str = Field(min_length=1, max_length=200)
+    signature_guardian2: str | None = Field(default=None, max_length=200)
+    signed_date: date
+
+    @model_validator(mode="after")
+    def _check(self) -> "OnboardingSubmitIn":
+        from l360.onboarding import REQUIRED_CONSENTS
+
+        missing = [label for field, label in REQUIRED_CONSENTS.items() if getattr(self, field) is not True]
+        if missing:
+            raise ValueError("Please agree to " + ", ".join(missing) + ".")
+        if self.has_allergies and not (self.allergy_details or "").strip():
+            raise ValueError("Please specify the learner's allergies.")
+        return self
+
+
+class OnboardingAdminOut(BaseModel):
+    """Full onboarding-form record for the admin client-detail page."""
+
+    id: int
+    client_id: int
+    status: str
+    source: str
+    link: str
+    sent_at: datetime | None
+    submitted_at: datetime | None
+    fee_undertaking: bool | None
+    termination_60d_ack: bool | None
+    info_storage_consent: bool | None
+    marketing_opt_in: bool | None
+    epinephrine_ack: bool | None
+    accident_ack: bool | None
+    cancellation_policy_ack: bool | None
+    illness_policy_ack: bool | None
+    signature_guardian1: str | None
+    signature_guardian2: str | None
+    signed_date: date | None
 
 
 class ClientBrief(BaseModel):

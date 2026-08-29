@@ -30,6 +30,11 @@ l360/
   db.py               engine/session, init_db() (SQLite dev only)
   models.py           SQLAlchemy 2.0 models
   schemas.py          Pydantic request/response models
+  onboarding.py       client onboarding questionnaire: token link, invite email,
+                      submission → client record + consent/signature record
+  import_form_responses.py  one-off loader for the legacy Google Form responses
+                      CSV (run with the data supplied at run time — never a
+                      committed file; see its docstring)
   seed.py             idempotent dev seed data
   migrations/         Alembic (l360 schema), gated — never run on boot
   tests/              pytest
@@ -40,3 +45,17 @@ l360/
 Status: Phase 1 (foundation) complete. Booking engine, notifications, billing +
 Revolut reconciliation, and statements are built in later phases — see the
 project plan for the full build order.
+
+## Client onboarding
+
+Adding a client (admin → Clients → "Add a client") needs only the guardian's
+basic details — the full onboarding questionnaire (the in-app replacement for
+the old Google "Client Onboarding Form": both guardians, learner details,
+allergies, fee undertakings, policies, typed signatures) is **emailed to the
+guardian automatically** on creation. The guardian opens `/?onboarding=<token>`
+with no account (the unguessable token is the auth), and their submission
+fills in the client record and stores the point-in-time consent/signature
+record on `onboarding_forms`. Admins can re-send the link, open it themselves,
+or type the details straight into the client detail page. Requires the SMTP
+Fly secrets to be set for the email to actually send (see DEPLOY.md) —
+without them the invite only logs to stdout.

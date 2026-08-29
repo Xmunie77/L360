@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, ical, notifications, notify, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, ical, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -47,6 +47,7 @@ from l360.models import (
     FacilityHours,
     Invoice,
     InvoiceLine,
+    OnboardingForm,
     PasswordResetToken,
     PriceListEntry,
     Room,
@@ -84,6 +85,9 @@ from l360.schemas import (
     ManualMatchIn,
     MeResp,
     NextAvailableOut,
+    OnboardingAdminOut,
+    OnboardingPrefillOut,
+    OnboardingSubmitIn,
     PaymentOut,
     PriceListEntryIn,
     PriceListEntryOut,
@@ -468,9 +472,22 @@ def admin_deactivate_user(
 
 
 # --- admin: clients ---------------------------------------------------
+def _client_out(row: Client, status: str | None) -> ClientOut:
+    out = ClientOut.model_validate(row, from_attributes=True)
+    out.onboarding_status = status
+    return out
+
+
+def _onboarding_status(db: Session, client_id: int) -> str | None:
+    form = db.scalar(select(OnboardingForm).where(OnboardingForm.client_id == client_id))
+    return form.status if form else None
+
+
 @app.get("/api/admin/clients", response_model=list[ClientOut])
 def admin_list_clients(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
-    return db.scalars(select(Client).order_by(Client.guardian_surname, Client.guardian_first_name)).all()
+    rows = db.scalars(select(Client).order_by(Client.guardian_surname, Client.guardian_first_name)).all()
+    statuses = {f.client_id: f.status for f in db.scalars(select(OnboardingForm)).all()}
+    return [_client_out(r, statuses.get(r.id)) for r in rows]
 
 
 @app.get("/api/admin/clients/{client_id}", response_model=ClientOut)
@@ -478,7 +495,7 @@ def admin_get_client(client_id: int, db: Session = Depends(get_session), _admin:
     row = db.get(Client, client_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return row
+    return _client_out(row, _onboarding_status(db, row.id))
 
 
 @app.post("/api/admin/clients", response_model=ClientOut)
@@ -489,7 +506,11 @@ def admin_create_client(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    # The onboarding questionnaire goes out automatically as soon as the
+    # guardian's basic details are in — the admin doesn't have to remember.
+    form = onboarding.get_or_create_form(db, row)
+    onboarding.send_invite(db, row, form)
+    return _client_out(row, form.status)
 
 
 @app.put("/api/admin/clients/{client_id}", response_model=ClientOut)
@@ -502,11 +523,90 @@ def admin_update_client(
     row = db.get(Client, client_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Not found")
-    for k, v in body.model_dump().items():
+    # exclude_unset so a caller that doesn't know about newer optional
+    # columns (e.g. the onboarding-sourced guardian-2/allergy fields) can't
+    # silently wipe them — an explicit null still clears a field.
+    for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     db.commit()
     db.refresh(row)
-    return row
+    return _client_out(row, _onboarding_status(db, row.id))
+
+
+@app.get("/api/admin/clients/{client_id}/onboarding", response_model=OnboardingAdminOut | None)
+def admin_get_onboarding(client_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    if db.get(Client, client_id) is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    form = db.scalar(select(OnboardingForm).where(OnboardingForm.client_id == client_id))
+    if form is None:
+        return None
+    return OnboardingAdminOut(link=onboarding.form_link(form), **{
+        k: getattr(form, k)
+        for k in OnboardingAdminOut.model_fields
+        if k != "link"
+    })
+
+
+@app.post("/api/admin/clients/{client_id}/onboarding/send", response_model=OnboardingAdminOut)
+def admin_send_onboarding(client_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """Send (or re-send) the onboarding questionnaire email — e.g. for a
+    client created before this feature, or a guardian who lost the link."""
+    client = db.get(Client, client_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    form = onboarding.get_or_create_form(db, client)
+    if form.status == "submitted":
+        raise HTTPException(status_code=409, detail="This client's onboarding form is already submitted.")
+    if not client.email:
+        raise HTTPException(status_code=409, detail="This client has no email address on record.")
+    onboarding.send_invite(db, client, form)
+    return admin_get_onboarding(client_id, db, _admin)
+
+
+# --- public onboarding questionnaire ---------------------------------------
+def _form_by_token(db: Session, token: str) -> tuple[OnboardingForm, Client]:
+    # Deliberately NOT behind require_user — the guardian has no account.
+    # The unguessable token is the auth, same pattern as the iCal feed.
+    form = db.scalar(select(OnboardingForm).where(OnboardingForm.token == token))
+    client = db.get(Client, form.client_id) if form else None
+    if form is None or client is None or not client.active:
+        raise HTTPException(status_code=404, detail="Unknown or expired onboarding link")
+    return form, client
+
+
+@app.get("/api/onboarding/{token}", response_model=OnboardingPrefillOut)
+def get_onboarding(token: str, db: Session = Depends(get_session)):
+    form, client = _form_by_token(db, token)
+    return OnboardingPrefillOut(
+        status=form.status,
+        **{f: getattr(client, f) for f in onboarding.CLIENT_FIELDS},
+    )
+
+
+@app.post("/api/onboarding/{token}")
+def submit_onboarding(token: str, body: OnboardingSubmitIn, db: Session = Depends(get_session)):
+    form, client = _form_by_token(db, token)
+    if form.status == "submitted":
+        raise HTTPException(status_code=409, detail="This onboarding form has already been submitted.")
+    onboarding.apply_submission(db, client, form, body)
+    notify.send_once(
+        db,
+        to=client.email,
+        subject="Learning 360° — onboarding form received",
+        body=(
+            f"Dear {client.guardian_first_name} {client.guardian_surname},\n\n"
+            f"Thank you — we've received your onboarding form for {client.child_name}.\n"
+            "We look forward to welcoming you to Learning 360° Foundation.\n\n"
+            "Warm regards,\n"
+            "Learning 360° Foundation\n"
+            "Swatar, Malta"
+        ),
+        booking_id=None,
+        user_id=None,
+        kind="onboarding_submitted",
+        dedupe_key=f"onboarding_submitted:{form.id}",
+    )
+    return {"ok": True}
 
 
 # --- admin: price list (time-versioned, never edited in place) ------------
