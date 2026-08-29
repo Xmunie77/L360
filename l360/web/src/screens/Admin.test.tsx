@@ -30,11 +30,19 @@ vi.mock("../api/client", async () => {
   };
 });
 
-import { adminDeactivateRoom, adminListClients, adminListRooms } from "../api/client";
+import {
+  adminDeactivateRoom,
+  adminListClients,
+  adminListFacilityHours,
+  adminListRooms,
+  adminUpsertFacilityHours,
+} from "../api/client";
 
 const mockAdminListRooms = vi.mocked(adminListRooms);
 const mockAdminDeactivateRoom = vi.mocked(adminDeactivateRoom);
 const mockAdminListClients = vi.mocked(adminListClients);
+const mockAdminListFacilityHours = vi.mocked(adminListFacilityHours);
+const mockAdminUpsertFacilityHours = vi.mocked(adminUpsertFacilityHours);
 
 describe("Admin", () => {
   it("renders the tab bar and the rooms section without crashing", async () => {
@@ -82,5 +90,28 @@ describe("Admin", () => {
 
     await waitFor(() => expect(screen.getByText("Aġius family")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Add client" })).toBeTruthy();
+  });
+
+  it("saving one day's facility hours doesn't clear another day's Saved confirmation", async () => {
+    mockAdminListRooms.mockResolvedValue([]);
+    mockAdminListFacilityHours.mockResolvedValue([
+      { id: 1, weekday: 0, open_time: "09:00:00", close_time: "17:00:00" },
+      { id: 2, weekday: 1, open_time: "09:00:00", close_time: "17:00:00" },
+    ]);
+    mockAdminUpsertFacilityHours.mockResolvedValue({ id: 1, weekday: 0, open_time: "09:00:00", close_time: "17:00:00" });
+
+    render(<Admin />);
+    fireEvent.click(screen.getByRole("button", { name: "Facility hours" }));
+    await waitFor(() => expect(screen.getByLabelText("Monday open time")).toBeTruthy());
+
+    const saveButtons = () => screen.getAllByRole("button", { name: /^Save(d)?$/ });
+
+    fireEvent.click(saveButtons()[0]); // Monday
+    await waitFor(() => expect(saveButtons()[0].textContent).toBe("Saved"));
+
+    fireEvent.click(saveButtons()[1]); // Tuesday
+    await waitFor(() => expect(saveButtons()[1].textContent).toBe("Saved"));
+    // Monday must still read "Saved" — this is the regression the bug report caught.
+    expect(saveButtons()[0].textContent).toBe("Saved");
   });
 });

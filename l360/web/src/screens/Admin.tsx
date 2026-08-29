@@ -1070,7 +1070,19 @@ function FacilityHoursAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<number, { open: string; close: string }>>({});
   const [busyDay, setBusyDay] = useState<number | null>(null);
-  const [savedDay, setSavedDay] = useState<number | null>(null);
+  // Per-day, not a single value — saving one day must not clear the
+  // "Saved" confirmation off every other day that was already saved.
+  const [savedDays, setSavedDays] = useState<Set<number>>(new Set());
+
+  function editDraft(weekday: number, field: "open" | "close", value: string) {
+    setDrafts((d) => ({ ...d, [weekday]: { ...d[weekday], [field]: value } }));
+    setSavedDays((prev) => {
+      if (!prev.has(weekday)) return prev;
+      const next = new Set(prev);
+      next.delete(weekday);
+      return next;
+    });
+  }
 
   async function refresh() {
     setLoading(true);
@@ -1102,7 +1114,6 @@ function FacilityHoursAdmin() {
     const draft = drafts[weekday];
     if (!draft) return;
     setBusyDay(weekday);
-    setSavedDay(null);
     setError(null);
     try {
       await adminUpsertFacilityHours({
@@ -1110,7 +1121,7 @@ function FacilityHoursAdmin() {
         open_time: timeToApi(draft.open),
         close_time: timeToApi(draft.close),
       });
-      setSavedDay(weekday);
+      setSavedDays((prev) => new Set(prev).add(weekday));
       await refresh();
     } catch (err) {
       setError(errorMessage(err, "Couldn't save these hours."));
@@ -1151,9 +1162,7 @@ function FacilityHoursAdmin() {
                         type="time"
                         aria-label={`${label} open time`}
                         value={draft.open}
-                        onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [weekday]: { ...d[weekday], open: e.target.value } }))
-                        }
+                        onChange={(e) => editDraft(weekday, "open", e.target.value)}
                       />
                     </td>
                     <td>
@@ -1162,9 +1171,7 @@ function FacilityHoursAdmin() {
                         type="time"
                         aria-label={`${label} close time`}
                         value={draft.close}
-                        onChange={(e) =>
-                          setDrafts((d) => ({ ...d, [weekday]: { ...d[weekday], close: e.target.value } }))
-                        }
+                        onChange={(e) => editDraft(weekday, "close", e.target.value)}
                       />
                     </td>
                     <td>
@@ -1175,7 +1182,7 @@ function FacilityHoursAdmin() {
                         loading={busyDay === weekday}
                         loadingLabel="Saving…"
                       >
-                        {savedDay === weekday ? "Saved" : "Save"}
+                        {savedDays.has(weekday) ? "Saved" : "Save"}
                       </Button>
                     </td>
                   </tr>
