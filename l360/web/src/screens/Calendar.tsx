@@ -588,7 +588,7 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
               )}
             </p>
           )}
-          <p style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
+          <p style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <StatusBadge variant={variant} label={label} />
             <span className="l360-mono">
               {toTimeInputValue(booking.start_utc)} · {booking.duration_minutes} min
