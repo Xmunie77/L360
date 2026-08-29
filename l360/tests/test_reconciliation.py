@@ -12,19 +12,28 @@ from l360.payments.provider import RawTxn
 
 def _issued_invoice(admin_client, booking_env, *, client_price_cents: int, local_date: date):
     from l360.db import session_scope
-    from l360.models import Booking, EducatorLevel, PriceListEntry, User
+    from l360.models import Booking, ServiceType
     import l360.booking_logic as booking_logic
     from datetime import time as time_cls
+    from sqlalchemy import select
 
     with session_scope() as db:
-        educator = db.get(User, booking_env["educator_id"])
-        level = db.get(EducatorLevel, educator.level_id)
-        db.add(PriceListEntry(level_id=level.id, duration_minutes=60, client_price_cents=client_price_cents, educator_rate_cents=client_price_cents // 2, valid_from=date(2020, 1, 1)))
+        # Reuse an existing service type at this exact price if a prior call
+        # in the same test already created one — ServiceType.name is unique.
+        name = f"Test Session {client_price_cents}c"
+        service_type = db.scalar(select(ServiceType).where(ServiceType.name == name))
+        if service_type is None:
+            service_type = ServiceType(
+                name=name, category="session",
+                client_price_cents=client_price_cents, tutor_payment_cents=client_price_cents // 2,
+            )
+            db.add(service_type)
+            db.flush()
         start_utc = booking_logic.local_to_utc(local_date, time_cls(10, 0))
         db.add(Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], start_utc=start_utc, duration_minutes=60,
-            status="completed", created_by=1,
+            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
+            duration_minutes=60, status="completed", created_by=1,
         ))
 
     period_start, period_end = local_date.replace(day=1), local_date
@@ -87,11 +96,20 @@ def test_ambiguous_amount_left_unmatched(admin_client, booking_env):
         json={"guardian_first_name": "Second", "guardian_surname": "Parent", "email": "second@example.com"},
     ).json()
     with session_scope() as db:
-        from l360.models import Booking
+        from l360.models import Booking, ServiceType
         import l360.booking_logic as booking_logic
         from datetime import time as time_cls
+        from sqlalchemy import select
+        # Same service type (and so the same price, 3000c) as the first
+        # invoice — that's the whole point of this test: two invoices with
+        # an identical amount and no reference to disambiguate them.
+        service_type = db.scalar(select(ServiceType).where(ServiceType.name == "Test Session 3000c"))
         start_utc = booking_logic.local_to_utc(date(2026, 5, 12), time_cls(11, 0))
-        db.add(Booking(room_id=booking_env["room_id"], educator_id=booking_env["educator_id"], client_id=second_client["id"], start_utc=start_utc, duration_minutes=60, status="completed", created_by=1))
+        db.add(Booking(
+            room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
+            client_id=second_client["id"], service_type_id=service_type.id, start_utc=start_utc,
+            duration_minutes=60, status="completed", created_by=1,
+        ))
     run2 = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"}).json()
     invoice2 = next(i for i in run2["created"] if i["client_id"] == second_client["id"])
     admin_client.post(f"/api/admin/invoices/{invoice2['id']}/issue")

@@ -266,6 +266,17 @@ def list_educators_ro(db: Session = Depends(get_session), _user: User = Depends(
     ).all()
 
 
+@app.get("/api/session-types", response_model=list[ServiceTypeOut])
+def list_session_types_ro(db: Session = Depends(get_session), _user: User = Depends(require_user)):
+    # Only bookable "session" items — "additional_service" ones (flashcards,
+    # etc.) aren't calendar bookings, so they're never offered here.
+    return db.scalars(
+        select(ServiceType)
+        .where(ServiceType.category == "session", ServiceType.active == True)  # noqa: E712
+        .order_by(ServiceType.sort_order, ServiceType.name)
+    ).all()
+
+
 @app.get("/api/clients", response_model=list[ClientBrief])
 def list_clients_ro(db: Session = Depends(get_session), _user: User = Depends(require_user)):
     return db.scalars(
@@ -688,6 +699,7 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
     room = db.get(Room, b.room_id)
     educator = db.get(User, b.educator_id)
     client = db.get(Client, b.client_id)
+    service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
     return BookingOut(
         id=b.id,
         room_id=b.room_id,
@@ -697,6 +709,8 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         client_id=b.client_id,
         client_label=_client_label(client) if client else "?",
         series_id=b.series_id,
+        service_type_id=b.service_type_id,
+        service_type_name=service_type.name if service_type else None,
         start_utc=b.start_utc,
         duration_minutes=b.duration_minutes,
         status=b.status,
@@ -757,8 +771,19 @@ def get_booking(booking_id: int, db: Session = Depends(get_session), _user: User
     return _booking_out(db, b)
 
 
+def _resolve_bookable_service_type(db: Session, service_type_id: int) -> ServiceType:
+    """A booking must reference an active "session" item from the L360
+    price list — "additional_service" items (flashcards, etc.) aren't
+    calendar bookings, so they're not valid here."""
+    service_type = db.get(ServiceType, service_type_id)
+    if service_type is None or not service_type.active or service_type.category != "session":
+        raise HTTPException(status_code=422, detail="Not a valid bookable session type")
+    return service_type
+
+
 @app.post("/api/bookings", response_model=BookingOut)
 def create_booking(body: BookingIn, db: Session = Depends(get_session), user: User = Depends(require_user)):
+    _resolve_bookable_service_type(db, body.service_type_id)
     try:
         booking_logic.validate_slot(
             db,
@@ -774,6 +799,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
         room_id=body.room_id,
         educator_id=body.educator_id,
         client_id=body.client_id,
+        service_type_id=body.service_type_id,
         start_utc=body.start_utc,
         duration_minutes=body.duration_minutes,
         notes=body.notes,
@@ -790,6 +816,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
 def create_booking_series(
     body: BookingSeriesIn, db: Session = Depends(get_session), user: User = Depends(require_user)
 ):
+    _resolve_bookable_service_type(db, body.service_type_id)
     dates = booking_logic.expand_weekly_dates(body.starts_on, body.ends_on, body.weekday, body.interval_weeks)
     if not dates:
         raise HTTPException(status_code=422, detail="No occurrences between starts_on and ends_on")
@@ -798,6 +825,7 @@ def create_booking_series(
         room_id=body.room_id,
         educator_id=body.educator_id,
         client_id=body.client_id,
+        service_type_id=body.service_type_id,
         weekday=body.weekday,
         local_time=body.local_time,
         duration_minutes=body.duration_minutes,
@@ -828,6 +856,7 @@ def create_booking_series(
             educator_id=body.educator_id,
             client_id=body.client_id,
             series_id=series.id,
+            service_type_id=body.service_type_id,
             start_utc=start_utc,
             duration_minutes=body.duration_minutes,
             notes=body.notes,
@@ -862,6 +891,9 @@ def move_booking(
     if b.status != "confirmed":
         raise HTTPException(status_code=409, detail=f"Cannot move a {b.status} booking")
 
+    if body.service_type_id is not None:
+        _resolve_bookable_service_type(db, body.service_type_id)
+
     new_room_id = body.room_id if body.room_id is not None else b.room_id
     new_start = body.start_utc if body.start_utc is not None else b.start_utc
     new_duration = body.duration_minutes if body.duration_minutes is not None else b.duration_minutes
@@ -881,6 +913,8 @@ def move_booking(
     b.room_id = new_room_id
     b.start_utc = new_start
     b.duration_minutes = new_duration
+    if body.service_type_id is not None:
+        b.service_type_id = body.service_type_id
     if body.notes is not None:
         b.notes = body.notes
     db.commit()

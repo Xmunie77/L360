@@ -10,6 +10,7 @@ import {
   listClients,
   listEducators,
   listRooms,
+  listSessionTypes,
   moveBooking,
   type Booking,
   type Client,
@@ -18,6 +19,7 @@ import {
   type Me,
   type NextAvailableRoom,
   type Room,
+  type ServiceType,
   type SkippedOccurrence,
 } from "../api/client";
 import { statusBadgeProps } from "../domain/status";
@@ -62,6 +64,7 @@ export function Calendar({ me }: { me: Me | null }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [educators, setEducators] = useState<Educator[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [sessionTypes, setSessionTypes] = useState<ServiceType[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -72,14 +75,15 @@ export function Calendar({ me }: { me: Me | null }) {
 
   // Reference data — fetched once.
   useEffect(() => {
-    Promise.all([listRooms(), listEducators(), listClients()])
-      .then(([r, e, c]) => {
+    Promise.all([listRooms(), listEducators(), listClients(), listSessionTypes()])
+      .then(([r, e, c, st]) => {
         setRooms(r);
         setEducators(e);
         setClients(c);
+        setSessionTypes(st);
       })
       .catch((err) => {
-        setLoadError(err instanceof ApiError ? err.detail : "Couldn't load rooms, educators or learners.");
+        setLoadError(err instanceof ApiError ? err.detail : "Couldn't load rooms, educators, learners or session types.");
       });
   }, []);
 
@@ -278,6 +282,7 @@ export function Calendar({ me }: { me: Me | null }) {
           rooms={activeRooms}
           educators={educators}
           clients={clients}
+          sessionTypes={sessionTypes}
           me={me}
           onClose={() => setNewBookingDraft(null)}
           onCreated={() => {
@@ -312,12 +317,13 @@ interface NewBookingModalProps {
   rooms: Room[];
   educators: Educator[];
   clients: Client[];
+  sessionTypes: ServiceType[];
   me: Me | null;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, onCreated }: NewBookingModalProps) {
+function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes, me, onClose, onCreated }: NewBookingModalProps) {
   const [roomId, setRoomId] = useState(String(draft.roomId));
   // If the person booking is themselves a bookable educator, default the
   // field to them — they're usually booking their own session — but leave
@@ -326,6 +332,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
     me && educators.some((e) => e.id === me.id) ? String(me.id) : "",
   );
   const [clientId, setClientId] = useState("");
+  const [sessionTypeId, setSessionTypeId] = useState("");
   const [time, setTime] = useState(draft.time);
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
@@ -337,8 +344,8 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!educatorId || !clientId) {
-      setError("Choose an educator and a learner.");
+    if (!educatorId || !clientId || !sessionTypeId) {
+      setError("Choose an educator, a learner and a session type.");
       return;
     }
     if (repeat !== "none" && !repeatEndsOn) {
@@ -353,6 +360,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
           room_id: Number(roomId),
           educator_id: Number(educatorId),
           client_id: Number(clientId),
+          service_type_id: Number(sessionTypeId),
           start_utc: combineDateTime(date, time),
           duration_minutes: Number(duration) as Duration,
           notes: notes || null,
@@ -363,6 +371,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
           room_id: Number(roomId),
           educator_id: Number(educatorId),
           client_id: Number(clientId),
+          service_type_id: Number(sessionTypeId),
           weekday: mondayBasedWeekday(date),
           local_time: `${time}:00`,
           duration_minutes: Number(duration) as Duration,
@@ -451,6 +460,16 @@ function NewBookingModal({ draft, date, rooms, educators, clients, me, onClose, 
                   ? `${c.guardian_first_name} ${c.guardian_surname} (${c.child_name})`
                   : `${c.guardian_first_name} ${c.guardian_surname}`,
               }))}
+            />
+            <Select
+              id="nb-session-type"
+              label="Session type"
+              required
+              placeholder="Choose a session type"
+              hint="From the L360 price list — what this session is billed as"
+              value={sessionTypeId}
+              onChange={(e) => setSessionTypeId(e.target.value)}
+              options={sessionTypes.map((st) => ({ value: String(st.id), label: st.name }))}
             />
             <Input
               id="nb-time"
@@ -558,6 +577,7 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
       <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
         <Card eyebrow={booking.room_name} title={booking.educator_name}>
           <p style={{ marginBottom: 8 }}>{booking.client_label}</p>
+          {booking.service_type_name && <p style={{ marginBottom: 8 }}>{booking.service_type_name}</p>}
           <p style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
             <StatusBadge variant={variant} label={label} />
             <span className="l360-mono">

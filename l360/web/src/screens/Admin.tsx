@@ -5,7 +5,6 @@ import {
   adminCreateClient,
   adminCreateClosure,
   adminCreateEducatorLevel,
-  adminCreatePriceEntry,
   adminCreateRoom,
   adminCreateServiceType,
   adminCreateUser,
@@ -17,7 +16,6 @@ import {
   adminListClosures,
   adminListEducatorLevels,
   adminListFacilityHours,
-  adminListPriceList,
   adminListRooms,
   adminListServiceTypes,
   adminListUsers,
@@ -29,10 +27,8 @@ import {
   adminUpsertFacilityHours,
   type AdminClient,
   type AdminUser,
-  type Duration,
   type EducatorLevel,
   type FacilityClosure,
-  type PriceListEntry,
   type Room,
   type ServiceType,
   type ServiceTypeCategory,
@@ -47,20 +43,14 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 const WEEKDAY_LABEL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const DURATION_OPTIONS = [
-  { value: "60", label: "60 minutes" },
-  { value: "90", label: "90 minutes" },
-  { value: "120", label: "120 minutes" },
-];
 
-type TabKey = "rooms" | "levels" | "users" | "clients" | "price-list" | "service-types" | "hours" | "closures";
+type TabKey = "rooms" | "levels" | "users" | "clients" | "service-types" | "hours" | "closures";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "rooms", label: "Rooms" },
   { key: "levels", label: "Educator levels" },
   { key: "users", label: "Users" },
   { key: "clients", label: "Learners" },
-  { key: "price-list", label: "Price list" },
   { key: "service-types", label: "Sessions & services" },
   { key: "hours", label: "Facility hours" },
   { key: "closures", label: "Closures" },
@@ -93,7 +83,6 @@ export function Admin() {
       {tab === "levels" && <LevelsAdmin />}
       {tab === "users" && <UsersAdmin />}
       {tab === "clients" && <ClientsAdmin />}
-      {tab === "price-list" && <PriceListAdmin />}
       {tab === "service-types" && <ServiceTypesAdmin />}
       {tab === "hours" && <FacilityHoursAdmin />}
       {tab === "closures" && <ClosuresAdmin />}
@@ -895,181 +884,6 @@ function ClientsAdmin() {
         <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <Button type="submit" loading={submitting} loadingLabel="Adding…">
           Add learner
-        </Button>
-      </form>
-    </Card>
-  );
-}
-
-// --- price list ------------------------------------------------------------
-
-function PriceListAdmin() {
-  const [entries, setEntries] = useState<PriceListEntry[]>([]);
-  const [levels, setLevels] = useState<EducatorLevel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [levelId, setLevelId] = useState("");
-  const [duration, setDuration] = useState("60");
-  const [clientPrice, setClientPrice] = useState("");
-  const [educatorRate, setEducatorRate] = useState("");
-  const [validFrom, setValidFrom] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      const [p, l] = await Promise.all([adminListPriceList(), adminListEducatorLevels()]);
-      setEntries(p);
-      setLevels(l);
-    } catch (err) {
-      setError(errorMessage(err, "Couldn't load the price list."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  function levelName(id: number): string {
-    return levels.find((l) => l.id === id)?.name ?? `#${id}`;
-  }
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!levelId || !clientPrice || !educatorRate || !validFrom) {
-      setFormError("Fill in level, both prices and an effective date.");
-      return;
-    }
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      await adminCreatePriceEntry({
-        level_id: Number(levelId),
-        duration_minutes: Number(duration) as Duration,
-        client_price_cents: Math.round(Number(clientPrice) * 100),
-        educator_rate_cents: Math.round(Number(educatorRate) * 100),
-        valid_from: validFrom,
-      });
-      setClientPrice("");
-      setEducatorRate("");
-      setValidFrom("");
-      await refresh();
-    } catch (err) {
-      setFormError(errorMessage(err, "Couldn't add this price."));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const sorted = [...entries].sort((a, b) =>
-    a.level_id !== b.level_id
-      ? a.level_id - b.level_id
-      : a.duration_minutes !== b.duration_minutes
-        ? a.duration_minutes - b.duration_minutes
-        : a.valid_from.localeCompare(b.valid_from),
-  );
-
-  return (
-    <Card eyebrow="Finance" title="Price list">
-      {error && (
-        <div className="l360-alert l360-alert-danger" role="alert">
-          ⚠ {error}
-        </div>
-      )}
-      {loading ? (
-        <p className="l360-empty">Loading…</p>
-      ) : sorted.length === 0 ? (
-        <p className="l360-empty">No prices configured yet.</p>
-      ) : (
-        <div style={{ overflowX: "auto", marginBottom: 20 }}>
-          <table className="l360-table">
-            <thead>
-              <tr>
-                <th>Level</th>
-                <th>Duration</th>
-                <th>Learner price</th>
-                <th>Educator rate</th>
-                <th>Effective from</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((p) => (
-                <tr key={p.id}>
-                  <td>{levelName(p.level_id)}</td>
-                  <td>{p.duration_minutes} min</td>
-                  <td><Money cents={p.client_price_cents} /></td>
-                  <td><Money cents={p.educator_rate_cents} /></td>
-                  <td className="l360-mono">{p.valid_from}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h4 style={{ marginBottom: 4 }}>Add a new rate</h4>
-      <p className="l360-field-hint" style={{ marginBottom: 12 }}>
-        This adds a new price effective from the date below — it doesn't edit history. Earlier rates
-        stay on past invoices.
-      </p>
-      <form onSubmit={handleCreate} noValidate>
-        {formError && (
-          <div className="l360-alert l360-alert-danger" role="alert">
-            ⚠ {formError}
-          </div>
-        )}
-        <Select
-          id="new-price-level"
-          label="Level"
-          required
-          placeholder="Choose a level"
-          value={levelId}
-          onChange={(e) => setLevelId(e.target.value)}
-          options={levels.map((l) => ({ value: String(l.id), label: l.name }))}
-        />
-        <Select
-          id="new-price-duration"
-          label="Duration"
-          required
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          options={DURATION_OPTIONS}
-        />
-        <Input
-          id="new-price-client"
-          label="Learner price (€)"
-          type="number"
-          step="0.01"
-          min="0"
-          required
-          value={clientPrice}
-          onChange={(e) => setClientPrice(e.target.value)}
-        />
-        <Input
-          id="new-price-educator"
-          label="Educator rate (€)"
-          type="number"
-          step="0.01"
-          min="0"
-          required
-          value={educatorRate}
-          onChange={(e) => setEducatorRate(e.target.value)}
-        />
-        <Input
-          id="new-price-valid-from"
-          label="Effective from"
-          type="date"
-          required
-          value={validFrom}
-          onChange={(e) => setValidFrom(e.target.value)}
-        />
-        <Button type="submit" loading={submitting} loadingLabel="Adding…">
-          Add rate
         </Button>
       </form>
     </Card>

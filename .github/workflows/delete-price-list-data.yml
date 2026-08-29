@@ -1,0 +1,37 @@
+name: Delete Price List Data — Learning 360°
+
+# One-off: deletes the old level+duration price list data (Junior/Senior/
+# Consultant/Assistant hourly rates). Booking/billing now price from the
+# L360 price list (service_types) instead — see the commit that added
+# service_type_id to bookings. Idempotent — safe to re-run, a no-op once
+# the table's empty. Gated behind workflow_dispatch — never runs
+# automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  delete-price-list-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Delete price list data
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.delete_price_list_data

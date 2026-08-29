@@ -44,6 +44,7 @@ def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, 
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     })
@@ -59,6 +60,7 @@ def test_cancel_sends_cancel_notification(admin_client, booking_env, _capture_em
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()
@@ -79,6 +81,7 @@ def test_move_sends_change_notification(admin_client, booking_env, _capture_emai
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_dt.isoformat(),
         "duration_minutes": 60,
     }).json()
@@ -102,6 +105,7 @@ def test_retrying_same_event_does_not_double_send(admin_client, booking_env, _ca
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()
@@ -124,6 +128,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _safe_future_start(20),
         "duration_minutes": 60,
     })
@@ -132,6 +137,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _safe_future_start(48),
         "duration_minutes": 60,
     })
@@ -153,6 +159,7 @@ def test_reminder_is_idempotent_across_runs(admin_client, booking_env, _capture_
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _safe_future_start(12),
         "duration_minutes": 60,
     })
@@ -183,6 +190,7 @@ def test_daily_digest_groups_by_educator_and_skips_empty_days(admin_client, book
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_utc.isoformat(),
         "duration_minutes": 60,
     })

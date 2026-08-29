@@ -10,9 +10,9 @@ from datetime import date, datetime, time, timedelta, UTC
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from l360.billing_logic import BILLABLE_STATUSES, price_for
+from l360.billing_logic import BILLABLE_STATUSES
 from l360.booking_logic import utc_to_local
-from l360.models import Booking, Client, Invoice, Payment, Room, User
+from l360.models import Booking, Client, Invoice, Payment, Room, ServiceType, User
 
 
 def _naive_utc_bound(d: date, end_of_day: bool = False) -> datetime:
@@ -94,6 +94,7 @@ class SummarySessionLine:
     booking_id: int
     local_date: date
     client_label: str
+    service_type_name: str | None
     duration_minutes: int
     status: str
     rate_cents: int
@@ -109,7 +110,6 @@ class EducatorSummary:
 
 
 def educator_summary(db: Session, *, educator_id: int, period_start: date, period_end: date) -> EducatorSummary:
-    educator = db.get(User, educator_id)
     period_start_dt = _naive_utc_bound(period_start) - timedelta(days=1)
     period_end_dt = _naive_utc_bound(period_end, end_of_day=True) + timedelta(days=1)
 
@@ -129,14 +129,13 @@ def educator_summary(db: Session, *, educator_id: int, period_start: date, perio
         if not (period_start <= local_date <= period_end):
             continue
         client = db.get(Client, b.client_id)
-        rate_cents = 0
-        if educator and educator.level_id:
-            entry = price_for(db, level_id=educator.level_id, duration_minutes=b.duration_minutes, as_of=local_date)
-            rate_cents = entry.educator_rate_cents if entry else 0
+        service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
+        rate_cents = service_type.tutor_payment_cents if service_type else 0
         lines.append(SummarySessionLine(
             booking_id=b.id,
             local_date=local_date,
             client_label=client.guardian_name if client else "?",
+            service_type_name=service_type.name if service_type else None,
             duration_minutes=b.duration_minutes,
             status=b.status,
             rate_cents=rate_cents,

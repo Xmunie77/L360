@@ -17,8 +17,6 @@ vi.mock("../api/client", async () => {
     adminCreateUser: vi.fn(),
     adminUpdateUser: vi.fn(),
     adminDeactivateUser: vi.fn(),
-    adminListPriceList: vi.fn(),
-    adminCreatePriceEntry: vi.fn(),
     adminListFacilityHours: vi.fn(),
     adminUpsertFacilityHours: vi.fn(),
     adminListClosures: vi.fn(),
@@ -57,7 +55,7 @@ describe("Admin", () => {
     render(<Admin />);
 
     expect(screen.getByRole("button", { name: "Educator levels" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Price list" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sessions & services" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Facility hours" })).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Room A")).toBeTruthy());
   });

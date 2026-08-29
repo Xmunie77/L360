@@ -43,6 +43,9 @@ export interface Booking {
   client_id: number;
   client_label: string;
   series_id: number | null;
+  /** What's being billed — a named "session" item from the L360 price list. */
+  service_type_id: number | null;
+  service_type_name: string | null;
   start_utc: string;
   duration_minutes: number;
   status: BookingStatus;
@@ -66,6 +69,7 @@ export interface BookingCreateInput {
   room_id: number;
   educator_id: number;
   client_id: number;
+  service_type_id: number;
   start_utc: string;
   duration_minutes: Duration;
   notes?: string | null;
@@ -75,6 +79,7 @@ export interface BookingSeriesCreateInput {
   room_id: number;
   educator_id: number;
   client_id: number;
+  service_type_id: number;
   weekday: number;
   local_time: string;
   duration_minutes: Duration;
@@ -100,6 +105,7 @@ export interface BookingMoveInput {
   start_utc?: string;
   room_id?: number;
   duration_minutes?: Duration;
+  service_type_id?: number;
   notes?: string | null;
 }
 
@@ -540,6 +546,13 @@ export function listRooms(): Promise<Room[]> {
 
 export function listEducators(): Promise<Educator[]> {
   return get<Educator[]>("/api/educators");
+}
+
+/** Active "session" items from the L360 price list — what a booking can be
+ *  billed against. Excludes "additional_service" items (flashcards, etc.),
+ *  which are never calendar bookings. */
+export function listSessionTypes(): Promise<ServiceType[]> {
+  return get<ServiceType[]>("/api/session-types");
 }
 
 export function listClients(): Promise<Client[]> {

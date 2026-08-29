@@ -9,16 +9,18 @@ vi.mock("../api/client", async () => {
     listRooms: vi.fn(),
     listEducators: vi.fn(),
     listClients: vi.fn(),
+    listSessionTypes: vi.fn(),
     listBookings: vi.fn(),
     getNextAvailableRoom: vi.fn(),
   };
 });
 
-import { getNextAvailableRoom, listBookings, listClients, listEducators, listRooms } from "../api/client";
+import { getNextAvailableRoom, listBookings, listClients, listEducators, listRooms, listSessionTypes } from "../api/client";
 
 const mockListRooms = vi.mocked(listRooms);
 const mockListEducators = vi.mocked(listEducators);
 const mockListClients = vi.mocked(listClients);
+const mockListSessionTypes = vi.mocked(listSessionTypes);
 const mockListBookings = vi.mocked(listBookings);
 const mockGetNextAvailableRoom = vi.mocked(getNextAvailableRoom);
 
@@ -34,6 +36,9 @@ describe("Calendar", () => {
     mockListClients.mockResolvedValue([
       { id: 20, guardian_first_name: "Aġius", guardian_surname: "family", child_name: "AG-1" },
     ]);
+    mockListSessionTypes.mockResolvedValue([
+      { id: 30, name: "Consultant Office Session", category: "session", client_price_cents: 3500, tutor_payment_cents: 3000, requires_room: true, sort_order: 0, active: true },
+    ]);
     mockListBookings.mockResolvedValue([
       {
         id: 100,
@@ -44,6 +49,8 @@ describe("Calendar", () => {
         client_id: 20,
         client_label: "Aġius family (AG-1)",
         series_id: null,
+        service_type_id: 30,
+        service_type_name: "Consultant Office Session",
         start_utc: new Date().toISOString(),
         duration_minutes: 60,
         status: "confirmed",
@@ -86,6 +93,7 @@ describe("Calendar", () => {
     mockListRooms.mockResolvedValue([{ id: 1, name: "Room A", sort_order: 0, active: true }]);
     mockListEducators.mockResolvedValue([]);
     mockListClients.mockResolvedValue([]);
+    mockListSessionTypes.mockResolvedValue([]);
     mockListBookings.mockResolvedValue([]);
     mockGetNextAvailableRoom.mockResolvedValue({
       room_id: null,

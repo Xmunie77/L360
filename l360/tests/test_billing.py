@@ -11,31 +11,25 @@ def _setup_priced_booking(admin_client, booking_env, *, status: str, client_pric
     from l360 import booking_logic
     from datetime import time as time_cls
     from l360.db import session_scope
-    from l360.models import Booking, EducatorLevel, PriceListEntry, User
+    from l360.models import Booking, ServiceType
 
     with session_scope() as db:
-        educator = db.get(User, booking_env["educator_id"])
-        level = db.get(EducatorLevel, educator.level_id)
-        # Reuse the existing 2020-01-01 price row for this level+duration if
-        # a prior call in the same test already created one — the unique
-        # constraint on (level_id, duration_minutes, valid_from) would
-        # otherwise reject a second insert.
-        existing = db.scalar(select(PriceListEntry).where(
-            PriceListEntry.level_id == level.id,
-            PriceListEntry.duration_minutes == 60,
-            PriceListEntry.valid_from == date(2020, 1, 1),
-        ))
-        if existing is None:
-            db.add(PriceListEntry(
-                level_id=level.id, duration_minutes=60,
-                client_price_cents=client_price_cents, educator_rate_cents=client_price_cents // 2,
-                valid_from=date(2020, 1, 1),
-            ))
+        # Reuse an existing service type at this exact price if a prior call
+        # in the same test already created one — ServiceType.name is unique.
+        name = f"Test Session {client_price_cents}c"
+        service_type = db.scalar(select(ServiceType).where(ServiceType.name == name))
+        if service_type is None:
+            service_type = ServiceType(
+                name=name, category="session",
+                client_price_cents=client_price_cents, tutor_payment_cents=client_price_cents // 2,
+            )
+            db.add(service_type)
+            db.flush()
         start_utc = booking_logic.local_to_utc(local_date, time_cls(10, 0))
         booking = Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], start_utc=start_utc, duration_minutes=60,
-            status=status, created_by=1,
+            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
+            duration_minutes=60, status=status, created_by=1,
         )
         db.add(booking)
         db.flush()
@@ -68,6 +62,7 @@ def test_confirmed_booking_is_not_billable(admin_client, booking_env):
     admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"], "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": (datetime.now(UTC) + timedelta(days=60)).isoformat(),
         "duration_minutes": 60,
     })
@@ -89,29 +84,33 @@ def test_billing_run_is_idempotent_no_double_billing(admin_client, booking_env):
     assert r2.json()["created"] == []
 
 
-def test_price_used_is_the_price_at_session_date_not_todays(admin_client, booking_env):
+def test_price_used_is_the_service_types_current_price(admin_client, booking_env):
+    # The L360 price list (service types) is a flat, admin-editable table —
+    # unlike the old level+duration price list it replaced, there's no
+    # valid_from versioning. Billing always uses whatever the service
+    # type's price is *right now*, even for a booking dated in the past.
     from l360.db import session_scope
-    from l360.models import EducatorLevel, PriceListEntry, User
-
-    with session_scope() as db:
-        educator = db.get(User, booking_env["educator_id"])
-        level = db.get(EducatorLevel, educator.level_id)
-        db.add(PriceListEntry(level_id=level.id, duration_minutes=60, client_price_cents=3000, educator_rate_cents=1800, valid_from=date(2020, 1, 1)))
-        db.add(PriceListEntry(level_id=level.id, duration_minutes=60, client_price_cents=5000, educator_rate_cents=3000, valid_from=date(2026, 6, 1)))
-
     from l360 import booking_logic
     from datetime import time as time_cls
+    from l360.models import Booking, ServiceType
+
     with session_scope() as db:
-        from l360.models import Booking
-        start_utc = booking_logic.local_to_utc(date(2026, 5, 10), time_cls(10, 0))  # before the price rise
+        service_type = db.get(ServiceType, booking_env["service_type_id"])
+        start_utc = booking_logic.local_to_utc(date(2026, 5, 10), time_cls(10, 0))
         db.add(Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], start_utc=start_utc, duration_minutes=60,
-            status="completed", created_by=1,
+            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
+            duration_minutes=60, status="completed", created_by=1,
         ))
 
+    # Raise the price after the session happened but before it's billed.
+    admin_client.put(f"/api/admin/service-types/{booking_env['service_type_id']}", json={
+        "name": "Test Session", "category": "session",
+        "client_price_cents": 5000, "tutor_payment_cents": 4000,
+    })
+
     r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
-    assert r.json()["created"][0]["total_cents"] == 3000  # the OLD price, not 5000
+    assert r.json()["created"][0]["total_cents"] == 5000  # the NEW price, not what it was at booking time
 
 
 def test_issue_invoice_assigns_sequential_numbers(admin_client, booking_env):

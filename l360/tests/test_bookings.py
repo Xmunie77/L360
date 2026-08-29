@@ -37,6 +37,7 @@ def test_create_booking_and_list(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start,
         "duration_minutes": 60,
     })
@@ -45,11 +46,49 @@ def test_create_booking_and_list(admin_client, booking_env):
     assert booking["status"] == "confirmed"
     assert booking["room_name"] == "Test Room"
     assert booking["client_label"] == "Jane Doe (JD)"
+    assert booking["service_type_id"] == booking_env["service_type_id"]
+    assert booking["service_type_name"] == "Test Session"
 
     window_start = (datetime.now(UTC)).isoformat()
     window_end = (datetime.now(UTC) + timedelta(hours=72)).isoformat()
     r = admin_client.get("/api/bookings", params={"start": window_start, "end": window_end})
     assert any(b["id"] == booking["id"] for b in r.json())
+
+
+def test_create_booking_requires_a_valid_bookable_session_type(admin_client, booking_env):
+    start = _future_start(48)
+    base_body = {
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "start_utc": start,
+        "duration_minutes": 60,
+    }
+
+    # Missing entirely.
+    r = admin_client.post("/api/bookings", json=base_body)
+    assert r.status_code == 422
+
+    # Nonexistent id.
+    r = admin_client.post("/api/bookings", json={**base_body, "service_type_id": 999999})
+    assert r.status_code == 422
+
+    # An "additional_service" item (e.g. flashcards) isn't a calendar booking.
+    addl = admin_client.post("/api/admin/service-types", json={
+        "name": "Flashcards A4", "category": "additional_service",
+        "client_price_cents": 120, "tutor_payment_cents": 50,
+    }).json()
+    r = admin_client.post("/api/bookings", json={**base_body, "service_type_id": addl["id"]})
+    assert r.status_code == 422
+
+    # An inactive session type is no longer bookable.
+    inactive = admin_client.post("/api/admin/service-types", json={
+        "name": "Retired Session", "category": "session",
+        "client_price_cents": 3000, "tutor_payment_cents": 2500,
+    }).json()
+    admin_client.delete(f"/api/admin/service-types/{inactive['id']}")
+    r = admin_client.post("/api/bookings", json={**base_body, "service_type_id": inactive["id"]})
+    assert r.status_code == 422
 
 
 def test_create_booking_room_conflict_rejected(admin_client, booking_env):
@@ -58,6 +97,7 @@ def test_create_booking_room_conflict_rejected(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start,
         "duration_minutes": 60,
     }
@@ -77,6 +117,7 @@ def test_create_booking_back_to_back_allowed(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_dt.isoformat(),
         "duration_minutes": 60,
     }
@@ -91,6 +132,7 @@ def test_invalid_duration_rejected(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 45,  # not one of 60/90/120
     })
@@ -135,6 +177,7 @@ def test_next_available_room_skips_conflict(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": first["start_utc"],
         "duration_minutes": 60,
     })
@@ -152,6 +195,7 @@ def test_move_booking_success_and_conflict(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_dt.isoformat(),
         "duration_minutes": 60,
     }).json()
@@ -159,6 +203,7 @@ def test_move_booking_success_and_conflict(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": (start_dt + timedelta(hours=2)).isoformat(),
         "duration_minutes": 60,
     }).json()
@@ -181,6 +226,7 @@ def test_cancel_outside_cutoff_is_free(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),  # well outside the 24h cutoff
         "duration_minutes": 60,
     }).json()
@@ -194,6 +240,7 @@ def test_cancel_inside_cutoff_is_billable(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _inside_cutoff_start().isoformat(),  # inside the 24h cutoff
         "duration_minutes": 60,
     }).json()
@@ -207,6 +254,7 @@ def test_cancel_already_cancelled_rejected(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()
@@ -222,6 +270,7 @@ def test_series_creates_weekly_occurrences(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "weekday": starts_on.weekday(),
         "local_time": "10:00:00",
         "duration_minutes": 60,
@@ -240,6 +289,7 @@ def test_series_fortnightly_interval(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "weekday": starts_on.weekday(),
         "local_time": "10:00:00",
         "duration_minutes": 60,
@@ -272,6 +322,7 @@ def test_series_skips_conflicting_occurrence(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": booking_logic.local_to_utc(second_occurrence, time_cls(10, 0)).isoformat(),
         "duration_minutes": 60,
     })
@@ -280,6 +331,7 @@ def test_series_skips_conflicting_occurrence(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "weekday": starts_on.weekday(),
         "local_time": "10:00:00",
         "duration_minutes": 60,
@@ -297,6 +349,7 @@ def test_educator_can_only_modify_own_booking(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()
@@ -311,6 +364,7 @@ def test_other_educator_cannot_modify_booking(admin_client, booking_env, educato
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()
@@ -334,6 +388,7 @@ def test_outside_facility_hours_rejected(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_utc.isoformat(),
         "duration_minutes": 60,
     })
@@ -351,6 +406,7 @@ def test_facility_closure_rejected(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": start_utc.isoformat(),
         "duration_minutes": 60,
     })
@@ -363,6 +419,7 @@ def test_mark_status_requires_admin_and_past_booking(admin_client, booking_env):
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
         "start_utc": _future_start(48),
         "duration_minutes": 60,
     }).json()

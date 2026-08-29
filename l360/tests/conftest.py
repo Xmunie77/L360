@@ -95,6 +95,10 @@ def booking_env(admin_client):
     client_row = admin_client.post("/api/admin/clients", json={
         "guardian_first_name": "Jane", "guardian_surname": "Doe", "email": "jane@example.com", "child_name": "JD",
     }).json()
+    service_type = admin_client.post("/api/admin/service-types", json={
+        "name": "Test Session", "category": "session",
+        "client_price_cents": 3500, "tutor_payment_cents": 3000,
+    }).json()
     for weekday in range(7):
         admin_client.put("/api/admin/facility-hours", json={
             "weekday": weekday, "open_time": "00:00:00", "close_time": "23:59:59",
@@ -110,5 +114,6 @@ def booking_env(admin_client):
         "room_id": room["id"],
         "educator_id": educator["id"],
         "client_id": client_row["id"],
+        "service_type_id": service_type["id"],
         "educator_client": educator_test_client,
     }

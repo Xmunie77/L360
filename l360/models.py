@@ -283,6 +283,9 @@ class BookingSeries(Base):
     room_id: Mapped[int] = mapped_column(ForeignKey(_fk("rooms.id")), nullable=False)
     educator_id: Mapped[int] = mapped_column(ForeignKey(_fk("users.id")), nullable=False)
     client_id: Mapped[int] = mapped_column(ForeignKey(_fk("clients.id")), nullable=False)
+    # Nullable at the DB level for older rows created before this column
+    # existed; the API requires it on every new series.
+    service_type_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("service_types.id")), nullable=True)
     weekday: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Mon .. 6=Sun
     # Wall-clock start in Europe/Malta local time.
     local_time: Mapped[time] = mapped_column(Time, nullable=False)
@@ -310,6 +313,12 @@ class Booking(Base):
     series_id: Mapped[int | None] = mapped_column(
         ForeignKey(_fk("booking_series.id")), nullable=True
     )
+    # What's being billed — a named item from the L360 price list (e.g.
+    # "Consultant Office Session"). Nullable at the DB level for older rows
+    # created before this column existed; the API requires it on every new
+    # booking, and billing/statements price from here, not from
+    # educator level + duration.
+    service_type_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("service_types.id")), nullable=True)
     start_utc: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     # confirmed | completed | cancelled | cancelled_late | no_show

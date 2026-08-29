@@ -55,6 +55,7 @@ describe("api client", () => {
         room_id: 1,
         educator_id: 2,
         client_id: 3,
+        service_type_id: 4,
         start_utc: "2026-09-01T09:00:00Z",
         duration_minutes: 60,
       }),

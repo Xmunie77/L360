@@ -278,6 +278,9 @@ class BookingIn(BaseModel):
     room_id: int
     educator_id: int
     client_id: int
+    # What's being billed — a named "session" item from the L360 price list
+    # (service_types), not educator level + duration.
+    service_type_id: int
     start_utc: datetime
     duration_minutes: Duration
     notes: str | None = None
@@ -287,6 +290,7 @@ class BookingSeriesIn(BaseModel):
     room_id: int
     educator_id: int
     client_id: int
+    service_type_id: int
     weekday: int = Field(ge=0, le=6)
     local_time: time
     duration_minutes: Duration
@@ -301,6 +305,7 @@ class BookingMoveIn(BaseModel):
     start_utc: datetime | None = None
     room_id: int | None = None
     duration_minutes: Duration | None = None
+    service_type_id: int | None = None
     notes: str | None = None
 
 
@@ -317,6 +322,8 @@ class BookingOut(BaseModel):
     client_id: int
     client_label: str
     series_id: int | None
+    service_type_id: int | None
+    service_type_name: str | None
     start_utc: datetime
     duration_minutes: int
     status: str
@@ -454,6 +461,7 @@ class SummarySessionLineOut(BaseModel):
     booking_id: int
     local_date: date
     client_label: str
+    service_type_name: str | None
     duration_minutes: int
     status: str
     rate_cents: int

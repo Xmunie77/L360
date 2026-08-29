@@ -12,28 +12,12 @@ from sqlalchemy.orm import Session
 
 from l360.booking_logic import utc_to_local
 from l360.config import INVOICE_NUMBER_PREFIX
-from l360.models import Booking, Invoice, InvoiceLine, PriceListEntry, User
+from l360.models import Booking, Invoice, InvoiceLine, ServiceType
 
 # Bookings in these states are billable — the session happened, or the
 # family is being charged for missing/late-cancelling it. `confirmed`
 # (still upcoming) and plain `cancelled` (outside the cutoff, free) are not.
 BILLABLE_STATUSES = ("completed", "cancelled_late", "no_show")
-
-
-def price_for(db: Session, *, level_id: int, duration_minutes: int, as_of: date) -> PriceListEntry | None:
-    """The price tier in effect on `as_of` — the entry with the latest
-    valid_from <= as_of. Never edited in place, so this always reproduces
-    what a booking was actually priced at, even if rates changed since."""
-    rows = db.scalars(
-        select(PriceListEntry).where(
-            PriceListEntry.level_id == level_id,
-            PriceListEntry.duration_minutes == duration_minutes,
-            PriceListEntry.valid_from <= as_of,
-        )
-    ).all()
-    if not rows:
-        return None
-    return max(rows, key=lambda r: r.valid_from)
 
 
 def billable_bookings_for_client(db: Session, *, client_id: int, period_start: date, period_end: date) -> list[Booking]:
@@ -88,15 +72,14 @@ def generate_draft_invoice(
 
     total = 0
     for b in bookings:
-        educator = db.get(User, b.educator_id)
-        level_id = educator.level_id if educator else None
+        service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
         local_date, _ = utc_to_local(b.start_utc)
-        entry = price_for(db, level_id=level_id, duration_minutes=b.duration_minutes, as_of=local_date) if level_id else None
-        unit_price = entry.client_price_cents if entry else 0
+        unit_price = service_type.client_price_cents if service_type else 0
+        name = service_type.name if service_type else "Session"
         line = InvoiceLine(
             invoice_id=invoice.id,
             booking_id=b.id,
-            description=f"Session {local_date.isoformat()} ({b.duration_minutes} min, {b.status})",
+            description=f"{name} — {local_date.isoformat()} ({b.status})",
             unit_price_cents=unit_price,
             quantity=1,
             amount_cents=unit_price,
