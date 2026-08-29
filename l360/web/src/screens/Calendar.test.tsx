@@ -51,6 +51,8 @@ describe("Calendar", () => {
         series_id: null,
         service_type_id: 30,
         service_type_name: "Consultant Office Session",
+        client_price_cents: 3500,
+        tutor_payment_cents: 3000,
         start_utc: new Date().toISOString(),
         duration_minutes: 60,
         status: "confirmed",

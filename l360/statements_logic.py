@@ -129,8 +129,10 @@ def educator_summary(db: Session, *, educator_id: int, period_start: date, perio
         if not (period_start <= local_date <= period_end):
             continue
         client = db.get(Client, b.client_id)
+        # The tutor payment locked in at booking time, not whatever the
+        # service type currently pays — see Booking.tutor_payment_cents.
+        rate_cents = b.tutor_payment_cents or 0
         service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
-        rate_cents = service_type.tutor_payment_cents if service_type else 0
         lines.append(SummarySessionLine(
             booking_id=b.id,
             local_date=local_date,

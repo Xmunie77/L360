@@ -774,6 +774,8 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         series_id=b.series_id,
         service_type_id=b.service_type_id,
         service_type_name=service_type.name if service_type else None,
+        client_price_cents=b.client_price_cents,
+        tutor_payment_cents=b.tutor_payment_cents,
         start_utc=b.start_utc,
         duration_minutes=b.duration_minutes,
         status=b.status,
@@ -846,7 +848,7 @@ def _resolve_bookable_service_type(db: Session, service_type_id: int) -> Service
 
 @app.post("/api/bookings", response_model=BookingOut)
 def create_booking(body: BookingIn, db: Session = Depends(get_session), user: User = Depends(require_user)):
-    _resolve_bookable_service_type(db, body.service_type_id)
+    service_type = _resolve_bookable_service_type(db, body.service_type_id)
     try:
         booking_logic.validate_slot(
             db,
@@ -863,6 +865,10 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
         educator_id=body.educator_id,
         client_id=body.client_id,
         service_type_id=body.service_type_id,
+        # Locked in now — a later edit to the service type's price must
+        # never change what this booking bills at.
+        client_price_cents=service_type.client_price_cents,
+        tutor_payment_cents=service_type.tutor_payment_cents,
         start_utc=body.start_utc,
         duration_minutes=body.duration_minutes,
         notes=body.notes,
@@ -879,7 +885,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
 def create_booking_series(
     body: BookingSeriesIn, db: Session = Depends(get_session), user: User = Depends(require_user)
 ):
-    _resolve_bookable_service_type(db, body.service_type_id)
+    service_type = _resolve_bookable_service_type(db, body.service_type_id)
     dates = booking_logic.expand_weekly_dates(body.starts_on, body.ends_on, body.weekday, body.interval_weeks)
     if not dates:
         raise HTTPException(status_code=422, detail="No occurrences between starts_on and ends_on")
@@ -920,6 +926,8 @@ def create_booking_series(
             client_id=body.client_id,
             series_id=series.id,
             service_type_id=body.service_type_id,
+            client_price_cents=service_type.client_price_cents,
+            tutor_payment_cents=service_type.tutor_payment_cents,
             start_utc=start_utc,
             duration_minutes=body.duration_minutes,
             notes=body.notes,
@@ -954,8 +962,7 @@ def move_booking(
     if b.status != "confirmed":
         raise HTTPException(status_code=409, detail=f"Cannot move a {b.status} booking")
 
-    if body.service_type_id is not None:
-        _resolve_bookable_service_type(db, body.service_type_id)
+    new_service_type = _resolve_bookable_service_type(db, body.service_type_id) if body.service_type_id is not None else None
 
     new_room_id = body.room_id if body.room_id is not None else b.room_id
     new_start = body.start_utc if body.start_utc is not None else b.start_utc
@@ -976,8 +983,12 @@ def move_booking(
     b.room_id = new_room_id
     b.start_utc = new_start
     b.duration_minutes = new_duration
-    if body.service_type_id is not None:
-        b.service_type_id = body.service_type_id
+    if new_service_type is not None:
+        b.service_type_id = new_service_type.id
+        # Re-locked to the new service type's current price — this is a
+        # deliberate change of what's being billed, not a price-list edit.
+        b.client_price_cents = new_service_type.client_price_cents
+        b.tutor_payment_cents = new_service_type.tutor_payment_cents
     if body.notes is not None:
         b.notes = body.notes
     db.commit()

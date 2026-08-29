@@ -28,8 +28,9 @@ def _setup_priced_booking(admin_client, booking_env, *, status: str, client_pric
         start_utc = booking_logic.local_to_utc(local_date, time_cls(10, 0))
         booking = Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
-            duration_minutes=60, status=status, created_by=1,
+            client_id=booking_env["client_id"], service_type_id=service_type.id,
+            client_price_cents=service_type.client_price_cents, tutor_payment_cents=service_type.tutor_payment_cents,
+            start_utc=start_utc, duration_minutes=60, status=status, created_by=1,
         )
         db.add(booking)
         db.flush()
@@ -84,33 +85,40 @@ def test_billing_run_is_idempotent_no_double_billing(admin_client, booking_env):
     assert r2.json()["created"] == []
 
 
-def test_price_used_is_the_service_types_current_price(admin_client, booking_env):
-    # The L360 price list (service types) is a flat, admin-editable table —
-    # unlike the old level+duration price list it replaced, there's no
-    # valid_from versioning. Billing always uses whatever the service
-    # type's price is *right now*, even for a booking dated in the past.
-    from l360.db import session_scope
+def test_price_used_is_locked_in_at_booking_time_not_todays(admin_client, booking_env):
+    # The L360 price list (service types) is a flat, admin-editable table
+    # with no valid_from versioning like the old level+duration price list
+    # had — so the booking itself locks in the price at booking time
+    # (Booking.client_price_cents), and billing must keep using that even
+    # if the service type's price changes before the session is billed.
     from l360 import booking_logic
     from datetime import time as time_cls
-    from l360.models import Booking, ServiceType
 
-    with session_scope() as db:
-        service_type = db.get(ServiceType, booking_env["service_type_id"])
-        start_utc = booking_logic.local_to_utc(date(2026, 5, 10), time_cls(10, 0))
-        db.add(Booking(
-            room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
-            duration_minutes=60, status="completed", created_by=1,
-        ))
+    start_utc = booking_logic.local_to_utc(date(2026, 5, 10), time_cls(10, 0))
+    r = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
+        "start_utc": start_utc.isoformat(),
+        "duration_minutes": 60,
+    })
+    booking_id = r.json()["id"]
+    assert r.json()["client_price_cents"] == 3500  # the service type's price at booking time
 
-    # Raise the price after the session happened but before it's billed.
+    # Raise the price after booking but before the session is billed.
     admin_client.put(f"/api/admin/service-types/{booking_env['service_type_id']}", json={
         "name": "Test Session", "category": "session",
         "client_price_cents": 5000, "tutor_payment_cents": 4000,
     })
 
+    from l360.db import session_scope
+    from l360.models import Booking
+    with session_scope() as db:
+        db.get(Booking, booking_id).status = "completed"
+
     r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
-    assert r.json()["created"][0]["total_cents"] == 5000  # the NEW price, not what it was at booking time
+    assert r.json()["created"][0]["total_cents"] == 3500  # still the price at booking time, not 5000
 
 
 def test_issue_invoice_assigns_sequential_numbers(admin_client, booking_env):

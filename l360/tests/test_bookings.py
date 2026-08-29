@@ -221,6 +221,39 @@ def test_move_booking_success_and_conflict(admin_client, booking_env):
     assert r.status_code == 409
 
 
+def test_moving_to_a_different_session_type_re_locks_the_price(admin_client, booking_env):
+    start_dt = _safe_morning_start()
+    booking = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
+        "start_utc": start_dt.isoformat(),
+        "duration_minutes": 60,
+    }).json()
+    assert booking["client_price_cents"] == 3500  # "Test Session" from booking_env
+
+    pricier = admin_client.post("/api/admin/service-types", json={
+        "name": "Pricier Session", "category": "session",
+        "client_price_cents": 6000, "tutor_payment_cents": 5000,
+    }).json()
+
+    r = admin_client.patch(f"/api/bookings/{booking['id']}", json={"service_type_id": pricier["id"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service_type_id"] == pricier["id"]
+    assert body["client_price_cents"] == 6000
+    assert body["tutor_payment_cents"] == 5000
+
+    # Moving room/time without touching service_type_id leaves the locked
+    # price exactly as it was — not reset or re-resolved.
+    r = admin_client.patch(f"/api/bookings/{booking['id']}", json={
+        "start_utc": (start_dt + timedelta(hours=3)).isoformat(),
+    })
+    assert r.status_code == 200
+    assert r.json()["client_price_cents"] == 6000
+
+
 def test_cancel_outside_cutoff_is_free(admin_client, booking_env):
     booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],

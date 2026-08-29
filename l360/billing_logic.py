@@ -1,6 +1,7 @@
-"""Billing computation: which bookings are billable, what they cost (priced
-at the session's own date, not today's price), draft-invoice generation,
-and sequential invoice numbering at issue time.
+"""Billing computation: which bookings are billable, what they cost (the
+price locked in on the booking at booking time — see Booking.client_price_
+cents — not whatever the service type currently costs), draft-invoice
+generation, and sequential invoice numbering at issue time.
 """
 from __future__ import annotations
 
@@ -72,10 +73,12 @@ def generate_draft_invoice(
 
     total = 0
     for b in bookings:
+        # The price locked in at booking time, not whatever the service
+        # type currently costs — see Booking.client_price_cents.
+        unit_price = b.client_price_cents or 0
         service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
-        local_date, _ = utc_to_local(b.start_utc)
-        unit_price = service_type.client_price_cents if service_type else 0
         name = service_type.name if service_type else "Session"
+        local_date, _ = utc_to_local(b.start_utc)
         line = InvoiceLine(
             invoice_id=invoice.id,
             booking_id=b.id,

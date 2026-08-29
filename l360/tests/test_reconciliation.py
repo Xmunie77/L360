@@ -32,8 +32,9 @@ def _issued_invoice(admin_client, booking_env, *, client_price_cents: int, local
         start_utc = booking_logic.local_to_utc(local_date, time_cls(10, 0))
         db.add(Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc,
-            duration_minutes=60, status="completed", created_by=1,
+            client_id=booking_env["client_id"], service_type_id=service_type.id,
+            client_price_cents=service_type.client_price_cents, tutor_payment_cents=service_type.tutor_payment_cents,
+            start_utc=start_utc, duration_minutes=60, status="completed", created_by=1,
         ))
 
     period_start, period_end = local_date.replace(day=1), local_date
@@ -107,8 +108,9 @@ def test_ambiguous_amount_left_unmatched(admin_client, booking_env):
         start_utc = booking_logic.local_to_utc(date(2026, 5, 12), time_cls(11, 0))
         db.add(Booking(
             room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
-            client_id=second_client["id"], service_type_id=service_type.id, start_utc=start_utc,
-            duration_minutes=60, status="completed", created_by=1,
+            client_id=second_client["id"], service_type_id=service_type.id,
+            client_price_cents=service_type.client_price_cents, tutor_payment_cents=service_type.tutor_payment_cents,
+            start_utc=start_utc, duration_minutes=60, status="completed", created_by=1,
         ))
     run2 = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"}).json()
     invoice2 = next(i for i in run2["created"] if i["client_id"] == second_client["id"])

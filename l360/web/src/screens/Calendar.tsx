@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type MouseEvent } from "react";
-import { Button, Card, Input, Select, StatusBadge, Textarea } from "../ui/ui";
+import { Button, Card, Input, Money, Select, StatusBadge, Textarea } from "../ui/ui";
 import {
   ApiError,
   cancelBooking,
@@ -577,7 +577,17 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
       <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
         <Card eyebrow={booking.room_name} title={booking.educator_name}>
           <p style={{ marginBottom: 8 }}>{booking.client_label}</p>
-          {booking.service_type_name && <p style={{ marginBottom: 8 }}>{booking.service_type_name}</p>}
+          {booking.service_type_name && (
+            <p style={{ marginBottom: 8 }}>
+              {booking.service_type_name}
+              {booking.client_price_cents !== null && (
+                <>
+                  {" — "}
+                  <Money cents={booking.client_price_cents} />
+                </>
+              )}
+            </p>
+          )}
           <p style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
             <StatusBadge variant={variant} label={label} />
             <span className="l360-mono">

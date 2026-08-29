@@ -46,6 +46,10 @@ export interface Booking {
   /** What's being billed — a named "session" item from the L360 price list. */
   service_type_id: number | null;
   service_type_name: string | null;
+  /** Locked in at booking time (and re-locked on a move that changes the
+   *  service type) — not affected by a later price-list edit. */
+  client_price_cents: number | null;
+  tutor_payment_cents: number | null;
   start_utc: string;
   duration_minutes: number;
   status: BookingStatus;

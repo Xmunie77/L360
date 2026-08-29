@@ -338,9 +338,16 @@ class Booking(Base):
     # What's being billed — a named item from the L360 price list (e.g.
     # "Consultant Office Session"). Nullable at the DB level for older rows
     # created before this column existed; the API requires it on every new
-    # booking, and billing/statements price from here, not from
-    # educator level + duration.
+    # booking.
     service_type_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("service_types.id")), nullable=True)
+    # The service type's client price / tutor payment, copied in at booking
+    # time (and re-copied if the service type is changed via a move). The
+    # L360 price list is a flat, admin-editable table with no per-entry
+    # history — without this snapshot, editing a price would retroactively
+    # change what any not-yet-billed past session invoices at. Billing and
+    # statements price from these columns, not a live ServiceType lookup.
+    client_price_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tutor_payment_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     start_utc: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     # confirmed | completed | cancelled | cancelled_late | no_show

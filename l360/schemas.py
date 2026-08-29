@@ -351,6 +351,11 @@ class BookingOut(BaseModel):
     series_id: int | None
     service_type_id: int | None
     service_type_name: str | None
+    # Locked in at booking time (and re-locked on a move that changes the
+    # service type) — not a live lookup, so a later price-list edit never
+    # changes what an existing booking is billed at.
+    client_price_cents: int | None
+    tutor_payment_cents: int | None
     start_utc: datetime
     duration_minutes: int
     status: str

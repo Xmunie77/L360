@@ -26,7 +26,12 @@ def _issue_invoice_for_client(admin_client, booking_env, *, client_price_cents: 
             db.add(service_type)
             db.flush()
         start_utc = booking_logic.local_to_utc(local_date, time_cls(10, 0))
-        db.add(Booking(room_id=booking_env["room_id"], educator_id=booking_env["educator_id"], client_id=booking_env["client_id"], service_type_id=service_type.id, start_utc=start_utc, duration_minutes=60, status="completed", created_by=1))
+        db.add(Booking(
+            room_id=booking_env["room_id"], educator_id=booking_env["educator_id"], client_id=booking_env["client_id"],
+            service_type_id=service_type.id, client_price_cents=service_type.client_price_cents,
+            tutor_payment_cents=service_type.tutor_payment_cents, start_utc=start_utc, duration_minutes=60,
+            status="completed", created_by=1,
+        ))
 
     run = admin_client.post("/api/admin/billing/run", json={"period_start": str(local_date.replace(day=1)), "period_end": str(local_date)}).json()
     invoice_id = run["created"][0]["id"]
