@@ -49,13 +49,23 @@ def send_once(
     """Send exactly once per dedupe_key, ever. Logs the send first and
     relies on NotificationLog's unique constraint: a retried request or a
     concurrent duplicate just hits IntegrityError and is treated as
-    "already sent" rather than sending twice. Returns whether it sent."""
+    "already sent" rather than sending twice. Returns whether it sent.
+
+    An SMTP failure (host down, bad credentials, rejected recipient) must
+    never fail the request that triggered the notification — the booking or
+    learner write has already happened. Roll back the dedupe row so a later
+    retry can actually send, log the error, and report "not sent"."""
     db.add(NotificationLog(booking_id=booking_id, user_id=user_id, kind=kind, dedupe_key=dedupe_key))
     try:
         db.flush()
     except IntegrityError:
         db.rollback()
         return False
-    send_email(to, subject, body)
+    try:
+        send_email(to, subject, body)
+    except (smtplib.SMTPException, OSError):
+        logger.exception("EMAIL FAILED to=%s kind=%s dedupe_key=%s", to, kind, dedupe_key)
+        db.rollback()
+        return False
     db.commit()
     return True

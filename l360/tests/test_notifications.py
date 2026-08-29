@@ -211,3 +211,38 @@ def test_notification_log_dedupe_key_is_actually_unique_in_db(admin_client, book
     with pytest.raises(IntegrityError):
         with session_scope() as db:
             db.add(NotificationLog(kind="confirmation", dedupe_key="dupe-test-key"))
+
+
+def test_smtp_failure_never_fails_the_request(admin_client, monkeypatch):
+    """A broken SMTP config (bad credentials, host down) must not 500 the
+    request that triggered the email — and must roll back the dedupe row so
+    a later retry can actually send."""
+    import smtplib
+
+    from sqlalchemy import select
+    from l360 import notify
+    from l360.db import session_scope
+
+    def _boom(to, subject, body):
+        raise smtplib.SMTPAuthenticationError(535, b"bad credentials")
+
+    monkeypatch.setattr(notify, "send_email", _boom)
+
+    # Creating a learner triggers the onboarding invite — must still succeed.
+    r = admin_client.post("/api/admin/clients", json={
+        "guardian_first_name": "Mail", "guardian_surname": "Fails", "email": "mailfails@example.com",
+    })
+    assert r.status_code == 200
+
+    with session_scope() as db:
+        rows = db.scalars(
+            select(NotificationLog).where(NotificationLog.kind == "onboarding_invite")
+        ).all()
+        assert rows == []  # rolled back, so a resend can go out later
+
+    # Once SMTP works again, the explicit resend sends for real.
+    sent = []
+    monkeypatch.setattr(notify, "send_email", lambda to, subject, body: sent.append(to))
+    r = admin_client.post(f"/api/admin/clients/{r.json()['id']}/onboarding/send")
+    assert r.status_code == 200
+    assert sent == ["mailfails@example.com"]
