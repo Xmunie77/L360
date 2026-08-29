@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta, UTC
 import pytest
 
 from l360 import jobs, notify
-from l360.booking_logic import local_to_utc
+from l360.booking_logic import local_to_utc, utc_to_local
 from l360.models import NotificationLog
 
 
@@ -23,6 +23,19 @@ def _capture_emails(monkeypatch):
 
 def _future_start(hours_ahead: int) -> str:
     return (datetime.now(UTC) + timedelta(hours=hours_ahead)).replace(microsecond=0).isoformat()
+
+
+def _safe_future_start(hours_ahead: int) -> str:
+    """Like _future_start, but nudged off local hour 23 — the one hour
+    where a 60-minute session's start+duration crosses local midnight and
+    gets correctly rejected by the app. Only ever moves earlier within the
+    same calendar date, so it can't flip which side of a 24h boundary
+    (relative to now) the result falls on."""
+    dt_utc = datetime.now(UTC) + timedelta(hours=hours_ahead)
+    local_date, local_time = utc_to_local(dt_utc)
+    if local_time.hour == 23:
+        local_time = local_time.replace(hour=21, minute=0, second=0, microsecond=0)
+    return local_to_utc(local_date, local_time).isoformat()
 
 
 def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, booking_env, _capture_emails):
@@ -109,7 +122,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
-        "start_utc": _future_start(20),
+        "start_utc": _safe_future_start(20),
         "duration_minutes": 60,
     })
     # Outside the window.
@@ -117,7 +130,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_future_start(48),
         "duration_minutes": 60,
     })
     _capture_emails.clear()

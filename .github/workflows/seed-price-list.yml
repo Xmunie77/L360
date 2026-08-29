@@ -1,0 +1,37 @@
+name: Seed Price List — Learning 360°
+
+# One-off: sets client/educator rates per hour (prorated for 90/120 min) for
+# the Junior/Senior/Specialist educator levels, from the foundation's real
+# pricing sheet. Creates those levels if they don't already exist.
+# Idempotent — safe to re-run, skips any (level, duration) combination
+# already priced for today. Gated behind workflow_dispatch — never runs
+# automatically, never on boot.
+#
+# Requires the same DATABASE_URL_L360 secret as the migrate workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-price-list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Seed price list
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.seed_price_list
