@@ -143,6 +143,28 @@ class Client(Base):
         return f"{self.guardian_first_name} {self.guardian_surname}"
 
 
+class AppSetting(Base):
+    """Simple key/value app configuration editable from the Admin area —
+    currently the email (SMTP) settings, so the founders can configure
+    sending from the OS instead of Fly secrets. Built 29/08/2026 with
+    Simon's explicit authorization: the SMTP app password is stored here
+    (typed into the admin page by the admin, write-only through the API —
+    never echoed back). DB values override env vars; env config remains a
+    fallback."""
+
+    __tablename__ = "app_settings"
+    __table_args__ = _table_args(
+        UniqueConstraint("key", name="uq_app_setting_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+
 class OnboardingForm(Base):
     """The client-onboarding questionnaire — one per client. Created (with an
     unguessable token) when the client is added; the token link is emailed to

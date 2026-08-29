@@ -47,6 +47,7 @@ from l360.models import (
     FacilityHours,
     Invoice,
     InvoiceLine,
+    AppSetting,
     OnboardingForm,
     PasswordResetToken,
     PriceListEntry,
@@ -85,6 +86,9 @@ from l360.schemas import (
     ManualMatchIn,
     MeResp,
     NextAvailableOut,
+    EmailSettingsIn,
+    EmailSettingsOut,
+    EmailTestOut,
     OnboardingAdminOut,
     OnboardingPrefillOut,
     OnboardingSubmitIn,
@@ -561,6 +565,65 @@ def admin_send_onboarding(client_id: int, db: Session = Depends(get_session), _a
         raise HTTPException(status_code=409, detail="This client has no email address on record.")
     onboarding.send_invite(db, client, form)
     return admin_get_onboarding(client_id, db, _admin)
+
+
+
+# --- admin: email (SMTP) settings ------------------------------------------
+# Editable in-app so the founders configure sending without Fly secrets.
+# The password is write-only: saved when provided, kept when blank, and
+# never returned by the API. Env vars remain the fallback for any field
+# left blank here (see notify.smtp_config).
+
+def _upsert_setting(db: Session, key: str, value: str) -> None:
+    row = db.scalar(select(AppSetting).where(AppSetting.key == key))
+    if value:
+        if row is None:
+            db.add(AppSetting(key=key, value=value))
+        else:
+            row.value = value
+    elif row is not None:
+        db.delete(row)
+
+
+@app.get("/api/admin/email-settings", response_model=EmailSettingsOut)
+def admin_get_email_settings(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    cfg = notify.smtp_config()
+    return EmailSettingsOut(
+        host=cfg["host"], port=cfg["port"], user=cfg["user"], email_from=cfg["from"],
+        password_set=bool(cfg["password"]),
+    )
+
+
+@app.put("/api/admin/email-settings", response_model=EmailSettingsOut)
+def admin_save_email_settings(
+    body: EmailSettingsIn, db: Session = Depends(get_session), admin: User = Depends(require_admin)
+):
+    _upsert_setting(db, "smtp_host", body.host.strip())
+    _upsert_setting(db, "smtp_port", str(body.port))
+    _upsert_setting(db, "smtp_user", body.user.strip())
+    _upsert_setting(db, "smtp_from", body.email_from.strip())
+    if body.password:  # blank = keep the stored password
+        _upsert_setting(db, "smtp_password", body.password)
+    db.commit()
+    return admin_get_email_settings(db, admin)
+
+
+@app.post("/api/admin/email-settings/test", response_model=EmailTestOut)
+def admin_test_email(db: Session = Depends(get_session), admin: User = Depends(require_admin)):
+    """Send a test email to the signed-in admin so a wrong app password
+    shows up immediately, not on the first real invite."""
+    cfg = notify.smtp_config()
+    if not cfg["host"]:
+        return EmailTestOut(ok=False, detail="No SMTP host configured — emails currently only log to the server console.")
+    try:
+        notify.send_email(
+            admin.email,
+            "Learning 360\u00b0 — test email",
+            "This is a test email from the Learning 360\u00b0 OS. If you can read this, email sending is working.",
+        )
+    except Exception as e:  # surface the SMTP error verbatim to the admin
+        return EmailTestOut(ok=False, detail=f"Send failed: {e}")
+    return EmailTestOut(ok=True, detail=f"Test email sent to {admin.email}.")
 
 
 # --- public onboarding questionnaire ---------------------------------------
