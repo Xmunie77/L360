@@ -62,3 +62,21 @@ def test_educator_can_read_public_lists(educator_client):
 def test_unauthed_requires_login_everywhere(client):
     assert client.get("/api/rooms").status_code == 401
     assert client.get("/api/admin/rooms").status_code == 401
+
+
+def test_change_my_password(admin_client, client):
+    # Wrong current password refused.
+    r = admin_client.post("/api/me/password", json={"current_password": "wrong", "new_password": "newpassword99"})
+    assert r.status_code == 403
+
+    r = admin_client.post("/api/me/password", json={"current_password": "adminpass123", "new_password": "newpassword99"})
+    assert r.status_code == 200
+
+    # Old password dead, new one works.
+    assert client.post("/api/login", json={"email": "admin@example.com", "password": "adminpass123"}).status_code == 401
+    assert client.post("/api/login", json={"email": "admin@example.com", "password": "newpassword99"}).status_code == 200
+
+    # Anonymous refused.
+    from fastapi.testclient import TestClient
+    from l360.api import app
+    assert TestClient(app).post("/api/me/password", json={"current_password": "x", "new_password": "newpassword99"}).status_code == 401

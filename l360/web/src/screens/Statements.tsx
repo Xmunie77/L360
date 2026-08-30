@@ -1,22 +1,16 @@
 import { useEffect, useState } from "react";
-import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
+import { Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
 import {
   ApiError,
-  createOrRotateCalendarToken,
   getClientStatement,
   getEducatorSummary,
-  getMyCalendarToken,
-  getUtilisationReport,
   listClients,
   listEducators,
-  revokeCalendarToken,
-  type CalendarToken,
   type Client,
   type ClientStatement,
   type Educator,
   type EducatorSummary,
   type Me,
-  type RoomUtilisation,
 } from "../api/client";
 import { todayStr } from "../domain/datetime";
 
@@ -39,100 +33,9 @@ interface StatementsProps {
 export function Statements({ me }: StatementsProps) {
   return (
     <>
-      <CalendarFeedCard />
       <EducatorSummaryCard me={me} />
       {me?.role === "admin" && <ClientStatementCard />}
-      {me?.role === "admin" && <UtilisationCard />}
     </>
-  );
-}
-
-// --- calendar feed subscribe/revoke ---------------------------------------
-
-function CalendarFeedCard() {
-  const [token, setToken] = useState<CalendarToken | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      setToken(await getMyCalendarToken());
-    } catch (err) {
-      setError(errorMessage(err, "Couldn't load your calendar link."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  async function handleCreate() {
-    setBusy(true);
-    setError(null);
-    try {
-      setToken(await createOrRotateCalendarToken());
-    } catch (err) {
-      setError(errorMessage(err, "Couldn't create your calendar link."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleRevoke() {
-    setBusy(true);
-    setError(null);
-    try {
-      await revokeCalendarToken();
-      setToken(null);
-    } catch (err) {
-      setError(errorMessage(err, "Couldn't revoke your calendar link."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const feedUrl = token ? `${window.location.origin}${token.feed_path}` : null;
-
-  return (
-    <Card eyebrow="Your calendar" title="Subscribe to your sessions">
-      <p style={{ marginBottom: 12 }}>
-        A read-only link you can add to Google, Apple or Outlook calendar so your confirmed
-        sessions show up alongside your personal calendar. Anyone with this link can see your
-        session times — revoke and create a new one if it ever leaks.
-      </p>
-      {loading && <p className="l360-empty">Loading…</p>}
-      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
-      {!loading && !feedUrl && (
-        <Button variant="primary" onClick={handleCreate} loading={busy} loadingLabel="Creating…">
-          Get my calendar link
-        </Button>
-      )}
-      {!loading && feedUrl && (
-        <>
-          <Input
-            id="calendar-feed-url"
-            label="Feed URL"
-            hint="Paste this into your calendar app's “subscribe by URL” option."
-            readOnly
-            value={feedUrl}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-            <Button variant="secondary" onClick={handleCreate} loading={busy} loadingLabel="Rotating…">
-              Get a new link
-            </Button>
-            <Button variant="destructive" onClick={handleRevoke} loading={busy} loadingLabel="Revoking…">
-              Revoke
-            </Button>
-          </div>
-        </>
-      )}
-    </Card>
   );
 }
 
@@ -332,52 +235,6 @@ function ClientStatementCard() {
           <p style={{ marginTop: 16, fontWeight: 600 }}>
             Closing balance: <Money cents={statement.closing_balance_cents} />
           </p>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// --- admin: room utilisation ------------------------------------------------
-
-function UtilisationCard() {
-  const [periodStart, setPeriodStart] = useState(firstOfMonth());
-  const [periodEnd, setPeriodEnd] = useState(todayStr());
-  const [rows, setRows] = useState<RoomUtilisation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getUtilisationReport(periodStart, periodEnd)
-      .then(setRows)
-      .catch((err) => setError(errorMessage(err, "Couldn't load the utilisation report.")))
-      .finally(() => setLoading(false));
-  }, [periodStart, periodEnd]);
-
-  return (
-    <Card eyebrow="Reports" title="Room utilisation">
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <Input id="util-start" label="Period start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
-        <Input id="util-end" label="Period end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
-      </div>
-      {error && <p className="l360-alert l360-alert-danger">{error}</p>}
-      {loading && <p className="l360-empty">Loading…</p>}
-      {!loading && (
-        <div style={{ overflowX: "auto" }}>
-          <table className="l360-table">
-            <thead><tr><th>Room</th><th>Sessions</th><th>Booked time</th></tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.room_id}>
-                  <td>{r.room_name}</td>
-                  <td>{r.session_count}</td>
-                  <td>{Math.round((r.booked_minutes / 60) * 10) / 10} h</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </Card>

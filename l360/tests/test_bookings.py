@@ -112,7 +112,10 @@ def test_create_booking_room_conflict_rejected(admin_client, booking_env):
 
 
 def test_create_booking_back_to_back_allowed(admin_client, booking_env):
-    start_dt = datetime.now(UTC) + timedelta(hours=48)
+    # _safe_morning_start, not now()+48h — after ~22:00 local the
+    # back-to-back slot crossed local midnight and was correctly rejected,
+    # making this test fail only on late-evening runs.
+    start_dt = _safe_morning_start()
     body = {
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],

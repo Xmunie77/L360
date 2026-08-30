@@ -47,7 +47,7 @@ describe("App", () => {
     await waitFor(() => expect(screen.getAllByText("Calendar").length).toBeGreaterThan(0));
     expect(screen.getByAltText("Learning 360°")).toBeTruthy();
     expect(screen.getByText("Bookings")).toBeTruthy();
-    expect(screen.getByText("Statements")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByText("Finance")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Profile" })).toBeTruthy();
   });
 });

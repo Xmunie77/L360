@@ -112,13 +112,20 @@ def test_educator_cannot_fetch_another_educators_summary(admin_client, booking_e
 
 
 def test_utilisation_report_counts_sessions(admin_client, booking_env):
-    from datetime import timedelta
-    start = (datetime.now(UTC) + timedelta(days=3)).isoformat()
-    admin_client.post("/api/bookings", json={
+    from datetime import time as time_cls, timedelta
+
+    from l360.booking_logic import local_to_utc
+
+    # Anchored to local mid-morning — a bare now()+3d starts this 90-minute
+    # session across local midnight when the suite runs late evening, and
+    # the unasserted create silently 409s (count 0).
+    start = local_to_utc((datetime.now(UTC) + timedelta(days=3)).date(), time_cls(9, 0)).isoformat()
+    r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"], "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"], "start_utc": start, "duration_minutes": 90,
     })
+    assert r.status_code == 200, r.text
     window_start = datetime.now(UTC).date().isoformat()
     window_end = (datetime.now(UTC) + timedelta(days=7)).date().isoformat()
     r = admin_client.get("/api/admin/reports/utilisation", params={"period_start": window_start, "period_end": window_end})

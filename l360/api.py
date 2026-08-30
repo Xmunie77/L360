@@ -68,6 +68,7 @@ from l360.schemas import (
     BookingSeriesOut,
     BookingStatusIn,
     CalendarTokenOut,
+    ChangePasswordIn,
     ClientBrief,
     ClientIn,
     ClientOut,
@@ -259,6 +260,17 @@ def reset_password(body: ResetPasswordIn, db: Session = Depends(get_session)):
 @app.get("/api/me", response_model=MeResp)
 def me(user: User = Depends(require_user)):
     return user
+
+
+@app.post("/api/me/password")
+def change_my_password(body: ChangePasswordIn, db: Session = Depends(get_session), user: User = Depends(require_user)):
+    """Self-service password change from the Profile page — requires the
+    current password, unlike the admin reset in /api/admin/users."""
+    if not auth.verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=403, detail="Current password is wrong.")
+    user.password_hash = auth.hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}
 
 
 # --- read-only lists for any authed user ------------------------------
@@ -1559,6 +1571,19 @@ _DIST = os.path.join(os.path.dirname(__file__), "web", "dist")
 
 if os.path.isdir(_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(_DIST, "assets")), name="assets")
+
+    @app.middleware("http")
+    async def _asset_cache_headers(request, call_next):
+        response = await call_next(request)
+        # Vite content-hashes everything under /assets, so those may be
+        # cached forever; index.html must NOT be — a home-screen PWA that
+        # caches it keeps referencing old CSS/JS across deploys (the iOS
+        # date-box fix appeared "not deployed" for exactly this reason).
+        if request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.get("/")
     def _index():

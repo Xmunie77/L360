@@ -9,6 +9,7 @@ import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
 import { ClientDetail } from "./screens/ClientDetail";
 import { Login } from "./screens/Login";
+import { Profile } from "./screens/Profile";
 import { EducatorFormView } from "./screens/EducatorFormView";
 import { EducatorOnboarding } from "./screens/EducatorOnboarding";
 import { Onboarding } from "./screens/Onboarding";
@@ -26,8 +27,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: "clients", label: "Learners" },
   { key: "billing", label: "Billing" },
   { key: "payments", label: "Payments" },
-  { key: "statements", label: "Statements" },
+  { key: "statements", label: "Finance" },
   { key: "admin", label: "Admin" },
+  { key: "profile", label: "Profile" },
 ];
 
 type AuthState = "loading" | "anon" | "authed";
@@ -158,13 +160,7 @@ export function App() {
             </button>
           ))}
         </div>
-        <div className="l360-nav-footer">
-          {me && <div className="l360-nav-user">{me.full_name}</div>}
-          <button type="button" className="l360-nav-signout" onClick={handleSignOut}>
-            Sign out
-          </button>
-          <div className="l360-nav-org">Learning 360° Foundation · Swatar, Malta</div>
-        </div>
+
       </nav>
 
       <div className="l360-main">
@@ -181,6 +177,7 @@ export function App() {
           {active === "payments" && <Reconciliation />}
           {active === "statements" && <Statements me={me} />}
           {active === "admin" && <Admin />}
+          {active === "profile" && <Profile me={me} onSignOut={handleSignOut} />}
         </main>
       </div>
     </div>

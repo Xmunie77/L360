@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Input, Money, Select, StatusBadge, Textarea } from "../ui/ui";
+import { UtilisationCard } from "./UtilisationCard";
 import {
   ApiError,
   adminCreateClient,
@@ -50,7 +51,7 @@ function errorMessage(err: unknown, fallback: string): string {
 
 const WEEKDAY_LABEL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-type TabKey = "rooms" | "levels" | "users" | "clients" | "service-types" | "hours" | "closures" | "email" | "invoicing";
+type TabKey = "rooms" | "levels" | "users" | "clients" | "service-types" | "hours" | "closures" | "reports" | "email" | "invoicing";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "rooms", label: "Rooms" },
@@ -60,6 +61,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "service-types", label: "Sessions & services" },
   { key: "hours", label: "Facility hours" },
   { key: "closures", label: "Closures" },
+  { key: "reports", label: "Reports" },
   { key: "email", label: "Email" },
   { key: "invoicing", label: "Invoicing" },
 ];
@@ -94,6 +96,7 @@ export function Admin() {
       {tab === "service-types" && <ServiceTypesAdmin />}
       {tab === "hours" && <FacilityHoursAdmin />}
       {tab === "closures" && <ClosuresAdmin />}
+      {tab === "reports" && <UtilisationCard />}
       {tab === "email" && <EmailSettingsAdmin />}
       {tab === "invoicing" && <InvoiceSettingsAdmin />}
     </>

@@ -538,6 +538,10 @@ export function getMe(): Promise<Me> {
   return get<Me>("/api/me");
 }
 
+export function changeMyPassword(currentPassword: string, newPassword: string): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>("/api/me/password", { current_password: currentPassword, new_password: newPassword });
+}
+
 export function forgotPassword(email: string): Promise<{ ok: boolean }> {
   return post<{ ok: boolean }>("/api/forgot-password", { email });
 }
