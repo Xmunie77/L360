@@ -201,6 +201,8 @@ def build_invoice_pdf(data: InvoicePdfData, head: dict | None = None) -> bytes:
         pdf.set_y(cy + row_h + 3)
 
     # --- totals ---------------------------------------------------------------
+    # Same right-column geometry as the Date row and Balance Due band:
+    # labels end at x=160, values right-aligned to the table edge at x=198.
     pdf.ln(8)
     for label, cents, grey in (("Total:", data.total_cents, True), ("Amount Paid:", data.paid_cents, True)):
         pdf.set_x(104)
@@ -208,12 +210,12 @@ def build_invoice_pdf(data: InvoicePdfData, head: dict | None = None) -> bytes:
         pdf.set_text_color(*(GREY if grey else INK))
         pdf.cell(56, 7, label, align="R")
         pdf.set_text_color(*INK)
-        pdf.cell(26, 7, _eur(cents), align="R")
+        pdf.cell(38, 7, _eur(cents), align="R")
         pdf.ln(7)
     pdf.set_x(104)
     pdf.set_font("helvetica", "B", 10)
     pdf.cell(56, 7, "Balance Due:", align="R")
-    pdf.cell(26, 7, _eur(data.balance_cents), align="R")
+    pdf.cell(38, 7, _eur(data.balance_cents), align="R")
 
     # --- optional footer note (e.g. payment terms) ---------------------------
     if head.get("invoice_footer", "").strip():
