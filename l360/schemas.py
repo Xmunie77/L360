@@ -138,6 +138,20 @@ class EmailSettingsIn(BaseModel):
     email_from: str = Field(default="", max_length=255)
     password: str | None = Field(default=None, max_length=255)
 
+    @model_validator(mode="after")
+    def _normalise(self) -> "EmailSettingsIn":
+        # Browsers love turning a pasted hostname into a URL, and Google
+        # shows app passwords with spaces — both broke the first real setup
+        # (30/08/2026), so normalise here instead of failing at send time.
+        host = self.host.strip()
+        for prefix in ("http://", "https://", "smtp://"):
+            if host.lower().startswith(prefix):
+                host = host[len(prefix):]
+        self.host = host.rstrip("/")
+        if self.password:
+            self.password = self.password.replace(" ", "")
+        return self
+
 
 class EmailSettingsOut(BaseModel):
     host: str

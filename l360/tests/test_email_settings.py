@@ -97,3 +97,20 @@ def test_settings_are_admin_only(educator_client):
     assert educator_client.get("/api/admin/email-settings").status_code == 403
     assert educator_client.put("/api/admin/email-settings", json={"host": "x", "port": 587, "user": "", "email_from": ""}).status_code == 403
     assert educator_client.post("/api/admin/email-settings/test").status_code == 403
+
+
+def test_settings_normalise_pasted_url_and_spaced_password(admin_client, monkeypatch):
+    """The two real-world entry mistakes from the first live setup: a
+    browser-mangled host URL and a Google app password pasted with spaces."""
+    r = admin_client.put("/api/admin/email-settings", json={
+        "host": "http://smtp.gmail.com/",
+        "port": 587,
+        "user": "info@example.org",
+        "email_from": "info@example.org",
+        "password": "abcd efgh ijkl mnop",
+    })
+    assert r.status_code == 200
+    assert r.json()["host"] == "smtp.gmail.com"
+    cfg = notify.smtp_config()
+    assert cfg["host"] == "smtp.gmail.com"
+    assert cfg["password"] == "abcdefghijklmnop"
