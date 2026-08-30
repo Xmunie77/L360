@@ -80,11 +80,11 @@ def test_test_endpoint_reports_failure_and_success(admin_client, monkeypatch):
     assert r.json()["ok"] is False
 
     _save(admin_client)
-    monkeypatch.setattr(notify, "send_email", lambda to, subject, body: None)
+    monkeypatch.setattr(notify, "send_email", lambda to, subject, body, attachment=None: None)
     r = admin_client.post("/api/admin/email-settings/test")
     assert r.json()["ok"] is True
 
-    def _boom(to, subject, body):
+    def _boom(to, subject, body, attachment=None):
         raise OSError("connection refused")
 
     monkeypatch.setattr(notify, "send_email", _boom)

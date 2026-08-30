@@ -327,6 +327,11 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
                   </tbody>
                 </table>
               </div>
+              <div style={{ marginTop: 8 }}>
+                <a className="l360-link-btn" href={`/api/admin/invoices/${invoice.id}/pdf`}>
+                  Download invoice PDF
+                </a>
+              </div>
 
               <p style={{ marginBottom: 16 }}>
                 Total: <Money cents={invoice.total_cents} /> · Outstanding:{" "}

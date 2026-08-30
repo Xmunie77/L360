@@ -173,3 +173,41 @@ def test_free_cancel_is_not_billable(admin_client, booking_env):
 def test_educator_cannot_access_billing(booking_env, educator_client):
     r = educator_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
     assert r.status_code == 403
+
+
+def test_invoice_settings_and_pdf(admin_client, monkeypatch):
+    """Invoice template settings roundtrip + the PDF endpoints."""
+    from l360 import invoice_pdf
+
+    r = admin_client.put("/api/admin/invoice-settings", json={
+        "name": "Learning 360 Foundation",
+        "address": "Line 1\nLine 2",
+        "vat": "VAT No: TEST",
+        "bank": "Bank: Test\nIBAN: MT00",
+        "contact": "test@example.org",
+        "footer": "Payment due in 14 days.",
+    })
+    assert r.status_code == 200
+    assert r.json()["vat"] == "VAT No: TEST"
+    assert invoice_pdf.letterhead()["invoice_vat"] == "VAT No: TEST"
+
+    r = admin_client.get("/api/admin/invoice-settings/sample-pdf")
+    assert r.status_code == 200
+    assert r.content[:5] == b"%PDF-"
+
+
+def test_invoice_line_carries_educator_and_pdf_downloads(admin_client, booking_env):
+    _setup_priced_booking(admin_client, booking_env, status="completed", client_price_cents=3000, local_date=date(2026, 5, 12))
+    r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
+    invoice = r.json()["created"][0]
+
+    detail = admin_client.get(f"/api/admin/invoices/{invoice['id']}").json()
+    # The booking_env educator delivers the session — their name goes on the line.
+    assert "Booking Educator" in detail["lines"][0]["description"]
+    # Internal statuses never leak onto invoice lines.
+    assert "completed" not in detail["lines"][0]["description"]
+
+    r = admin_client.get(f"/api/admin/invoices/{invoice['id']}/pdf")
+    assert r.status_code == 200
+    assert r.content[:5] == b"%PDF-"
+    assert "DRAFT" in r.headers["content-disposition"]

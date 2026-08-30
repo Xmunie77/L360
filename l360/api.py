@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -94,6 +94,8 @@ from l360.schemas import (
     EmailSettingsIn,
     EmailSettingsOut,
     EmailTestOut,
+    InvoiceSettingsIn,
+    InvoiceSettingsOut,
     OnboardingAdminOut,
     OnboardingPrefillOut,
     OnboardingSubmitIn,
@@ -601,6 +603,100 @@ def admin_send_onboarding(client_id: int, db: Session = Depends(get_session), _a
     onboarding.send_invite(db, client, form)
     return admin_get_onboarding(client_id, db, _admin)
 
+
+
+
+# --- admin: invoice template settings + PDF --------------------------------
+_INVOICE_KEY_MAP = {
+    "name": "invoice_name", "address": "invoice_address", "vat": "invoice_vat",
+    "bank": "invoice_bank", "contact": "invoice_contact", "footer": "invoice_footer",
+}
+
+
+@app.get("/api/admin/invoice-settings", response_model=InvoiceSettingsOut)
+def admin_get_invoice_settings(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    head = invoice_pdf.letterhead()
+    return InvoiceSettingsOut(**{field: head[key] for field, key in _INVOICE_KEY_MAP.items()})
+
+
+@app.put("/api/admin/invoice-settings", response_model=InvoiceSettingsOut)
+def admin_save_invoice_settings(
+    body: InvoiceSettingsIn, db: Session = Depends(get_session), admin: User = Depends(require_admin)
+):
+    for field, key in _INVOICE_KEY_MAP.items():
+        _upsert_setting(db, key, getattr(body, field).strip())
+    db.commit()
+    return admin_get_invoice_settings(db, admin)
+
+
+@app.get("/api/admin/invoice-settings/sample-pdf")
+def admin_sample_invoice_pdf(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """A dummy invoice rendered with the CURRENT letterhead — so template
+    changes can be eyeballed without touching a real invoice."""
+    from datetime import date as _date
+
+    data = invoice_pdf.InvoicePdfData(
+        number="SAMPLE-0000",
+        issue_date=_date.today(),
+        learner_name="Sample Learner",
+        attn="Alex and Sam Parent",
+        bill_address="1, Example Street\nSwatar",
+        lines=[
+            invoice_pdf.InvoiceLinePdf("Consultant Office Session — 2026-08-04 — Maria Educator", 1, 3500, 3500),
+            invoice_pdf.InvoiceLinePdf("Consultant Office Session — 2026-08-11 — Maria Educator", 1, 3500, 3500),
+        ],
+        total_cents=7000,
+        paid_cents=0,
+    )
+    return Response(
+        content=invoice_pdf.build_invoice_pdf(data),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="sample-invoice.pdf"'},
+    )
+
+
+def _invoice_pdf_data(db: Session, inv: Invoice) -> invoice_pdf.InvoicePdfData:
+    client = db.get(Client, inv.client_id)
+    lines = db.scalars(select(InvoiceLine).where(InvoiceLine.invoice_id == inv.id)).all()
+    pdf_lines = []
+    for line in lines:
+        desc = line.description
+        # Lines generated before 30/08/2026 lack the educator name — add it
+        # from the booking at render time so older invoices carry it too.
+        if line.booking_id:
+            b = db.get(Booking, line.booking_id)
+            educator = db.get(User, b.educator_id) if b else None
+            if educator and educator.full_name not in desc:
+                desc = f"{desc} — {educator.full_name}"
+        pdf_lines.append(invoice_pdf.InvoiceLinePdf(desc, line.quantity, line.unit_price_cents, line.amount_cents))
+    attn_names = [client.guardian_name] if client else []
+    if client and client.guardian2_name:
+        attn_names.append(client.guardian2_name)
+    paid = inv.total_cents - reconciliation.outstanding_cents(db, inv)
+    return invoice_pdf.InvoicePdfData(
+        number=inv.number or "DRAFT",
+        issue_date=(inv.issued_at.date() if inv.issued_at else inv.created_at.date()),
+        learner_name=(client.child_name or client.guardian_name) if client else "?",
+        attn=" and ".join(attn_names),
+        bill_address=client.address if client else None,
+        lines=pdf_lines,
+        total_cents=inv.total_cents,
+        paid_cents=paid,
+    )
+
+
+@app.get("/api/admin/invoices/{invoice_id}/pdf")
+def admin_invoice_pdf(invoice_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    inv = db.get(Invoice, invoice_id)
+    if inv is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    data = _invoice_pdf_data(db, inv)
+    filename = f"Invoice {data.number}.pdf" if inv.number else f"Invoice DRAFT-{inv.id}.pdf"
+    return Response(
+        content=invoice_pdf.build_invoice_pdf(data),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --- admin: email (SMTP) settings ------------------------------------------
@@ -1258,13 +1354,13 @@ def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _ad
 
     client = db.get(Client, inv.client_id)
     if client and client.email:
-        from l360 import notify
+        pdf_bytes = invoice_pdf.build_invoice_pdf(_invoice_pdf_data(db, inv))
         notify.send_once(
             db,
             to=client.email,
             subject=f"Invoice {inv.number} — €{inv.total_cents / 100:.2f}",
             body=(
-                f"Invoice {inv.number} for the period {inv.period_start} to {inv.period_end}.\n"
+                f"Invoice {inv.number} for the period {inv.period_start} to {inv.period_end} is attached.\n"
                 f"Total: €{inv.total_cents / 100:.2f} (VAT exempt). Due: {inv.due_date}.\n"
                 f"Please use \"{inv.number}\" as your payment reference."
             ),
@@ -1272,6 +1368,7 @@ def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _ad
             user_id=None,
             kind="invoice_issued",
             dedupe_key=f"invoice_issued:{inv.id}",
+            attachment=(f"Invoice {inv.number}.pdf", pdf_bytes),
         )
     return _invoice_out(db, inv)
 

@@ -168,6 +168,28 @@ class EmailTestOut(BaseModel):
     detail: str
 
 
+class InvoiceSettingsIn(BaseModel):
+    """Admin → Invoicing: the letterhead printed on every client invoice.
+    Blank fields revert to the built-in defaults. Address/bank/contact are
+    multiline (one line per row on the PDF)."""
+
+    name: str = Field(default="", max_length=200)
+    address: str = Field(default="", max_length=500)
+    vat: str = Field(default="", max_length=200)
+    bank: str = Field(default="", max_length=500)
+    contact: str = Field(default="", max_length=300)
+    footer: str = Field(default="", max_length=1000)
+
+
+class InvoiceSettingsOut(BaseModel):
+    name: str
+    address: str
+    vat: str
+    bank: str
+    contact: str
+    footer: str
+
+
 class OnboardingPrefillOut(BaseModel):
     """What the public questionnaire page gets for a valid token: the form
     status plus the client details already on record (entered by the admin,

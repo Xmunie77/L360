@@ -47,6 +47,20 @@ VAT_EXEMPT_NOTE = os.environ.get("L360_VAT_EXEMPT_NOTE", "Exempt from VAT")
 # against a non-default port.
 PUBLIC_BASE_URL = os.environ.get("L360_PUBLIC_URL", "https://l360-os.fly.dev")
 
+# --- Invoice PDF details (printed on every client invoice) ------------------
+INVOICE_FOUNDATION_NAME = os.environ.get("L360_INVOICE_NAME", "Learning 360 Foundation")
+INVOICE_ADDRESS_LINES = (
+    "'Orange Grove' Block C, Triq L-Ghabex",
+    "Swatar BKR 4280",
+)
+INVOICE_VAT_LINE = os.environ.get("L360_INVOICE_VAT", "VAT No: 2872 5014 VO/1863")
+INVOICE_BANK_LINES = (
+    "Bank: APS",
+    "Account Number: 4448401001-1",
+    "IBAN: MT75APSB77013000000044484010011",
+)
+INVOICE_CONTACT_LINES = ("info@learning360.org.mt", "7942 2001")
+
 # --- Email (defined now, unused until the notifications phase) --------------
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))

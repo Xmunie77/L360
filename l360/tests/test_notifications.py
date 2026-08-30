@@ -17,7 +17,7 @@ def _capture_emails(monkeypatch):
     """Redirect every send_email call into a list instead of hitting
     SMTP/logging, so tests can assert on what would have been sent."""
     sent = []
-    monkeypatch.setattr(notify, "send_email", lambda to, subject, body: sent.append((to, subject, body)))
+    monkeypatch.setattr(notify, "send_email", lambda to, subject, body, attachment=None: sent.append((to, subject, body)))
     return sent
 
 
@@ -231,7 +231,7 @@ def test_smtp_failure_never_fails_the_request(admin_client, monkeypatch):
     from l360 import notify
     from l360.db import session_scope
 
-    def _boom(to, subject, body):
+    def _boom(to, subject, body, attachment=None):
         raise smtplib.SMTPAuthenticationError(535, b"bad credentials")
 
     monkeypatch.setattr(notify, "send_email", _boom)
@@ -250,7 +250,7 @@ def test_smtp_failure_never_fails_the_request(admin_client, monkeypatch):
 
     # Once SMTP works again, the explicit resend sends for real.
     sent = []
-    monkeypatch.setattr(notify, "send_email", lambda to, subject, body: sent.append(to))
+    monkeypatch.setattr(notify, "send_email", lambda to, subject, body, attachment=None: sent.append(to))
     r = admin_client.post(f"/api/admin/clients/{r.json()['id']}/onboarding/send")
     assert r.status_code == 200
     assert sent == ["mailfails@example.com"]

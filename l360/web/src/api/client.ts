@@ -888,6 +888,23 @@ export interface EmailSettingsInput {
   password?: string | null;
 }
 
+export interface InvoiceSettings {
+  name: string;
+  address: string;
+  vat: string;
+  bank: string;
+  contact: string;
+  footer: string;
+}
+
+export function adminGetInvoiceSettings(): Promise<InvoiceSettings> {
+  return get<InvoiceSettings>("/api/admin/invoice-settings");
+}
+
+export function adminSaveInvoiceSettings(body: InvoiceSettings): Promise<InvoiceSettings> {
+  return put<InvoiceSettings>("/api/admin/invoice-settings", body);
+}
+
 export function adminGetEmailSettings(): Promise<EmailSettings> {
   return get<EmailSettings>("/api/admin/email-settings");
 }

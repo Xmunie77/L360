@@ -15,7 +15,7 @@ from l360.models import PasswordResetToken, User
 @pytest.fixture(autouse=True)
 def _capture_emails(monkeypatch):
     sent = []
-    monkeypatch.setattr(notify, "send_email", lambda to, subject, body: sent.append((to, subject, body)))
+    monkeypatch.setattr(notify, "send_email", lambda to, subject, body, attachment=None: sent.append((to, subject, body)))
     return sent
 
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from l360.booking_logic import utc_to_local
 from l360.config import INVOICE_NUMBER_PREFIX
-from l360.models import Booking, Invoice, InvoiceLine, ServiceType
+from l360.models import Booking, Invoice, InvoiceLine, ServiceType, User
 
 # Bookings in these states are billable — the session happened, or the
 # family is being charged for missing/late-cancelling it. `confirmed`
@@ -78,11 +78,16 @@ def generate_draft_invoice(
         unit_price = b.client_price_cents or 0
         service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
         name = service_type.name if service_type else "Session"
+        educator = db.get(User, b.educator_id)
+        educator_bit = f" — {educator.full_name}" if educator else ""
+        # Parent-facing wording: a delivered session needs no suffix; a
+        # billable miss is named plainly rather than by internal status.
+        status_bit = {"no_show": " (missed session)", "cancelled_late": " (late cancellation)"}.get(b.status, "")
         local_date, _ = utc_to_local(b.start_utc)
         line = InvoiceLine(
             invoice_id=invoice.id,
             booking_id=b.id,
-            description=f"{name} — {local_date.isoformat()} ({b.status})",
+            description=f"{name} — {local_date.isoformat()}{educator_bit}{status_bit}",
             unit_price_cents=unit_price,
             quantity=1,
             amount_cents=unit_price,

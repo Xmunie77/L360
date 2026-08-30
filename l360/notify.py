@@ -61,16 +61,21 @@ def smtp_config() -> dict:
     return cfg
 
 
-def send_email(to: str, subject: str, body: str) -> None:
+def send_email(to: str, subject: str, body: str, attachment: tuple[str, bytes] | None = None) -> None:
+    """attachment: optional (filename, pdf_bytes) — currently always a PDF."""
     cfg = smtp_config()
     if not cfg["host"]:
-        logger.info("EMAIL (SMTP not configured) to=%s subject=%r\n%s", to, subject, body)
+        logger.info("EMAIL (SMTP not configured) to=%s subject=%r attachment=%s\n%s",
+                    to, subject, attachment[0] if attachment else None, body)
         return
     msg = EmailMessage()
     msg["From"] = cfg["from"] or cfg["user"]
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
+    if attachment:
+        filename, payload = attachment
+        msg.add_attachment(payload, maintype="application", subtype="pdf", filename=filename)
     with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
         server.starttls()
         if cfg["user"]:
@@ -88,6 +93,7 @@ def send_once(
     user_id: int | None,
     kind: str,
     dedupe_key: str,
+    attachment: tuple[str, bytes] | None = None,
 ) -> bool:
     """Send exactly once per dedupe_key, ever. Logs the send first and
     relies on NotificationLog's unique constraint: a retried request or a
@@ -105,7 +111,7 @@ def send_once(
         db.rollback()
         return False
     try:
-        send_email(to, subject, body)
+        send_email(to, subject, body, attachment=attachment)
     except (smtplib.SMTPException, OSError):
         logger.exception("EMAIL FAILED to=%s kind=%s dedupe_key=%s", to, kind, dedupe_key)
         db.rollback()
