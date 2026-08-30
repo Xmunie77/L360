@@ -505,6 +505,10 @@ class Payment(Base):
     # auto | manual
     match_status: Mapped[str] = mapped_column(String(10), nullable=False, default="manual")
     created_by: Mapped[int | None] = mapped_column(ForeignKey(_fk("users.id")), nullable=True)
+    # Who physically took the money — required for cash (custody trail;
+    # created_by only says who typed it in), null for bank/Revolut where
+    # the bank statement is the trail. (Simon, 30/08/2026)
+    received_by_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("users.id")), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=_utcnow)
 
 

@@ -443,6 +443,8 @@ export interface RecordPaymentInput {
   method: PaymentMethod;
   received_at: string;
   external_ref?: string | null;
+  /** Required for cash — who physically received the money. */
+  received_by_id?: number | null;
 }
 
 export interface Payment {
@@ -453,6 +455,7 @@ export interface Payment {
   external_ref: string | null;
   received_at: string;
   match_status: string;
+  received_by_id?: number | null;
 }
 
 // --- error -----------------------------------------------------------------

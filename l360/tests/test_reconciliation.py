@@ -163,7 +163,7 @@ def test_manual_match_rejects_already_matched_txn(admin_client, booking_env):
 def test_record_manual_payment_cash(admin_client, booking_env):
     invoice = _issued_invoice(admin_client, booking_env, client_price_cents=3000, local_date=date(2026, 5, 10))
     r = admin_client.post("/api/admin/payments/record", json={
-        "invoice_id": invoice["id"], "amount_cents": 3000, "method": "cash",
+        "invoice_id": invoice["id"], "amount_cents": 3000, "method": "cash", "received_by_id": booking_env["educator_id"],
         "received_at": datetime.now(UTC).isoformat(),
     })
     assert r.status_code == 200
@@ -175,7 +175,7 @@ def test_record_manual_payment_cash(admin_client, booking_env):
 def test_partial_payment_leaves_invoice_partially_paid(admin_client, booking_env):
     invoice = _issued_invoice(admin_client, booking_env, client_price_cents=3000, local_date=date(2026, 5, 10))
     admin_client.post("/api/admin/payments/record", json={
-        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash",
+        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash", "received_by_id": booking_env["educator_id"],
         "received_at": datetime.now(UTC).isoformat(),
     })
     inv = admin_client.get(f"/api/admin/invoices/{invoice['id']}").json()
@@ -199,3 +199,31 @@ def test_sync_without_configured_provider_returns_clear_error(admin_client):
     r = admin_client.post("/api/admin/payments/sync")
     assert r.status_code == 409
     assert "REVOLUT_API_TOKEN" in r.json()["detail"]
+
+
+def test_cash_payment_requires_and_stores_receiver(admin_client, booking_env):
+    """Cash needs a custody trail: received_by_id is required for cash,
+    absent for bank transfers, and comes back on the payment."""
+    from datetime import date, datetime, UTC
+
+    from l360.tests.test_billing import _setup_priced_booking
+
+    _setup_priced_booking(admin_client, booking_env, status="completed", client_price_cents=3000, local_date=date(2026, 5, 20))
+    inv = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"}).json()["created"][0]
+    admin_client.post(f"/api/admin/invoices/{inv['id']}/issue")
+
+    base = {"invoice_id": inv["id"], "amount_cents": 1000, "received_at": datetime.now(UTC).isoformat()}
+
+    # Cash without a receiver → refused.
+    r = admin_client.post("/api/admin/payments/record", json={**base, "method": "cash"})
+    assert r.status_code == 422
+
+    # Cash with a receiver → stored and echoed back.
+    r = admin_client.post("/api/admin/payments/record", json={**base, "method": "cash", "received_by_id": booking_env["educator_id"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["received_by_id"] == booking_env["educator_id"]
+
+    # Bank transfer needs no receiver.
+    r = admin_client.post("/api/admin/payments/record", json={**base, "method": "bank_transfer"})
+    assert r.status_code == 200
+    assert r.json()["received_by_id"] is None

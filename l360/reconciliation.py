@@ -102,6 +102,7 @@ def record_manual_payment(
     received_at: datetime,
     created_by: int,
     external_ref: str | None = None,
+    received_by_id: int | None = None,
 ) -> Payment:
     payment = Payment(
         invoice_id=invoice.id,
@@ -111,6 +112,7 @@ def record_manual_payment(
         received_at=received_at,
         match_status="manual",
         created_by=created_by,
+        received_by_id=received_by_id,
     )
     db.add(payment)
     db.flush()

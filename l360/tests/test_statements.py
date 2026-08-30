@@ -54,7 +54,7 @@ def _issue_invoice_for_client(admin_client, booking_env, *, client_price_cents: 
 def test_statement_balance_arithmetic(admin_client, booking_env):
     invoice = _issue_invoice_for_client(admin_client, booking_env, client_price_cents=3000, local_date=date(2026, 5, 10))
     admin_client.post("/api/admin/payments/record", json={
-        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash",
+        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash", "received_by_id": booking_env["educator_id"],
         "received_at": datetime(2026, 5, 20, tzinfo=UTC).isoformat(),
     })
 
@@ -74,7 +74,7 @@ def test_statement_opening_balance_carries_prior_period(admin_client, booking_en
     # May: billed 3000, paid 1000 -> outstanding 2000 carries into June.
     invoice = _issue_invoice_for_client(admin_client, booking_env, client_price_cents=3000, local_date=date(2026, 5, 10))
     admin_client.post("/api/admin/payments/record", json={
-        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash",
+        "invoice_id": invoice["id"], "amount_cents": 1000, "method": "cash", "received_by_id": booking_env["educator_id"],
         "received_at": datetime(2026, 5, 15, tzinfo=UTC).isoformat(),
     })
     r = admin_client.get(f"/api/admin/statements/client/{booking_env['client_id']}", params={

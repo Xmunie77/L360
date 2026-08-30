@@ -5,8 +5,10 @@ import {
   listInvoices,
   listUnmatchedTxns,
   manualMatchPayment,
+  adminListUsers,
   recordPayment,
   syncPayments,
+  type AdminUser,
   type BankTxn,
   type Invoice,
   type PaymentMethod,
@@ -236,14 +238,26 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("bank_transfer");
   const [receivedAt, setReceivedAt] = useState("");
+  const [receivedById, setReceivedById] = useState("");
+  const [staff, setStaff] = useState<AdminUser[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    adminListUsers()
+      .then((users) => setStaff(users.filter((u) => u.active)))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!invoiceId || !amount || !receivedAt) {
       setError("Choose an invoice, amount and date received.");
+      return;
+    }
+    if (method === "cash" && !receivedById) {
+      setError("Please record who received the cash.");
       return;
     }
     setError(null);
@@ -256,6 +270,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
         amount_cents: cents,
         method,
         received_at: new Date(`${receivedAt}T00:00:00`).toISOString(),
+        received_by_id: method === "cash" ? Number(receivedById) : null,
       });
       setSuccess(true);
       setAmount("");
@@ -314,6 +329,18 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
             { value: "cash", label: "Cash" },
           ]}
         />
+        {method === "cash" && (
+          <Select
+            id="record-payment-received-by"
+            label="Received by"
+            hint="Who physically took the cash."
+            required
+            placeholder="Choose a staff member…"
+            value={receivedById}
+            onChange={(e) => setReceivedById(e.target.value)}
+            options={staff.map((u) => ({ value: String(u.id), label: u.full_name }))}
+          />
+        )}
         <Input
           id="record-payment-date"
           label="Date received"

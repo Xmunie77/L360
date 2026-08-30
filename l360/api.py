@@ -1446,6 +1446,7 @@ def admin_record_payment(
         received_at=body.received_at,
         created_by=admin.id,
         external_ref=body.external_ref,
+        received_by_id=body.received_by_id,
     )
     return payment
 

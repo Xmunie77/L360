@@ -723,6 +723,14 @@ class RecordPaymentIn(BaseModel):
     method: Literal["bank_transfer", "cash"]
     received_at: datetime
     external_ref: str | None = None
+    # Who physically took the money — required for cash.
+    received_by_id: int | None = None
+
+    @model_validator(mode="after")
+    def _cash_needs_receiver(self) -> "RecordPaymentIn":
+        if self.method == "cash" and self.received_by_id is None:
+            raise ValueError("Please record who received the cash.")
+        return self
 
 
 class PaymentOut(BaseModel):
@@ -733,6 +741,7 @@ class PaymentOut(BaseModel):
     external_ref: str | None
     received_at: datetime
     match_status: str
+    received_by_id: int | None = None
 
 
 # --- statements / reports ------------------------------------------------
