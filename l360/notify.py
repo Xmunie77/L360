@@ -6,6 +6,7 @@ to visible log lines instead of silently failing or crashing the request.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import smtplib
 from email.message import EmailMessage
@@ -14,10 +15,39 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from l360.config import EMAIL_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER
+from l360.config import EMAIL_FROM, SESSION_SECRET, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER
 from l360.models import AppSetting, NotificationLog
 
 logger = logging.getLogger("l360.notify")
+
+# --- at-rest encryption for the stored SMTP password (P1-4) -----------------
+# Fernet keyed off L360_SESSION_SECRET: the DB row alone is useless without
+# the app's secret. Values are prefixed "enc:"; a legacy plaintext row (saved
+# before 31/08/2026) still reads correctly and is re-encrypted on next save.
+_ENC_PREFIX = "enc:"
+
+
+def _fernet():
+    import base64
+
+    from cryptography.fernet import Fernet
+
+    key = base64.urlsafe_b64encode(hashlib.sha256(("smtp:" + SESSION_SECRET).encode()).digest())
+    return Fernet(key)
+
+
+def encrypt_setting(value: str) -> str:
+    return _ENC_PREFIX + _fernet().encrypt(value.encode()).decode()
+
+
+def decrypt_setting(value: str) -> str:
+    if not value.startswith(_ENC_PREFIX):
+        return value  # legacy plaintext
+    try:
+        return _fernet().decrypt(value[len(_ENC_PREFIX):].encode()).decode()
+    except Exception:
+        logger.error("Stored SMTP password failed to decrypt — was L360_SESSION_SECRET rotated? Re-save it in Admin → Email.")
+        return ""
 
 # app_settings keys for email config, editable from Admin → Email. A DB
 # value overrides the corresponding env var; env vars stay as a fallback so
@@ -55,7 +85,7 @@ def smtp_config() -> dict:
     if rows.get("smtp_user"):
         cfg["user"] = rows["smtp_user"]
     if rows.get("smtp_password"):
-        cfg["password"] = rows["smtp_password"]
+        cfg["password"] = decrypt_setting(rows["smtp_password"])
     if rows.get("smtp_from"):
         cfg["from"] = rows["smtp_from"]
     return cfg

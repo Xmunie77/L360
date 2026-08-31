@@ -45,7 +45,7 @@ def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, 
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_future_start(48),
         "duration_minutes": 60,
     })
     assert r.status_code == 200
@@ -61,7 +61,7 @@ def test_cancel_sends_cancel_notification(admin_client, booking_env, _capture_em
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_future_start(48),
         "duration_minutes": 60,
     }).json()
     _capture_emails.clear()
@@ -106,7 +106,7 @@ def test_retrying_same_event_does_not_double_send(admin_client, booking_env, _ca
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_future_start(48),
         "duration_minutes": 60,
     }).json()
     assert len(_capture_emails) == 2

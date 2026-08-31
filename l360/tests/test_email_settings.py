@@ -114,3 +114,15 @@ def test_settings_normalise_pasted_url_and_spaced_password(admin_client, monkeyp
     cfg = notify.smtp_config()
     assert cfg["host"] == "smtp.gmail.com"
     assert cfg["password"] == "abcdefghijklmnop"
+
+
+def test_smtp_password_is_encrypted_at_rest(admin_client):
+    _save(admin_client, password="super-secret-app-pw")
+    from sqlalchemy import select
+    from l360.db import session_scope
+    from l360.models import AppSetting
+    with session_scope() as db:
+        row = db.scalar(select(AppSetting).where(AppSetting.key == "smtp_password"))
+        assert row.value.startswith("enc:")
+        assert "super-secret-app-pw" not in row.value
+    assert notify.smtp_config()["password"] == "super-secret-app-pw"

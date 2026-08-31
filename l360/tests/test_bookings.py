@@ -32,7 +32,7 @@ def _inside_cutoff_start():
 
 
 def test_create_booking_and_list(admin_client, booking_env):
-    start = _future_start(48)
+    start = _safe_morning_start().isoformat()
     r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -56,7 +56,7 @@ def test_create_booking_and_list(admin_client, booking_env):
 
 
 def test_create_booking_requires_a_valid_bookable_session_type(admin_client, booking_env):
-    start = _future_start(48)
+    start = _safe_morning_start().isoformat()
     base_body = {
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -92,7 +92,7 @@ def test_create_booking_requires_a_valid_bookable_session_type(admin_client, boo
 
 
 def test_create_booking_room_conflict_rejected(admin_client, booking_env):
-    start = _future_start(48)
+    start = _safe_morning_start().isoformat()
     body = {
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -136,7 +136,7 @@ def test_invalid_duration_rejected(admin_client, booking_env):
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 45,  # not one of 60/90/120
     })
     assert r.status_code == 422
@@ -263,7 +263,7 @@ def test_cancel_outside_cutoff_is_free(admin_client, booking_env):
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),  # well outside the 24h cutoff
+        "start_utc": _safe_morning_start().isoformat(),  # well outside the 24h cutoff
         "duration_minutes": 60,
     }).json()
     r = admin_client.post(f"/api/bookings/{booking['id']}/cancel")
@@ -291,7 +291,7 @@ def test_cancel_already_cancelled_rejected(admin_client, booking_env):
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 60,
     }).json()
     admin_client.post(f"/api/bookings/{booking['id']}/cancel")
@@ -386,7 +386,7 @@ def test_educator_can_only_modify_own_booking(admin_client, booking_env):
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 60,
     }).json()
 
@@ -401,7 +401,7 @@ def test_other_educator_cannot_modify_booking(admin_client, booking_env, educato
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 60,
     }).json()
 
@@ -456,7 +456,7 @@ def test_mark_status_requires_admin_and_past_booking(admin_client, booking_env):
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _future_start(48),
+        "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 60,
     }).json()
 

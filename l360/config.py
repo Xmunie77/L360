@@ -61,6 +61,9 @@ INVOICE_BANK_LINES = (
 )
 INVOICE_CONTACT_LINES = ("info@learning360.org.mt", "7942 2001")
 
+# --- Error monitoring (no-op until the Fly secret is set) -------------------
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+
 # --- Email (defined now, unused until the notifications phase) --------------
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))

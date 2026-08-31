@@ -122,6 +122,14 @@ from l360.schemas import (
 
 assert_secure_config()
 
+# Error monitoring — inert without the SENTRY_DSN Fly secret (P0-3).
+from l360.config import SENTRY_DSN  # noqa: E402
+
+if SENTRY_DSN:
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0, send_default_pii=False)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -154,6 +162,10 @@ def _current_user(db: Session, l360_session: str | None) -> User | None:
     user = db.get(User, payload.get("uid"))
     if user is None or not user.active:
         return None
+    # Sessions die when the password changes: the cookie carries a
+    # fingerprint of the password hash it was issued against (P1-3).
+    if payload.get("pw") != auth.password_fingerprint(user.password_hash):
+        return None
     return user
 
 
@@ -178,14 +190,33 @@ def health():
     return {"status": "ok"}
 
 
+_LOCKOUT_THRESHOLD = 5
+_LOCKOUT_MINUTES = 15
+
+
 @app.post("/api/login")
 def login(body: LoginReq, response: Response, db: Session = Depends(get_session)):
     user = db.scalar(select(User).where(User.email == body.email.lower()))
-    if user is None or not user.active or not auth.verify_password(body.password, user.password_hash):
+    now = datetime.now(UTC)
+    if user is not None and user.locked_until is not None and user.locked_until > now:
+        # 401, same message as a wrong password — a different status/message
+        # would leak which accounts exist and when they unlock.
         raise HTTPException(status_code=401, detail="Wrong email or password")
+    if user is None or not user.active or not auth.verify_password(body.password, user.password_hash):
+        if user is not None and user.active:
+            user.failed_logins += 1
+            if user.failed_logins >= _LOCKOUT_THRESHOLD:
+                user.locked_until = now + timedelta(minutes=_LOCKOUT_MINUTES)
+                user.failed_logins = 0
+            db.commit()
+        raise HTTPException(status_code=401, detail="Wrong email or password")
+    if user.failed_logins or user.locked_until:
+        user.failed_logins = 0
+        user.locked_until = None
+        db.commit()
     response.set_cookie(
         SESSION_COOKIE_NAME,
-        auth.issue_session_cookie(user.id, user.role),
+        auth.issue_session_cookie(user.id, user.role, user.password_hash),
         httponly=True,
         samesite="lax",
         secure=COOKIE_SECURE,
@@ -746,7 +777,7 @@ def admin_save_email_settings(
     _upsert_setting(db, "smtp_user", body.user.strip())
     _upsert_setting(db, "smtp_from", body.email_from.strip())
     if body.password:  # blank = keep the stored password
-        _upsert_setting(db, "smtp_password", body.password)
+        _upsert_setting(db, "smtp_password", notify.encrypt_setting(body.password))
     db.commit()
     return admin_get_email_settings(db, admin)
 

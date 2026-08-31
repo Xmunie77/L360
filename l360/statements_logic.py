@@ -11,13 +11,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from l360.billing_logic import BILLABLE_STATUSES
-from l360.booking_logic import utc_to_local
+from l360.booking_logic import local_to_utc, utc_to_local
 from l360.models import Booking, Client, Invoice, Payment, Room, ServiceType, User
 
 
 def _naive_utc_bound(d: date, end_of_day: bool = False) -> datetime:
-    t = time(23, 59, 59) if end_of_day else time(0, 0)
-    return datetime.combine(d, t, tzinfo=UTC)
+    """Period boundary in UTC for a MALTA-local calendar date — an invoice
+    issued 23:30 local on the last day of the month belongs to that month,
+    not the next one (P1-1, 31/08/2026)."""
+    if end_of_day:
+        return local_to_utc(d + timedelta(days=1), time(0, 0)) - timedelta(seconds=1)
+    return local_to_utc(d, time(0, 0))
 
 
 @dataclass

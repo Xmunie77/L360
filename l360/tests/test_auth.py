@@ -80,3 +80,32 @@ def test_change_my_password(admin_client, client):
     from fastapi.testclient import TestClient
     from l360.api import app
     assert TestClient(app).post("/api/me/password", json={"current_password": "x", "new_password": "newpassword99"}).status_code == 401
+
+
+def test_login_lockout_after_five_failures(admin_client, client):
+    for _ in range(5):
+        assert client.post("/api/login", json={"email": "admin@example.com", "password": "nope-wrong"}).status_code == 401
+    # Correct password now ALSO refused — the account is locked.
+    assert client.post("/api/login", json={"email": "admin@example.com", "password": "adminpass123"}).status_code == 401
+
+    # Expire the lock manually and confirm recovery + counter reset.
+    from sqlalchemy import select
+    from l360.db import session_scope
+    from l360.models import User
+    with session_scope() as db:
+        u = db.scalar(select(User).where(User.email == "admin@example.com"))
+        assert u.locked_until is not None
+        u.locked_until = None
+    r = client.post("/api/login", json={"email": "admin@example.com", "password": "adminpass123"})
+    assert r.status_code == 200
+    with session_scope() as db:
+        u = db.scalar(select(User).where(User.email == "admin@example.com"))
+        assert u.failed_logins == 0 and u.locked_until is None
+
+
+def test_password_change_invalidates_existing_sessions(admin_client):
+    assert admin_client.get("/api/me").status_code == 200
+    r = admin_client.post("/api/me/password", json={"current_password": "adminpass123", "new_password": "brandnewpass1"})
+    assert r.status_code == 200
+    # The same cookie no longer authenticates.
+    assert admin_client.get("/api/me").status_code == 401

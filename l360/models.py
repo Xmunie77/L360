@@ -100,6 +100,9 @@ class User(Base):
         ForeignKey(_fk("educator_levels.id")), nullable=True
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Login throttling: consecutive failures + lock expiry (P0-1, 31/08/2026).
+    failed_logins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, default=_utcnow
     )

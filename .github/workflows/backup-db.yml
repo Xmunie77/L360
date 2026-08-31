@@ -1,0 +1,60 @@
+name: Backup — l360 database
+
+# Weekly encrypted logical backup of the l360 Neon database, kept as a
+# GitHub Actions artifact for 30 days (P0-4 of the 31/08/2026 review).
+# Belt-and-braces alongside Neon's own point-in-time restore.
+#
+# The dump is AES-256 encrypted with the BACKUP_PASSPHRASE repo secret
+# BEFORE upload — this is a public repo, and artifacts must never contain
+# readable personal data. The passphrase also lives in Simon's Drive
+# (L360/db-backup-passphrase.txt); losing both means backups are unreadable.
+#
+# Restore procedure:
+#   openssl enc -d -aes-256-cbc -pbkdf2 -in l360.dump.enc -out l360.dump \
+#     -pass pass:<passphrase>
+#   pg_restore --clean --if-exists -d "$DATABASE_URL" l360.dump
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"   # Sundays 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install matching postgres client
+        run: |
+          sudo apt-get -yqq install curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get -qq update && sudo apt-get -yqq install postgresql-client-17
+
+      - name: Dump, verify, encrypt
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || { echo "DATABASE_URL_L360 not set" >&2; exit 1; }
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE not set" >&2; exit 1; }
+          pg_dump --format=custom --no-owner --schema=l360 "$DATABASE_URL" -f l360.dump
+          # Integrity check: a truncated/corrupt dump fails to list.
+          pg_restore --list l360.dump > /dev/null
+          echo "Dump OK: $(du -h l360.dump | cut -f1), $(pg_restore --list l360.dump | wc -l) entries"
+          openssl enc -aes-256-cbc -pbkdf2 -in l360.dump -out l360.dump.enc -pass env:BACKUP_PASSPHRASE
+          rm l360.dump
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: l360-db-backup-${{ github.run_id }}
+          path: l360.dump.enc
+          retention-days: 30
+          if-no-files-found: error

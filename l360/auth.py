@@ -39,10 +39,18 @@ def _sign(payload: bytes) -> str:
     return hmac.new(SESSION_SECRET.encode(), payload, hashlib.sha256).hexdigest()
 
 
-def issue_session_cookie(user_id: int, role: str) -> str:
+def password_fingerprint(password_hash: str) -> str:
+    """A short, non-reversible tag of the stored password hash, embedded in
+    session cookies so every session issued before a password change stops
+    validating the moment the hash changes."""
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def issue_session_cookie(user_id: int, role: str, password_hash: str = "") -> str:
     payload = {
         "uid": user_id,
         "role": role,
+        "pw": password_fingerprint(password_hash),
         "exp": int(time.time()) + SESSION_TTL_SECONDS,
         "nonce": secrets.token_hex(8),
     }
