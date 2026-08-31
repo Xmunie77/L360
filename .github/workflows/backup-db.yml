@@ -35,7 +35,7 @@ jobs:
             https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get -qq update && sudo apt-get -yqq install postgresql-client-17
+          sudo apt-get -qq update && sudo apt-get -yqq install postgresql-client-18
 
       - name: Dump, verify, encrypt
         env:
@@ -45,10 +45,11 @@ jobs:
           set -euo pipefail
           test -n "$DATABASE_URL" || { echo "DATABASE_URL_L360 not set" >&2; exit 1; }
           test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE not set" >&2; exit 1; }
-          pg_dump --format=custom --no-owner --schema=l360 "$DATABASE_URL" -f l360.dump
+          PGBIN=/usr/lib/postgresql/18/bin
+          "$PGBIN/pg_dump" --format=custom --no-owner --schema=l360 "$DATABASE_URL" -f l360.dump
           # Integrity check: a truncated/corrupt dump fails to list.
-          pg_restore --list l360.dump > /dev/null
-          echo "Dump OK: $(du -h l360.dump | cut -f1), $(pg_restore --list l360.dump | wc -l) entries"
+          "$PGBIN/pg_restore" --list l360.dump > /dev/null
+          echo "Dump OK: $(du -h l360.dump | cut -f1), $("$PGBIN/pg_restore" --list l360.dump | wc -l) entries"
           openssl enc -aes-256-cbc -pbkdf2 -in l360.dump -out l360.dump.enc -pass env:BACKUP_PASSPHRASE
           rm l360.dump
 
