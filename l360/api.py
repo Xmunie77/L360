@@ -1231,7 +1231,15 @@ def create_booking_series(
             created_by=user.id,
         )
         db.add(row)
-        db.flush()
+        try:
+            db.flush()
+        except _IntegrityError as e:
+            # A concurrent booking raced us onto this occurrence between
+            # validate_slot and the flush (exclusion constraint, mig 0017).
+            db.rollback()
+            if "excl_booking" not in str(e.orig):
+                raise
+            raise HTTPException(status_code=409, detail="A slot in this series was just taken by another booking — please retry")
         created.append(row)
 
     _commit_booking_write(db)
