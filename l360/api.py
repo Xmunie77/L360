@@ -22,6 +22,7 @@ from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
 from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
@@ -1067,6 +1068,21 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
     )
 
 
+
+def _commit_booking_write(db: Session) -> None:
+    """Commit a booking insert/move, translating the Postgres exclusion
+    constraints (excl_booking_*_overlap, migration 0017) into the same 409
+    the slot validator raises — they only fire when two requests raced past
+    validate_slot() simultaneously."""
+    try:
+        db.commit()
+    except _IntegrityError as e:
+        db.rollback()
+        if "excl_booking" in str(e.orig):
+            raise HTTPException(status_code=409, detail="That slot was just taken by another booking")
+        raise
+
+
 def _can_modify(user: User, booking: Booking) -> bool:
     return user.role == "admin" or booking.educator_id == user.id or booking.created_by == user.id
 
@@ -1156,7 +1172,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_session), user: Us
         created_by=user.id,
     )
     db.add(row)
-    db.commit()
+    _commit_booking_write(db)
     db.refresh(row)
     notifications.notify_booking_event(db, row, "confirmation")
     return _booking_out(db, row)
@@ -1218,7 +1234,7 @@ def create_booking_series(
         db.flush()
         created.append(row)
 
-    db.commit()
+    _commit_booking_write(db)
     for b in created:
         notifications.notify_booking_event(db, b, "confirmation")
     return BookingSeriesOut(
@@ -1272,7 +1288,7 @@ def move_booking(
         b.tutor_payment_cents = new_service_type.tutor_payment_cents
     if body.notes is not None:
         b.notes = body.notes
-    db.commit()
+    _commit_booking_write(db)
     db.refresh(b)
     notifications.notify_booking_event(db, b, "change")
     return _booking_out(db, b)
