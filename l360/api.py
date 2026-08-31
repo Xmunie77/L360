@@ -702,14 +702,17 @@ def admin_sample_invoice_pdf(db: Session = Depends(get_session), _admin: User = 
 def _invoice_pdf_data(db: Session, inv: Invoice) -> invoice_pdf.InvoicePdfData:
     client = db.get(Client, inv.client_id)
     lines = db.scalars(select(InvoiceLine).where(InvoiceLine.invoice_id == inv.id)).all()
+    booking_ids = {line.booking_id for line in lines if line.booking_id}
+    line_bookings = {b.id: b for b in db.scalars(select(Booking).where(Booking.id.in_(booking_ids)))} if booking_ids else {}
+    educators = {u.id: u for u in db.scalars(select(User).where(User.id.in_({b.educator_id for b in line_bookings.values()})))} if line_bookings else {}
     pdf_lines = []
     for line in lines:
         desc = line.description
         # Lines generated before 30/08/2026 lack the educator name — add it
         # from the booking at render time so older invoices carry it too.
         if line.booking_id:
-            b = db.get(Booking, line.booking_id)
-            educator = db.get(User, b.educator_id) if b else None
+            b = line_bookings.get(line.booking_id)
+            educator = educators.get(b.educator_id) if b else None
             if educator and educator.full_name not in desc:
                 desc = f"{desc} — {educator.full_name}"
         pdf_lines.append(invoice_pdf.InvoiceLinePdf(desc, line.quantity, line.unit_price_cents, line.amount_cents))
@@ -1040,6 +1043,46 @@ def _client_label(client: Client) -> str:
     return f"{name} ({client.child_name})" if client.child_name else name
 
 
+def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
+    """Batch shape conversion — one query per entity type for the whole
+    list, instead of three db.get() calls per booking (P2, 31/08 review)."""
+    if not bookings:
+        return []
+    rooms = {r.id: r for r in db.scalars(select(Room).where(Room.id.in_({b.room_id for b in bookings})))}
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_({b.educator_id for b in bookings})))}
+    clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in bookings})))}
+    st_ids = {b.service_type_id for b in bookings if b.service_type_id}
+    service_types = {t.id: t for t in db.scalars(select(ServiceType).where(ServiceType.id.in_(st_ids)))} if st_ids else {}
+    out = []
+    for b in bookings:
+        room = rooms.get(b.room_id)
+        educator = users.get(b.educator_id)
+        client = clients.get(b.client_id)
+        service_type = service_types.get(b.service_type_id) if b.service_type_id else None
+        out.append(BookingOut(
+            id=b.id,
+            room_id=b.room_id,
+            room_name=room.name if room else "?",
+            educator_id=b.educator_id,
+            educator_name=educator.full_name if educator else "?",
+            client_id=b.client_id,
+            client_label=_client_label(client) if client else "?",
+            service_type_id=b.service_type_id,
+            service_type_name=service_type.name if service_type else None,
+            client_price_cents=b.client_price_cents,
+            tutor_payment_cents=b.tutor_payment_cents,
+            series_id=b.series_id,
+            start_utc=b.start_utc,
+            duration_minutes=b.duration_minutes,
+            status=b.status,
+            notes=b.notes,
+            created_by=b.created_by,
+            created_at=b.created_at,
+            cancelled_at=b.cancelled_at,
+        ))
+    return out
+
+
 def _booking_out(db: Session, b: Booking) -> BookingOut:
     room = db.get(Room, b.room_id)
     educator = db.get(User, b.educator_id)
@@ -1105,7 +1148,7 @@ def list_bookings(
     if mine:
         q = q.where(Booking.educator_id == user.id)
     rows = db.scalars(q.order_by(Booking.start_utc)).all()
-    return [_booking_out(db, b) for b in rows]
+    return _booking_outs(db, list(rows))
 
 
 @app.get("/api/bookings/next-available", response_model=NextAvailableOut)
@@ -1247,7 +1290,7 @@ def create_booking_series(
         notifications.notify_booking_event(db, b, "confirmation")
     return BookingSeriesOut(
         series_id=series.id,
-        created=[_booking_out(db, b) for b in created],
+        created=_booking_outs(db, created),
         skipped=skipped,
     )
 
@@ -1614,10 +1657,12 @@ def calendar_feed(token: str, db: Session = Depends(get_session)):
     if row is None:
         raise HTTPException(status_code=404, detail="Unknown or revoked calendar link")
     bookings = db.scalars(select(Booking).where(Booking.educator_id == row.user_id)).all()
+    rooms = {r.id: r for r in db.scalars(select(Room))}
+    clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in bookings})))} if bookings else {}
     events = []
     for b in bookings:
-        room = db.get(Room, b.room_id)
-        client = db.get(Client, b.client_id)
+        room = rooms.get(b.room_id)
+        client = clients.get(b.client_id)
         events.append((b, room.name if room else "?", _client_label(client) if client else "?"))
     return PlainTextResponse(ical.render_ics(events), media_type="text/calendar")
 

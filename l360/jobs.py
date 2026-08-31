@@ -82,9 +82,10 @@ def send_daily_digest(db: Session, *, today: date_cls | None = None) -> int:
         if not bookings:
             continue
 
+        clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in bookings})))}
         lines = []
         for b in bookings:
-            client = db.get(Client, b.client_id)
+            client = clients.get(b.client_id)
             _, local_time = utc_to_local(b.start_utc)
             lines.append(f"{local_time.strftime('%H:%M')} — {client.guardian_name if client else '?'}")
         body = "Today's sessions:\n" + "\n".join(lines)

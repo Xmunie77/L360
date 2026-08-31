@@ -126,17 +126,20 @@ def educator_summary(db: Session, *, educator_id: int, period_start: date, perio
         )
     ).all()
 
+    clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in candidates})))} if candidates else {}
+    st_ids = {b.service_type_id for b in candidates if b.service_type_id}
+    service_types = {t.id: t for t in db.scalars(select(ServiceType).where(ServiceType.id.in_(st_ids)))} if st_ids else {}
     lines: list[SummarySessionLine] = []
     total = 0
     for b in candidates:
         local_date, _ = utc_to_local(b.start_utc)
         if not (period_start <= local_date <= period_end):
             continue
-        client = db.get(Client, b.client_id)
+        client = clients.get(b.client_id)
         # The tutor payment locked in at booking time, not whatever the
         # service type currently pays — see Booking.tutor_payment_cents.
         rate_cents = b.tutor_payment_cents or 0
-        service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
+        service_type = service_types.get(b.service_type_id) if b.service_type_id else None
         lines.append(SummarySessionLine(
             booking_id=b.id,
             local_date=local_date,

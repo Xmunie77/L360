@@ -128,21 +128,49 @@ def find_next_available_room(
     length, scanning forward from now across facility hours/closures in
     30-minute steps. Rooms are tried in name order for a given slot, so an
     earlier slot always wins over an earlier room. None if nothing opens up
-    within `days_ahead` days."""
+    within `days_ahead` days.
+
+    Everything is prefetched in three queries (hours, closures, bookings)
+    and the slot scan runs in memory — the previous version issued a
+    closure + conflict query per room per 30-minute slot per day (P2 of the
+    31/08/2026 review)."""
     now_utc = now_utc or datetime.now(UTC)
     rooms = db.scalars(select(Room).where(Room.active == True)).all()  # noqa: E712
     rooms = sorted(rooms, key=lambda r: r.name)
     if not rooms:
         return None
 
+    hours_by_weekday = {h.weekday: h for h in db.scalars(select(FacilityHours))}
+    if not hours_by_weekday:
+        return None
+
+    first_local_date, _ = utc_to_local(now_utc)
+    last_local_date, _ = utc_to_local(now_utc + timedelta(days=days_ahead))
+    closures = db.scalars(
+        select(FacilityClosure).where(
+            FacilityClosure.date >= first_local_date, FacilityClosure.date <= last_local_date
+        )
+    ).all()
+    closed: set[tuple[date, int | None]] = {(c.date, c.room_id) for c in closures}
+
+    horizon_end = now_utc + timedelta(days=days_ahead + 1)
+    bookings = db.scalars(
+        select(Booking).where(
+            Booking.status.in_(_ACTIVE_STATUSES),
+            Booking.start_utc >= now_utc - timedelta(minutes=_MAX_DURATION_MINUTES),
+            Booking.start_utc < horizon_end,
+        )
+    ).all()
+    busy_by_room: dict[int, list[tuple[datetime, datetime]]] = {}
+    for b in bookings:
+        busy_by_room.setdefault(b.room_id, []).append(
+            (b.start_utc, b.start_utc + timedelta(minutes=b.duration_minutes))
+        )
+
     for day_offset in range(days_ahead):
         local_date, _ = utc_to_local(now_utc + timedelta(days=day_offset))
-        hours = db.scalar(select(FacilityHours).where(FacilityHours.weekday == local_date.weekday()))
-        if hours is None:
-            continue
-        if db.scalar(
-            select(FacilityClosure).where(FacilityClosure.date == local_date, FacilityClosure.room_id.is_(None))
-        ):
+        hours = hours_by_weekday.get(local_date.weekday())
+        if hours is None or (local_date, None) in closed:
             continue
 
         t = hours.open_time
@@ -152,19 +180,13 @@ def find_next_available_room(
                 break
             start_utc = local_to_utc(local_date, t)
             if start_utc >= now_utc:
+                slot_end = start_utc + timedelta(minutes=duration_minutes)
                 for room in rooms:
-                    room_closed = db.scalar(
-                        select(FacilityClosure).where(
-                            FacilityClosure.date == local_date, FacilityClosure.room_id == room.id
-                        )
-                    )
-                    if room_closed:
+                    if (local_date, room.id) in closed:
                         continue
-                    conflict = find_conflict(
-                        db, room_id=room.id, educator_id=-1, start_utc=start_utc, duration_minutes=duration_minutes
-                    )
-                    if conflict is None:
-                        return room, start_utc
+                    if any(bs < slot_end and be > start_utc for bs, be in busy_by_room.get(room.id, ())):
+                        continue
+                    return room, start_utc
             next_dt = datetime.combine(local_date, t) + timedelta(minutes=30)
             if next_dt.date() != local_date:
                 break
