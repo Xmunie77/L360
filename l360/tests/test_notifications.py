@@ -9,6 +9,7 @@ import pytest
 
 from l360 import jobs, notify
 from l360.booking_logic import local_to_utc, utc_to_local
+from l360.tests.timeutils import safe_future_start
 from l360.models import NotificationLog
 
 
@@ -21,21 +22,13 @@ def _capture_emails(monkeypatch):
     return sent
 
 
+
+def safe_future_start_iso(hours_ahead: int) -> str:
+    return safe_future_start(hours_ahead).isoformat()
+
+
 def _future_start(hours_ahead: int) -> str:
     return (datetime.now(UTC) + timedelta(hours=hours_ahead)).replace(microsecond=0).isoformat()
-
-
-def _safe_future_start(hours_ahead: int) -> str:
-    """Like _future_start, but nudged off local hour 23 — the one hour
-    where a 60-minute session's start+duration crosses local midnight and
-    gets correctly rejected by the app. Only ever moves earlier within the
-    same calendar date, so it can't flip which side of a 24h boundary
-    (relative to now) the result falls on."""
-    dt_utc = datetime.now(UTC) + timedelta(hours=hours_ahead)
-    local_date, local_time = utc_to_local(dt_utc)
-    if local_time.hour == 23:
-        local_time = local_time.replace(hour=21, minute=0, second=0, microsecond=0)
-    return local_to_utc(local_date, local_time).isoformat()
 
 
 def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, booking_env, _capture_emails):
@@ -45,7 +38,7 @@ def test_create_booking_sends_confirmation_to_educator_and_client(admin_client, 
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(48),
+        "start_utc": safe_future_start_iso(48),
         "duration_minutes": 60,
     })
     assert r.status_code == 200
@@ -61,7 +54,7 @@ def test_cancel_sends_cancel_notification(admin_client, booking_env, _capture_em
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(48),
+        "start_utc": safe_future_start_iso(48),
         "duration_minutes": 60,
     }).json()
     _capture_emails.clear()
@@ -106,7 +99,7 @@ def test_retrying_same_event_does_not_double_send(admin_client, booking_env, _ca
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(48),
+        "start_utc": safe_future_start_iso(48),
         "duration_minutes": 60,
     }).json()
     assert len(_capture_emails) == 2
@@ -129,7 +122,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(20),
+        "start_utc": safe_future_start_iso(20),
         "duration_minutes": 60,
     })
     # Outside the window.
@@ -138,7 +131,7 @@ def test_reminder_sent_only_within_24h_window(admin_client, booking_env, _captur
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(48),
+        "start_utc": safe_future_start_iso(48),
         "duration_minutes": 60,
     })
     _capture_emails.clear()
@@ -160,7 +153,7 @@ def test_reminder_is_idempotent_across_runs(admin_client, booking_env, _capture_
         "educator_id": booking_env["educator_id"],
         "client_id": booking_env["client_id"],
         "service_type_id": booking_env["service_type_id"],
-        "start_utc": _safe_future_start(12),
+        "start_utc": safe_future_start_iso(12),
         "duration_minutes": 60,
     })
     assert r.status_code == 200, r.text

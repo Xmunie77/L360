@@ -102,13 +102,22 @@ def generate_draft_invoice(
 
 
 def _next_invoice_number(db: Session, year: int) -> str:
+    """Highest existing sequence + 1 (not count+1: counting breaks the
+    moment any number in the year is missing or duplicated by a prefix
+    change, whereas max+1 always moves forward). Collisions from concurrent
+    issues are still caught by the unique constraint + retry in
+    issue_invoice()."""
     existing = db.scalars(
         select(Invoice.number).where(
             Invoice.number.is_not(None), Invoice.number.like(f"{INVOICE_NUMBER_PREFIX}-{year}-%")
         )
     ).all()
-    next_seq = len(existing) + 1
-    return f"{INVOICE_NUMBER_PREFIX}-{year}-{next_seq:04d}"
+    max_seq = 0
+    for number in existing:
+        tail = number.rsplit("-", 1)[-1]
+        if tail.isdigit():
+            max_seq = max(max_seq, int(tail))
+    return f"{INVOICE_NUMBER_PREFIX}-{year}-{max_seq + 1:04d}"
 
 
 def issue_invoice(db: Session, invoice: Invoice, *, due_in_days: int = 14) -> Invoice:
