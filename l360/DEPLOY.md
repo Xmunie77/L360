@@ -103,7 +103,10 @@ verify against — so test it against a real Revolut sandbox/account before
 relying on it; a shape mismatch there fails obviously (no transactions
 import) rather than silently, but it still needs that check before go-live.
 
-**Scheduled reminders & digest.** T-24h reminder emails and each educator's
+**Scheduled reminders & digest.** ✅ Wired since 31/08/2026 — fly.toml's
+`[processes]` block runs `jobs = "python -m l360.jobs"` as its own machine,
+so reminders and digests fire in production. (Historical note below kept
+for context.) T-24h reminder emails and each educator's
 daily digest are NOT started automatically inside the web process — the
 Dockerfile runs 2 uvicorn workers, and an in-process scheduler per worker
 would double-fire every job (harmless given the notification dedupe, but
@@ -117,3 +120,23 @@ wasteful). Run them as a separate Fly process instead:
 then `fly scale count app=1 jobs=1 -a l360-os`. Not yet wired up —
 booking confirmation/change/cancel emails (the synchronous ones) work
 without this; only the T-24h reminder and daily digest need it.
+
+
+## Operations (added 31/08/2026, engineering-review hardening)
+
+- **Error monitoring:** set the `SENTRY_DSN` Fly secret to activate the
+  Sentry hook in `api.py` (inert without it). Pair with an external uptime
+  ping on `/health` (e.g. UptimeRobot).
+- **Backups:** `.github/workflows/backup-db.yml` takes a weekly encrypted
+  `pg_dump` (Sundays 02:00 UTC, also on demand) into a 30-day artifact.
+  Secrets: `DATABASE_URL_L360` + `BACKUP_PASSPHRASE` (copy of the
+  passphrase in Simon's Drive, `L360/db-backup-passphrase.txt`). Restore
+  procedure is documented at the top of the workflow file. Neon's own PITR
+  is the first line; this is belt-and-braces.
+- **Login lockout:** 5 consecutive failures lock an account 15 minutes
+  (`users.failed_logins/locked_until`).
+- **Double-booking:** enforced by Postgres exclusion constraints
+  (migration 0017) as well as the app-level check.
+- **SMTP settings** live in Admin → Email (app_settings, password
+  encrypted at rest with a key derived from `L360_SESSION_SECRET`); the
+  env-var SMTP secrets remain a fallback.

@@ -380,7 +380,8 @@ export function Onboarding({ token }: { token: string }) {
           Submit onboarding form
         </Button>
         <p className="l360-ob-footnote">
-          Learning 360° Foundation will not share any of the information provided with a third party.
+          Learning 360° Foundation will not share any of the information provided with a third party.{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy notice</a>
         </p>
       </form>
     </div>

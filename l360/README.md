@@ -24,7 +24,11 @@ Dev educator logins: `educator1@example.com` .. `educator12@example.com` / `l360
 
 ```
 l360/
-  api.py              FastAPI app: auth, admin CRUD, read-only lists, SPA serving
+  api.py              app assembly only: middleware, monitoring, SPA serving
+  routers/            the actual routes, one module per area (auth, directory,
+                      clients, educators, settings, billing, bookings,
+                      payments, finance, public) — split 31/08/2026
+  deps.py             shared FastAPI dependencies (require_user/admin) + helpers
   auth.py             password hashing + signed session cookie
   config.py           env config, fail-loud guard on Postgres with dev secrets
   db.py               engine/session, init_db() (SQLite dev only)
@@ -35,6 +39,9 @@ l360/
   import_form_responses.py  one-off loader for the legacy Google Form responses
                       CSV (run with the data supplied at run time — never a
                       committed file; see its docstring)
+  privacy.py          /privacy notice (DRAFT pending legal review)
+  invoice_pdf.py      client invoice PDFs (fpdf2), letterhead from Admin → Invoicing
+  jobs.py             T-24h reminders + daily digest — runs as the Fly `jobs` process
   seed.py             idempotent dev seed data
   migrations/         Alembic (l360 schema), gated — never run on boot
   tests/              pytest

@@ -674,7 +674,8 @@ export function EducatorOnboarding({ token }: { token: string }) {
         </Button>
         <p className="l360-ob-footnote">
           Information supplied is handled confidentially by Learning 360° Foundation and used only for
-          recruitment, onboarding, safeguarding, scheduling, payment and legal compliance.
+          recruitment, onboarding, safeguarding, scheduling, payment and legal compliance.{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy notice</a>
         </p>
       </form>
     </div>

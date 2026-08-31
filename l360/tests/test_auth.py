@@ -109,3 +109,10 @@ def test_password_change_invalidates_existing_sessions(admin_client):
     assert r.status_code == 200
     # The same cookie no longer authenticates.
     assert admin_client.get("/api/me").status_code == 401
+
+
+def test_privacy_notice_is_public(client):
+    r = client.get("/privacy")
+    assert r.status_code == 200
+    assert "Privacy Notice" in r.text
+    assert "pending review" in r.text

@@ -173,4 +173,12 @@ def calendar_feed(token: str, db: Session = Depends(get_session)):
         events.append((b, room.name if room else "?", _client_label(client) if client else "?"))
     return PlainTextResponse(ical.render_ics(events), media_type="text/calendar")
 
+@router.get("/privacy")
+def privacy_notice():
+    """Public privacy notice (draft pending legal review) — linked from the
+    footers of both public onboarding forms."""
+    from fastapi.responses import HTMLResponse
 
+    from l360.privacy import PRIVACY_HTML
+
+    return HTMLResponse(PRIVACY_HTML)
