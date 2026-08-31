@@ -28,18 +28,27 @@ def upgrade() -> None:
     if not IS_POSTGRES:
         return
     op.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
+    # timestamptz + interval is only STABLE in Postgres (month/day intervals
+    # depend on the timezone), so it can't appear in an index expression
+    # directly. Minute-only arithmetic IS timezone-independent, so this
+    # wrapper is honestly immutable.
+    op.execute(f"""
+        CREATE OR REPLACE FUNCTION {L360_SCHEMA}.booking_range(start_utc timestamptz, dur_minutes int)
+        RETURNS tstzrange LANGUAGE sql IMMUTABLE PARALLEL SAFE AS
+        $fn$ SELECT tstzrange(start_utc, start_utc + make_interval(mins => dur_minutes)) $fn$
+    """)
     op.execute(f"""
         ALTER TABLE {L360_SCHEMA}.bookings ADD CONSTRAINT excl_booking_room_overlap
         EXCLUDE USING gist (
             room_id WITH =,
-            tstzrange(start_utc, start_utc + make_interval(mins => duration_minutes)) WITH &&
+            {L360_SCHEMA}.booking_range(start_utc, duration_minutes) WITH &&
         ) WHERE (status IN ('confirmed', 'completed'))
     """)
     op.execute(f"""
         ALTER TABLE {L360_SCHEMA}.bookings ADD CONSTRAINT excl_booking_educator_overlap
         EXCLUDE USING gist (
             educator_id WITH =,
-            tstzrange(start_utc, start_utc + make_interval(mins => duration_minutes)) WITH &&
+            {L360_SCHEMA}.booking_range(start_utc, duration_minutes) WITH &&
         ) WHERE (status IN ('confirmed', 'completed'))
     """)
 
@@ -49,3 +58,4 @@ def downgrade() -> None:
         return
     op.execute(f"ALTER TABLE {L360_SCHEMA}.bookings DROP CONSTRAINT IF EXISTS excl_booking_room_overlap")
     op.execute(f"ALTER TABLE {L360_SCHEMA}.bookings DROP CONSTRAINT IF EXISTS excl_booking_educator_overlap")
+    op.execute(f"DROP FUNCTION IF EXISTS {L360_SCHEMA}.booking_range(timestamptz, int)")
