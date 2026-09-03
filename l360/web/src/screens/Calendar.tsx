@@ -23,7 +23,7 @@ import {
   type SkippedOccurrence,
 } from "../api/client";
 import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
-import { statusBadgeProps } from "../domain/status";
+import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import {
   combineDateTime,
   dayBoundsISO,
@@ -548,6 +548,9 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   // Live pill preview while the Confirm flow is mid-decision.
   const [preview, setPreview] = useState<OutcomePreview>(null);
   const { variant, label } = statusBadgeProps(preview ? { ...booking, ...preview } : booking);
+  const billing = billingBadgeProps(
+    preview ? (preview.charge_waived ? "fee_waived" : "to_bill") : booking.billing_state,
+  );
   const isPast = new Date(booking.start_utc).getTime() <= Date.now();
   const canConfirm =
     isPast &&
@@ -605,6 +608,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
           )}
           <p style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <StatusBadge variant={variant} label={preview ? `${label} …` : label} />
+            {billing && <StatusBadge variant={billing.variant} label={billing.label} />}
             <span className="l360-mono">
               {toTimeInputValue(booking.start_utc)} · {booking.duration_minutes} min
             </span>

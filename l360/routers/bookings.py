@@ -127,6 +127,38 @@ def _client_label(client: Client) -> str:
     return f"{name} ({client.child_name})" if client.child_name else name
 
 
+def _billing_states(db: Session, bookings: list[Booking]) -> dict[int, str]:
+    """The Billing pill, server-computed per booking:
+    paid > invoice_sent (issued/partially paid) > fee_waived > to_bill > none.
+    One batched query joining lines to non-draft invoices."""
+    if not bookings:
+        return {}
+    rows = db.execute(
+        select(InvoiceLine.booking_id, Invoice.status)
+        .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+        .where(
+            InvoiceLine.booking_id.in_({b.id for b in bookings}),
+            Invoice.status.notin_(("draft", "void")),
+        )
+    ).all()
+    inv_status = {bid: st for bid, st in rows}
+    now = datetime.now(UTC)
+    out: dict[int, str] = {}
+    for b in bookings:
+        st = inv_status.get(b.id)
+        if st == "paid":
+            out[b.id] = "paid"
+        elif st is not None:
+            out[b.id] = "invoice_sent"
+        elif b.status in ("no_show", "cancelled_late"):
+            out[b.id] = "fee_waived" if b.charge_waived else "to_bill"
+        elif b.status in ("confirmed", "completed") and b.start_utc <= now:
+            out[b.id] = "to_bill"
+        else:
+            out[b.id] = "none"
+    return out
+
+
 def _invoiced_booking_ids(db: Session, booking_ids: set[int]) -> set[int]:
     """Which of these bookings sit on an ISSUED (or paid) invoice — i.e.
     one that's gone to the client. That's the lock point AND what the UI
@@ -179,6 +211,7 @@ def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
     if not bookings:
         return []
     invoiced = _invoiced_booking_ids(db, {b.id for b in bookings})
+    billing = _billing_states(db, bookings)
     rooms = {r.id: r for r in db.scalars(select(Room).where(Room.id.in_({b.room_id for b in bookings})))}
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_({b.educator_id for b in bookings})))}
     clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in bookings})))}
@@ -212,6 +245,7 @@ def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
             cancelled_at=b.cancelled_at,
             invoiced=b.id in invoiced,
             charge_waived=b.charge_waived,
+            billing_state=billing.get(b.id, "none"),
         ))
     return out
 
@@ -244,6 +278,7 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         cancelled_at=b.cancelled_at,
         invoiced=invoiced,
         charge_waived=b.charge_waived,
+        billing_state=_billing_states(db, [b]).get(b.id, "none"),
     )
 
 
@@ -546,15 +581,20 @@ def set_booking_status(
     if _invoiced_booking_ids(db, {b.id}):
         raise HTTPException(status_code=409, detail="Already invoiced — amendments are locked")
     _release_from_draft_invoices(db, b.id)
-    if b.status == "cancelled_late":
-        # A late cancellation keeps its status — only the charge decision
-        # can be revisited here; body.status is ignored.
+    if b.status == "cancelled_late" and body.status != "cancelled_late":
+        # A recorded late cancellation keeps its status — only the charge
+        # decision can be revisited here; other statuses are ignored.
         b.charge_waived = not body.charge
     else:
+        if body.status == "cancelled_late" and b.status != "cancelled_late":
+            # The Confirm flow's "Session cancelled": recording after the
+            # fact that the session didn't run (family called that morning,
+            # nobody cancelled it in the system).
+            b.cancelled_at = datetime.now(UTC)
         b.status = body.status
-        # Waiving only makes sense on a no-show; "completed" (undo) always
-        # returns the session to the normal billable path.
-        b.charge_waived = (body.status == "no_show") and not body.charge
+        # Waiving only applies to the non-delivery outcomes; "completed"
+        # always returns the session to the normal billable path.
+        b.charge_waived = body.status in ("no_show", "cancelled_late") and not body.charge
     b.outcome_set_by_id = user.id
     b.outcome_set_at = datetime.now(UTC)
     db.commit()

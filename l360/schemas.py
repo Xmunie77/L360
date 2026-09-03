@@ -621,9 +621,10 @@ class BookingMoveIn(BaseModel):
 
 
 class BookingStatusIn(BaseModel):
-    # "no_show" = learner didn't turn up; "completed" = undo an amendment
-    # back to the normal delivered/billable path.
-    status: Literal["completed", "no_show"]
+    # "no_show" = learner didn't turn up; "cancelled_late" = the Confirm
+    # flow's after-the-fact "Session cancelled"; "completed" = confirm
+    # delivery / undo an amendment back to the billable path.
+    status: Literal["completed", "no_show", "cancelled_late"]
     # Educator's charge decision (only meaningful for no_show, and for
     # re-charging a waived late cancellation): True bills the family,
     # False waives the fee.
@@ -660,10 +661,13 @@ class BookingOut(BaseModel):
     created_by: int
     created_at: datetime
     cancelled_at: datetime | None
-    # True once the booking sits on an invoice line — amendments lock.
+    # True once the booking sits on an ISSUED invoice — amendments lock.
     invoiced: bool = False
     # True when the educator waived the fee on a no-show/late cancel.
     charge_waived: bool = False
+    # Server-computed money state for the Billing pill:
+    # none | to_bill | fee_waived | invoice_sent | paid
+    billing_state: str = "none"
 
 
 class SkippedOccurrence(BaseModel):

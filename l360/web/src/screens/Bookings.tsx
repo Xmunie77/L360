@@ -9,7 +9,7 @@ import {
   type Me,
 } from "../api/client";
 import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
-import { statusBadgeProps } from "../domain/status";
+import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import { dayBoundsISO, formatBookingWhen, todayStr } from "../domain/datetime";
 
 const WINDOW_DAYS = 14;
@@ -162,9 +162,9 @@ export function Bookings({ me }: { me: Me | null }) {
         {WINDOW_DAYS}, with status at a glance.
       </p>
       <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
-        A past session reading "Delivered?" is assumed to have taken place and bills automatically —
-        Confirm records what actually happened, and can send the invoice on the spot. (B) = the
-        family is charged, (W) = charge waived. Locked once invoiced.
+        Past sessions are assumed delivered and bill automatically — Confirm records what actually
+        happened and can send the invoice on the spot. Billing shows where the money stands; a
+        session locks once its invoice is sent.
       </p>
 
       {error && (
@@ -188,6 +188,7 @@ export function Bookings({ me }: { me: Me | null }) {
                 <th>Learner</th>
                 <th>Duration</th>
                 <th>Status</th>
+                <th>Billing</th>
                 <th>
                   <span className="l360-visually-hidden">Actions</span>
                 </th>
@@ -197,6 +198,11 @@ export function Bookings({ me }: { me: Me | null }) {
               {bookings.map((b) => {
                 const preview = previews[b.id];
                 const { variant, label } = statusBadgeProps(preview ? { ...b, ...preview } : b);
+                // While the flow previews a choice, billing previews too:
+                // waived → Fee waived, otherwise the outcome will bill.
+                const billing = billingBadgeProps(
+                  preview ? (preview.charge_waived ? "fee_waived" : "to_bill") : b.billing_state,
+                );
                 return (
                   <tr key={b.id}>
                     <td>{formatBookingWhen(b.start_utc)}</td>
@@ -205,6 +211,13 @@ export function Bookings({ me }: { me: Me | null }) {
                     <td>{b.client_label}</td>
                     <td>{b.duration_minutes} min</td>
                     <td><StatusBadge variant={variant} label={preview ? `${label} …` : label} /></td>
+                    <td>
+                      {billing ? (
+                        <StatusBadge variant={billing.variant} label={billing.label} />
+                      ) : (
+                        <span className="l360-field-hint">–</span>
+                      )}
+                    </td>
                     <td>{rowActions(b)}</td>
                   </tr>
                 );

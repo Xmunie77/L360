@@ -36,6 +36,9 @@ export interface Client {
 
 export type BookingStatus = "confirmed" | "cancelled" | "cancelled_late" | "completed" | "no_show";
 
+/** Server-computed Billing pill state — see BookingOut.billing_state. */
+export type BillingState = "none" | "to_bill" | "fee_waived" | "invoice_sent" | "paid";
+
 export interface Booking {
   id: number;
   room_id: number;
@@ -63,6 +66,8 @@ export interface Booking {
   invoiced: boolean;
   /** True when the educator waived the fee on a no-show / late cancel. */
   charge_waived: boolean;
+  /** Money state for the Billing pill. */
+  billing_state: BillingState;
 }
 
 export interface Me {
@@ -619,7 +624,7 @@ export function cancelBooking(id: number, charge?: boolean): Promise<Booking> {
   return post<Booking>(`/api/bookings/${id}/cancel`, charge === undefined ? undefined : { charge });
 }
 
-export function setBookingStatus(id: number, status: "completed" | "no_show", charge: boolean): Promise<Booking> {
+export function setBookingStatus(id: number, status: "completed" | "no_show" | "cancelled_late", charge: boolean): Promise<Booking> {
   // Amend a past session's outcome — no-show (± charge), undo back to
   // delivered, or revisit a late cancellation's charge decision.
   return post<Booking>(`/api/bookings/${id}/status`, { status, charge });

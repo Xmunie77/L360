@@ -1,44 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { statusBadgeProps } from "./status";
+import { billingBadgeProps, statusBadgeProps } from "./status";
 
 const past = new Date(Date.now() - 3_600_000).toISOString();
 const future = new Date(Date.now() + 3_600_000).toISOString();
 
-function badge(status: string, opts: Partial<{ start_utc: string; invoiced: boolean; charge_waived: boolean }> = {}) {
-  return statusBadgeProps({
-    status: status as never,
-    start_utc: opts.start_utc ?? future,
-    invoiced: opts.invoiced ?? false,
-    charge_waived: opts.charge_waived ?? false,
-  });
+function outcome(status: string, start_utc: string = future) {
+  return statusBadgeProps({ status: status as never, start_utc });
 }
 
-describe("statusBadgeProps — the Booked → Delivered → Billed ladder", () => {
+describe("statusBadgeProps — the outcome pill", () => {
   it("future confirmed reads Booked", () => {
-    expect(badge("confirmed")).toEqual({ variant: "success", label: "Booked" });
+    expect(outcome("confirmed")).toEqual({ variant: "success", label: "Booked" });
   });
 
-  it("past confirmed reads Delivered? — assumed, awaiting the Confirm flow", () => {
-    expect(badge("confirmed", { start_utc: past })).toEqual({ variant: "info", label: "Delivered?" });
+  it("past confirmed and completed both read Delivered — the Confirm button marks unconfirmed, not the pill", () => {
+    expect(outcome("confirmed", past)).toEqual({ variant: "info", label: "Delivered" });
+    expect(outcome("completed", past)).toEqual({ variant: "info", label: "Delivered" });
   });
 
-  it("educator-confirmed (completed) reads Delivered, no question mark", () => {
-    expect(badge("completed", { start_utc: past })).toEqual({ variant: "info", label: "Delivered" });
+  it("the exception outcomes use Simon's vocabulary", () => {
+    expect(outcome("no_show").label).toBe("No show");
+    expect(outcome("cancelled_late").label).toBe("Session cancelled");
+    expect(outcome("cancelled").label).toBe("Cancelled");
+  });
+});
+
+describe("billingBadgeProps — the money pill", () => {
+  it("maps every state", () => {
+    expect(billingBadgeProps("to_bill")).toEqual({ variant: "info", label: "To bill" });
+    expect(billingBadgeProps("fee_waived")).toEqual({ variant: "pending", label: "Fee waived" });
+    expect(billingBadgeProps("invoice_sent")).toEqual({ variant: "success", label: "Invoice sent" });
+    expect(billingBadgeProps("paid")).toEqual({ variant: "success", label: "Paid" });
   });
 
-  it("an invoiced session reads Billed", () => {
-    expect(badge("confirmed", { start_utc: past, invoiced: true }).label).toBe("Billed");
-    expect(badge("completed", { start_utc: past, invoiced: true }).label).toBe("Billed");
-  });
-
-  it("(B) marks a charged exception, (W) a waived one", () => {
-    expect(badge("no_show").label).toBe("No Show (B)");
-    expect(badge("no_show", { charge_waived: true }).label).toBe("No Show (W)");
-    expect(badge("cancelled_late").label).toBe("Late cancel (B)");
-    expect(badge("cancelled_late", { charge_waived: true }).label).toBe("Late cancel (W)");
-  });
-
-  it("an in-time cancellation is just Cancelled", () => {
-    expect(badge("cancelled")).toEqual({ variant: "pending", label: "Cancelled" });
+  it("none renders no pill (dash in the table)", () => {
+    expect(billingBadgeProps("none")).toBeNull();
   });
 });

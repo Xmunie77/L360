@@ -599,3 +599,46 @@ def test_move_and_cancel_lock_once_invoiced(admin_client, booking_env):
     r = admin_client.post(f"/api/bookings/{booking['id']}/cancel")
     assert r.status_code == 409
     assert "invoiced" in r.json()["detail"].lower()
+
+
+def test_billing_state_matrix(admin_client, booking_env):
+    """The server-computed Billing pill across the states."""
+    from l360.db import session_scope
+    from l360.models import Booking, Invoice
+
+    future = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"], "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"], "service_type_id": booking_env["service_type_id"],
+        "start_utc": _safe_morning_start().isoformat(), "duration_minutes": 60,
+    }).json()
+    assert future["billing_state"] == "none"
+
+    past_id = _insert_past_booking(booking_env)
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["billing_state"] == "to_bill"
+
+    # Waived no-show → fee_waived.
+    admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": False})
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["billing_state"] == "fee_waived"
+
+    # Back to delivered, then onto an issued invoice → invoice_sent; paid → paid.
+    admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "completed"})
+    inv_id = _put_on_invoice(past_id, status="issued")
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["billing_state"] == "invoice_sent"
+    with session_scope() as db:
+        db.get(Invoice, inv_id).status = "paid"
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["billing_state"] == "paid"
+
+
+def test_session_cancelled_amendment(admin_client, booking_env):
+    """The Confirm flow's 'Session cancelled': a past session amended to
+    cancelled_late after the fact, with the charge decision + cancelled_at."""
+    past_id = _insert_past_booking(booking_env)
+    r = booking_env["educator_client"].post(
+        f"/api/bookings/{past_id}/status", json={"status": "cancelled_late", "charge": False}
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "cancelled_late"
+    assert body["charge_waived"] is True
+    assert body["cancelled_at"] is not None
+    assert body["billing_state"] == "fee_waived"
