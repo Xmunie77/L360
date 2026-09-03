@@ -109,62 +109,6 @@ export function ClientsAdmin() {
           ⚠ {error}
         </div>
       )}
-      {loading ? (
-        <p className="l360-empty">Loading…</p>
-      ) : clients.length === 0 ? (
-        <p className="l360-empty">No learners configured yet.</p>
-      ) : (
-        <div style={{ overflowX: "auto", marginBottom: 20 }}>
-          <table className="l360-table">
-            <thead>
-              <tr>
-                <th>Parent / Guardian</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Child's name</th>
-                <th>Onboarding</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
-                      {c.guardian_first_name} {c.guardian_surname}
-                    </a>
-                  </td>
-                  <td>{c.email}</td>
-                  <td>{c.phone ?? "—"}</td>
-                  <td>{c.child_name ?? "—"}</td>
-                  <td>
-                    <StatusBadge
-                      variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}
-                      label={c.onboarding_status === "submitted" ? "Submitted" : c.onboarding_status === "pending" ? "Awaiting form" : "Not sent"}
-                    />
-                  </td>
-                  <td>
-                    <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
-                  </td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => toggleActive(c)}
-                      loading={busyId === c.id}
-                      loadingLabel="Saving…"
-                    >
-                      {c.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       <h4 style={{ marginBottom: 12 }}>Add a learner</h4>
       <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
         Just the basics — as soon as the learner is added, the full onboarding
@@ -230,6 +174,64 @@ export function ClientsAdmin() {
           Add learner
         </Button>
       </form>
+
+      <h4 style={{ margin: "28px 0 12px" }}>All learners</h4>
+      {loading ? (
+        <p className="l360-empty">Loading…</p>
+      ) : clients.length === 0 ? (
+        <p className="l360-empty">No learners configured yet.</p>
+      ) : (
+        <div style={{ overflowX: "auto", marginBottom: 20 }}>
+          <table className="l360-table">
+            <thead>
+              <tr>
+                <th>Parent / Guardian</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Child's name</th>
+                <th>Onboarding</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
+                      {c.guardian_first_name} {c.guardian_surname}
+                    </a>
+                  </td>
+                  <td>{c.email}</td>
+                  <td>{c.phone ?? "—"}</td>
+                  <td>{c.child_name ?? "—"}</td>
+                  <td>
+                    <StatusBadge
+                      variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}
+                      label={c.onboarding_status === "submitted" ? "Submitted" : c.onboarding_status === "pending" ? "Awaiting form" : "Not sent"}
+                    />
+                  </td>
+                  <td>
+                    <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
+                  </td>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => toggleActive(c)}
+                      loading={busyId === c.id}
+                      loadingLabel="Saving…"
+                    >
+                      {c.active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
     </Card>
   );
 }
