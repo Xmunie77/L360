@@ -43,6 +43,9 @@ export function UsersAdmin() {
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // "Add educator" opens the form in a modal (Simon, 04/09/2026 — same
+  // pattern as Learners); the list sits below under its own heading.
+  const [showAdd, setShowAdd] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLevelId, setEditLevelId] = useState("");
@@ -91,6 +94,7 @@ export function UsersAdmin() {
       setRole("educator");
       setLevelId("");
       setPassword("");
+      setShowAdd(false);
       await refresh();
     } catch (err) {
       setFormError(errorMessage(err, "Couldn't create this user."));
@@ -138,12 +142,80 @@ export function UsersAdmin() {
   }
 
   return (
-    <Card eyebrow="Staffing" title="Users">
+    <Card eyebrow="Staffing" title="Educators">
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">
           ⚠ {error}
         </div>
       )}
+      <div style={{ marginBottom: 16 }}>
+        <Button type="button" onClick={() => setShowAdd(true)}>
+          Add educator
+        </Button>
+      </div>
+
+      {showAdd && (
+        <div className="l360-modal-backdrop" onClick={() => setShowAdd(false)}>
+          <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+            <Card eyebrow="Staffing" title="Add educator">
+              <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                New educators are automatically emailed the educator onboarding form
+                (qualifications, availability, safeguarding declarations, referees,
+                payment details) as soon as the account is created. Choose the Admin
+                role for office staff.
+              </p>
+            <form onSubmit={handleCreate} noValidate>
+              {formError && (
+                <div className="l360-alert l360-alert-danger" role="alert">
+                  ⚠ {formError}
+                </div>
+              )}
+              <Input id="new-user-email" label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="new-user-name" label="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Select
+                id="new-user-role"
+                label="Role"
+                required
+                value={role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                options={[
+                  { value: "educator", label: "Educator" },
+                  { value: "admin", label: "Admin" },
+                ]}
+              />
+              <Select
+                id="new-user-level"
+                label="Level"
+                hint={role === "admin" ? "Optional — only set this if they also deliver sessions" : undefined}
+                placeholder="No level"
+                value={levelId}
+                onChange={(e) => setLevelId(e.target.value)}
+                options={levels.map((l) => ({ value: String(l.id), label: l.name }))}
+              />
+              <Input
+                id="new-user-password"
+                label="Password"
+                type="password"
+                hint="At least 8 characters"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <Button type="submit" loading={submitting} loadingLabel="Adding…">
+                Add educator
+              </Button>
+            </form>
+              <div style={{ marginTop: 8 }}>
+                <Button type="button" variant="secondary" onClick={() => setShowAdd(false)} disabled={submitting}>
+                  Close
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      <h4 style={{ margin: "8px 0 12px" }}>All educators &amp; admins</h4>
       {loading ? (
         <p className="l360-empty">Loading…</p>
       ) : users.length === 0 ? (
@@ -227,53 +299,6 @@ export function UsersAdmin() {
         </div>
       )}
 
-      <h4 style={{ marginBottom: 12 }}>Add a user</h4>
-      <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
-        New educators are automatically emailed the educator onboarding form
-        (qualifications, availability, safeguarding declarations, referees,
-        payment details) as soon as the account is created.
-      </p>
-      <form onSubmit={handleCreate} noValidate>
-        {formError && (
-          <div className="l360-alert l360-alert-danger" role="alert">
-            ⚠ {formError}
-          </div>
-        )}
-        <Input id="new-user-email" label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Input id="new-user-name" label="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        <Select
-          id="new-user-role"
-          label="Role"
-          required
-          value={role}
-          onChange={(e) => setRole(e.target.value as UserRole)}
-          options={[
-            { value: "educator", label: "Educator" },
-            { value: "admin", label: "Admin" },
-          ]}
-        />
-        <Select
-          id="new-user-level"
-          label="Level"
-          hint={role === "admin" ? "Optional — only set this if they also deliver sessions" : undefined}
-          placeholder="No level"
-          value={levelId}
-          onChange={(e) => setLevelId(e.target.value)}
-          options={levels.map((l) => ({ value: String(l.id), label: l.name }))}
-        />
-        <Input
-          id="new-user-password"
-          label="Password"
-          type="password"
-          hint="At least 8 characters"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <Button type="submit" loading={submitting} loadingLabel="Adding…">
-          Add user
-        </Button>
-      </form>
     </Card>
   );
 }

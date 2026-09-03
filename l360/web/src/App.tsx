@@ -3,6 +3,7 @@ import { Wordmark } from "./ui/ui";
 import { Calendar } from "./screens/Calendar";
 import { Bookings } from "./screens/Bookings";
 import { ClientsAdmin } from "./screens/admin/ClientsAdmin";
+import { UsersAdmin } from "./screens/admin/UsersAdmin";
 import { Billing } from "./screens/Billing";
 import { Reconciliation } from "./screens/Reconciliation";
 import { Statements } from "./screens/Statements";
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: "calendar", label: "Calendar" },
   { key: "bookings", label: "Bookings" },
   { key: "clients", label: "Learners" },
+  { key: "educators", label: "Educators" },
   { key: "billing", label: "Billing" },
   { key: "payments", label: "Payments" },
   { key: "statements", label: "Finance" },
@@ -192,6 +194,7 @@ export function App() {
           {active === "calendar" && <Calendar me={me} />}
           {active === "bookings" && <Bookings me={me} />}
           {active === "clients" && <ClientsAdmin />}
+          {active === "educators" && <UsersAdmin />}
           {active === "billing" && <Billing />}
           {active === "payments" && <Reconciliation />}
           {active === "statements" && <Statements me={me} />}

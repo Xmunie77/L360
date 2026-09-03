@@ -242,6 +242,8 @@ input[type="time"].l360-input {
 
   .l360-sidenav {
     width: 100%;
+    /* Standalone PWA: keep the nav clear of the iOS status bar / notch. */
+    padding-top: env(safe-area-inset-top);
   }
 
   .l360-wordmark {
