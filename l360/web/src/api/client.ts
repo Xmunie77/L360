@@ -68,6 +68,8 @@ export interface Booking {
   charge_waived: boolean;
   /** Money state for the Billing pill. */
   billing_state: BillingState;
+  /** Why a fee was waived ("Child ill", …), when it was. */
+  outcome_reason: string | null;
   /** The live (issued/paid) invoice this booking sits on, when any. */
   invoice_id: number | null;
   invoice_number: string | null;
@@ -621,16 +623,21 @@ export function moveBooking(id: number, body: BookingMoveInput): Promise<Booking
   return patch<Booking>(`/api/bookings/${id}`, body);
 }
 
-export function cancelBooking(id: number, charge?: boolean): Promise<Booking> {
+export function cancelBooking(id: number, charge?: boolean, reason?: string): Promise<Booking> {
   // `charge` only matters when the cancellation lands inside the late
-  // window: true (default) bills the family, false waives the fee.
-  return post<Booking>(`/api/bookings/${id}/cancel`, charge === undefined ? undefined : { charge });
+  // window: true (default) bills the family, false waives the fee —
+  // `reason` records why (Child ill, Educator ill, …).
+  return post<Booking>(
+    `/api/bookings/${id}/cancel`,
+    charge === undefined ? undefined : { charge, reason: reason ?? null },
+  );
 }
 
-export function setBookingStatus(id: number, status: "completed" | "no_show" | "cancelled_late", charge: boolean): Promise<Booking> {
+export function setBookingStatus(id: number, status: "completed" | "no_show" | "cancelled_late", charge: boolean, reason?: string): Promise<Booking> {
   // Amend a past session's outcome — no-show (± charge), undo back to
-  // delivered, or revisit a late cancellation's charge decision.
-  return post<Booking>(`/api/bookings/${id}/status`, { status, charge });
+  // delivered, or revisit a late cancellation's charge decision. `reason`
+  // records why a fee was waived (Child ill, Educator ill, …).
+  return post<Booking>(`/api/bookings/${id}/status`, { status, charge, reason: reason ?? null });
 }
 
 export function voidInvoice(invoiceId: number): Promise<Invoice> {

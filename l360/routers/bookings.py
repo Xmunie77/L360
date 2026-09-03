@@ -247,6 +247,7 @@ def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
             cancelled_at=b.cancelled_at,
             invoiced=b.id in invoiced,
             charge_waived=b.charge_waived,
+            outcome_reason=b.outcome_reason,
             billing_state=billing[b.id]["state"] if b.id in billing else "none",
             invoice_id=billing[b.id]["invoice_id"] if b.id in billing else None,
             invoice_number=billing[b.id]["invoice_number"] if b.id in billing else None,
@@ -283,11 +284,10 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         cancelled_at=b.cancelled_at,
         invoiced=invoiced,
         charge_waived=b.charge_waived,
-        **{
-            "billing_state": info["state"],
-            "invoice_id": info["invoice_id"],
-            "invoice_number": info["invoice_number"],
-        },
+        outcome_reason=b.outcome_reason,
+        billing_state=info["state"],
+        invoice_id=info["invoice_id"],
+        invoice_number=info["invoice_number"],
     )
 
 
@@ -554,6 +554,7 @@ def cancel_booking(
     b.status = "cancelled_late" if late else "cancelled"
     if late:
         b.charge_waived = body is not None and not body.charge
+        b.outcome_reason = body.reason if (b.charge_waived and body is not None) else None
         b.outcome_set_by_id = user.id
         b.outcome_set_at = now
     b.cancelled_at = now
@@ -598,6 +599,7 @@ def set_booking_status(
         # A recorded late cancellation keeps its status — only the charge
         # decision can be revisited here; other statuses are ignored.
         b.charge_waived = not body.charge
+        b.outcome_reason = body.reason if b.charge_waived else None
     else:
         if body.status == "cancelled_late" and b.status != "cancelled_late":
             # The Confirm flow's "Session cancelled": recording after the
@@ -608,6 +610,7 @@ def set_booking_status(
         # Waiving only applies to the non-delivery outcomes; "completed"
         # always returns the session to the normal billable path.
         b.charge_waived = body.status in ("no_show", "cancelled_late") and not body.charge
+        b.outcome_reason = body.reason if b.charge_waived else None
     b.outcome_set_by_id = user.id
     b.outcome_set_at = datetime.now(UTC)
     db.commit()

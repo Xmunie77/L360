@@ -23,7 +23,7 @@ import {
   type ServiceType,
   type SkippedOccurrence,
 } from "../api/client";
-import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
+import { ConfirmSessionFlow, LateCancelModal, VoidInvoiceModal, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import {
   combineDateTime,
@@ -544,7 +544,6 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [voidAsk, setVoidAsk] = useState(false);
   const [moveDate, setMoveDate] = useState(toDateInputValue(new Date(booking.start_utc)));
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
   // Live pill preview while the Confirm flow is mid-decision.
@@ -561,7 +560,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
     // A waived fee is final for educators; admins may revisit it
     // (Simon, 03/09/2026).
     (!booking.charge_waived || isAdminUser) &&
-    (booking.status === "confirmed" || booking.status === "completed" || booking.status === "no_show") &&
+    (booking.status === "confirmed" || booking.status === "completed" || booking.status === "no_show" || booking.status === "cancelled_late") &&
     !!me &&
     (isAdminUser || booking.educator_id === me.id);
   // On an invoice = locked: no move, no cancel (the server refuses too).
@@ -569,20 +568,6 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   // Inside 24h the cancellation is "late" and the canceller decides whether
   // the family is charged — same question the Bookings list asks.
   const isLateCancel = new Date(booking.start_utc).getTime() - Date.now() < 24 * 3_600_000;
-
-  async function handleVoidInvoice() {
-    if (!booking.invoice_id) return;
-    setError(null);
-    setBusy(true);
-    try {
-      await voidInvoice(booking.invoice_id);
-      onChanged();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Couldn't void the invoice.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function handleCancel(charge?: boolean) {
     setError(null);
@@ -644,27 +629,22 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
             </div>
           )}
           {booking.notes && <p style={{ marginBottom: 16, color: "var(--l360-bgrey)" }}>{booking.notes}</p>}
+          {booking.charge_waived && booking.outcome_reason && (
+            <p className="l360-field-hint" style={{ marginBottom: 16 }}>Fee waived — {booking.outcome_reason}</p>
+          )}
           {booking.invoiced && (
             <p className="l360-field-hint" style={{ marginBottom: 16 }}>
               This session is on an invoice — it can no longer be moved, cancelled or amended.
             </p>
           )}
-          {booking.invoiced && isAdminUser && booking.invoice_id && !voidAsk && (
+          {booking.invoiced && isAdminUser && booking.invoice_id && (
             <div style={{ marginBottom: 16 }}>
-              <Button type="button" variant="secondary" onClick={() => setVoidAsk(true)} disabled={busy}>
-                Void / amend
-              </Button>
-            </div>
-          )}
-          {booking.invoiced && isAdminUser && booking.invoice_id && voidAsk && (
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-              <span className="l360-field-hint">Void {booking.invoice_number ?? "invoice"}? Tell the family to ignore it.</span>
-              <Button type="button" variant="destructive" onClick={handleVoidInvoice} loading={busy} loadingLabel="Voiding…">
-                Void invoice
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setVoidAsk(false)} disabled={busy}>
-                Back
-              </Button>
+              <VoidInvoiceModal
+                booking={booking}
+                voidAction={(invId) => voidInvoice(invId)}
+                onDone={onChanged}
+                onError={setError}
+              />
             </div>
           )}
 
@@ -697,10 +677,18 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
                   Move booking
                 </Button>
 
-                {!confirmingCancel && (
+                {!isLateCancel && !confirmingCancel && (
                   <Button type="button" variant="destructive" onClick={() => setConfirmingCancel(true)}>
                     Cancel booking
                   </Button>
+                )}
+                {isLateCancel && (
+                  <LateCancelModal
+                    booking={booking}
+                    cancelAction={(charge, reason) => cancelBooking(booking.id, charge, reason)}
+                    onDone={onChanged}
+                    onError={setError}
+                  />
                 )}
               </div>
 
@@ -716,20 +704,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
                 </div>
               )}
 
-              {confirmingCancel && isLateCancel && (
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-                  <span>Late cancellation (under 24 h) — charge for the session?</span>
-                  <Button type="button" variant="destructive" onClick={() => handleCancel(true)} loading={busy} loadingLabel="Cancelling…">
-                    Charge
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => handleCancel(false)} disabled={busy}>
-                    No charge
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => setConfirmingCancel(false)} disabled={busy}>
-                    Back
-                  </Button>
-                </div>
-              )}
+
             </>
           )}
 

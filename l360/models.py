@@ -416,6 +416,9 @@ class Booking(Base):
     # (no-show / undo / waive) and when.
     outcome_set_by_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("users.id")), nullable=True)
     outcome_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    # Why a fee was waived ("Child ill", "Educator ill", …) — set by the
+    # Confirm flow's reason step, cleared if an admin re-charges.
+    outcome_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class NotificationLog(Base):

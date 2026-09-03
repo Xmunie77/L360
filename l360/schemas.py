@@ -629,6 +629,9 @@ class BookingStatusIn(BaseModel):
     # re-charging a waived late cancellation): True bills the family,
     # False waives the fee.
     charge: bool = True
+    # Why the fee is waived ("Child ill", "Educator ill", …) — recorded
+    # when charge=False, ignored otherwise.
+    reason: str | None = Field(default=None, max_length=100)
 
 
 class BookingCancelIn(BaseModel):
@@ -636,6 +639,8 @@ class BookingCancelIn(BaseModel):
     # window: True (default, the 24h rule) charges the family; False
     # waives. Ignored for free in-time cancellations.
     charge: bool = True
+    # Why the fee is waived, when charge=False on a late cancel.
+    reason: str | None = Field(default=None, max_length=100)
 
 
 class BookingOut(BaseModel):
@@ -672,6 +677,8 @@ class BookingOut(BaseModel):
     # admin's void-and-amend escape hatch needs the id + number to show.
     invoice_id: int | None = None
     invoice_number: str | None = None
+    # Why a fee was waived, when it was.
+    outcome_reason: str | None = None
 
 
 class SkippedOccurrence(BaseModel):

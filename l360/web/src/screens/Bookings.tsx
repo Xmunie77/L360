@@ -4,12 +4,11 @@ import {
   ApiError,
   cancelBooking,
   listBookings,
-  setBookingStatus,
   voidInvoice,
   type Booking,
   type Me,
 } from "../api/client";
-import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
+import { ConfirmSessionFlow, LateCancelModal, VoidInvoiceModal, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import { dayBoundsISO, formatBookingWhen, todayStr } from "../domain/datetime";
 
@@ -24,10 +23,6 @@ export function Bookings({ me }: { me: Me | null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  // Late-cancellation charge question for the Cancel button.
-  const [cancelAskId, setCancelAskId] = useState<number | null>(null);
-  // Admin's void-invoice confirmation step.
-  const [voidAskId, setVoidAskId] = useState<number | null>(null);
   // Live pill preview while a row's Confirm flow is mid-decision.
   const [previews, setPreviews] = useState<Record<number, OutcomePreview>>({});
 
@@ -69,8 +64,6 @@ export function Bookings({ me }: { me: Me | null }) {
     setError(null);
     try {
       await action();
-      setCancelAskId(null);
-      setVoidAskId(null);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : failMsg);
@@ -79,44 +72,29 @@ export function Bookings({ me }: { me: Me | null }) {
     }
   }
 
-  function handleCancelClick(b: Booking) {
-    const hoursAway = (new Date(b.start_utc).getTime() - Date.now()) / 3_600_000;
-    if (hoursAway < 24) {
-      // Late cancellation — the canceller decides whether the family pays.
-      setCancelAskId(b.id);
-    } else {
-      void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.");
-    }
-  }
-
   function rowActions(b: Booking) {
     const busy = busyId === b.id;
     const isPast = new Date(b.start_utc).getTime() <= Date.now();
 
-    if (cancelAskId === b.id) {
-      return (
-        <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
-          <span className="l360-field-hint">Late cancel — charge?</span>
-          <Button type="button" variant="secondary" onClick={() => void run(b.id, () => cancelBooking(b.id, true), "Couldn't cancel.")} loading={busy} loadingLabel="Saving…">
-            Charge
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => void run(b.id, () => cancelBooking(b.id, false), "Couldn't cancel.")} disabled={busy}>
-            No charge
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setCancelAskId(null)} disabled={busy}>
-            Back
-          </Button>
-        </span>
-      );
-    }
-
     if (b.status === "confirmed" && !isPast) {
       if (b.invoiced) return null; // on an issued invoice = locked
+      const hoursAway = (new Date(b.start_utc).getTime() - Date.now()) / 3_600_000;
+      if (hoursAway < 24) {
+        // Late cancellation — modal asks charge / waive (+ reason).
+        return (
+          <LateCancelModal
+            booking={b}
+            cancelAction={(charge, reason) => cancelBooking(b.id, charge, reason)}
+            onDone={() => void refresh()}
+            onError={(msg) => setError(msg)}
+          />
+        );
+      }
       return (
         <Button
           type="button"
           variant="destructive"
-          onClick={() => handleCancelClick(b)}
+          onClick={() => void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.")}
           loading={busy}
           loadingLabel="Cancelling…"
         >
@@ -128,54 +106,23 @@ export function Bookings({ me }: { me: Me | null }) {
     if (!me || (!isAdmin && b.educator_id !== me.id)) return null;
 
     // Invoiced = locked for educators; admins get the escape hatch — void
-    // the mistriggered invoice (family is told to ignore it), which
-    // unlocks the session for amendment (Simon, 03/09/2026).
+    // the mistriggered invoice, which unlocks the session (Simon, 03/09).
     if (b.invoiced) {
       if (!isAdmin || !b.invoice_id) return null;
-      if (voidAskId === b.id) {
-        return (
-          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
-            <span className="l360-field-hint">Void {b.invoice_number ?? "invoice"}? Tell the family to ignore it.</span>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => void run(b.id, () => voidInvoice(b.invoice_id as number), "Couldn't void the invoice.")}
-              loading={busy}
-              loadingLabel="Voiding…"
-            >
-              Void invoice
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setVoidAskId(null)} disabled={busy}>
-              Back
-            </Button>
-          </span>
-        );
-      }
       return (
-        <Button type="button" variant="secondary" onClick={() => setVoidAskId(b.id)} disabled={busy}>
-          Void / amend
-        </Button>
+        <VoidInvoiceModal
+          booking={b}
+          voidAction={(invId) => voidInvoice(invId)}
+          onDone={() => void refresh()}
+          onError={(msg) => setError(msg)}
+        />
       );
     }
 
-    // A waived fee is final for EDUCATORS — no one-tap "Charge" undo
-    // (Simon, 03/09/2026). Admins may revisit it.
+    // A waived fee is final for EDUCATORS; admins may revisit it.
     if (b.charge_waived && !isAdmin) return null;
-    if (b.charge_waived && b.status === "cancelled_late") {
-      return (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => void run(b.id, () => setBookingStatus(b.id, "cancelled_late", true), "Couldn't save the change.")}
-          loading={busy}
-          loadingLabel="Saving…"
-        >
-          Charge
-        </Button>
-      );
-    }
 
-    if ((b.status === "confirmed" || b.status === "completed" || b.status === "no_show") && isPast) {
+    if ((b.status === "confirmed" || b.status === "completed" || b.status === "no_show" || b.status === "cancelled_late") && isPast) {
       return (
         <ConfirmSessionFlow
           booking={b}
@@ -185,17 +132,16 @@ export function Bookings({ me }: { me: Me | null }) {
         />
       );
     }
+    // A future cancelled_late (cancelled inside 24h, session date not yet
+    // reached): the charge decision is amendable through the same modal.
     if (b.status === "cancelled_late") {
       return (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => void run(b.id, () => setBookingStatus(b.id, "cancelled_late", false), "Couldn't save the change.")}
-          loading={busy}
-          loadingLabel="Saving…"
-        >
-          Waive charge
-        </Button>
+        <ConfirmSessionFlow
+          booking={b}
+          onPreview={(p) => setPreview(b.id, p)}
+          onDone={() => void refresh()}
+          onError={(msg) => setError(msg)}
+        />
       );
     }
     return null;

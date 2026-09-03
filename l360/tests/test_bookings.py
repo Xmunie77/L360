@@ -640,7 +640,7 @@ def test_session_cancelled_amendment(admin_client, booking_env):
     cancelled_late after the fact, with the charge decision + cancelled_at."""
     past_id = _insert_past_booking(booking_env)
     r = booking_env["educator_client"].post(
-        f"/api/bookings/{past_id}/status", json={"status": "cancelled_late", "charge": False}
+        f"/api/bookings/{past_id}/status", json={"status": "cancelled_late", "charge": False, "reason": "Child ill"}
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -648,3 +648,6 @@ def test_session_cancelled_amendment(admin_client, booking_env):
     assert body["charge_waived"] is True
     assert body["cancelled_at"] is not None
     assert body["billing_state"] == "fee_waived"
+    assert body["outcome_reason"] == "Child ill"
+
+
