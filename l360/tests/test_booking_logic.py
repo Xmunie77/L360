@@ -73,25 +73,41 @@ def test_check_within_hours_rejects_outside_open_hours(client):
             booking_logic.check_within_hours_and_open(db, room_id=1, start_utc=friday_utc, duration_minutes=60)
 
 
+def _fk_scaffolding():
+    """Real referenced rows — SQLite now enforces FKs (03/09/2026), so the
+    pure-logic tests can't insert bookings pointing at phantom ids."""
+    from l360.db import session_scope
+    from l360.models import Client, Room, User
+
+    with session_scope() as db:
+        room = Room(name="Logic Room")
+        user = User(email="logic.ed@example.com", full_name="Logic Ed", role="educator", password_hash="x")
+        client_row = Client(guardian_first_name="Logic", guardian_surname="Guardian", email="logic@example.com")
+        db.add_all([room, user, client_row])
+        db.flush()
+        return room.id, user.id, client_row.id
+
+
 def test_find_conflict_detects_room_overlap(client):
     from l360.db import session_scope
+    room_id, ed_id, client_id = _fk_scaffolding()
     start = datetime(2026, 9, 8, 10, 0, tzinfo=UTC)
     with session_scope() as db:
         db.add(Booking(
-            room_id=1, educator_id=1, client_id=1, start_utc=start,
-            duration_minutes=60, status="confirmed", created_by=1,
+            room_id=room_id, educator_id=ed_id, client_id=client_id, start_utc=start,
+            duration_minutes=60, status="confirmed", created_by=ed_id,
         ))
     with session_scope() as db:
         # Overlapping window, same room, different educator.
         conflict = booking_logic.find_conflict(
-            db, room_id=1, educator_id=2,
+            db, room_id=room_id, educator_id=ed_id + 1000,
             start_utc=start + timedelta(minutes=30), duration_minutes=60,
         )
         assert conflict is not None
 
         # Back-to-back (starts exactly when the first ends) — no overlap.
         no_conflict = booking_logic.find_conflict(
-            db, room_id=1, educator_id=2,
+            db, room_id=room_id, educator_id=ed_id + 1000,
             start_utc=start + timedelta(minutes=60), duration_minutes=60,
         )
         assert no_conflict is None
@@ -99,14 +115,15 @@ def test_find_conflict_detects_room_overlap(client):
 
 def test_find_conflict_ignores_cancelled_bookings(client):
     from l360.db import session_scope
+    room_id, ed_id, client_id = _fk_scaffolding()
     start = datetime(2026, 9, 8, 10, 0, tzinfo=UTC)
     with session_scope() as db:
         db.add(Booking(
-            room_id=1, educator_id=1, client_id=1, start_utc=start,
-            duration_minutes=60, status="cancelled", created_by=1,
+            room_id=room_id, educator_id=ed_id, client_id=client_id, start_utc=start,
+            duration_minutes=60, status="cancelled", created_by=ed_id,
         ))
     with session_scope() as db:
         conflict = booking_logic.find_conflict(
-            db, room_id=1, educator_id=2, start_utc=start, duration_minutes=60,
+            db, room_id=room_id, educator_id=ed_id + 1000, start_utc=start, duration_minutes=60,
         )
         assert conflict is None

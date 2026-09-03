@@ -163,9 +163,12 @@ def _release_from_draft_invoices(db: Session, booking_id: int) -> None:
         db.delete(line)
         if invoice is not None:
             invoice.total_cents -= line.amount_cents
-            remaining = db.scalar(
-                select(InvoiceLine.id).where(InvoiceLine.invoice_id == invoice.id, InvoiceLine.id != line.id)
-            )
+            # Flush the line delete BEFORE deleting an emptied invoice —
+            # otherwise SQLAlchemy may order the invoice DELETE first and
+            # Postgres raises an FK violation (invoice_lines_invoice_id_fkey).
+            # SQLite (tests) doesn't enforce FKs, so only prod caught this.
+            db.flush()
+            remaining = db.scalar(select(InvoiceLine.id).where(InvoiceLine.invoice_id == invoice.id))
             if remaining is None:
                 db.delete(invoice)
 
