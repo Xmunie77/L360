@@ -26,6 +26,9 @@ export function ClientsAdmin() {
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // "Add learner" opens a modal (Simon, 03/09/2026) — same pattern as the
+  // booking modals; the form no longer sits inline above the list.
+  const [showAdd, setShowAdd] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -72,6 +75,7 @@ export function ClientsAdmin() {
       setChildDob("");
       setObservations("");
       setNotes("");
+      setShowAdd(false);
       await refresh();
     } catch (err) {
       setFormError(errorMessage(err, "Couldn't add this learner."));
@@ -109,71 +113,90 @@ export function ClientsAdmin() {
           ⚠ {error}
         </div>
       )}
-      <h4 style={{ marginBottom: 12 }}>Add a learner</h4>
-      <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
-        Just the basics — as soon as the learner is added, the full onboarding
-        questionnaire is emailed to the parent/guardian automatically. The rest
-        of their record fills itself in when they submit it (or you can complete
-        it yourself from their detail page).
-      </p>
-      <form onSubmit={handleCreate} noValidate>
-        {formError && (
-          <div className="l360-alert l360-alert-danger" role="alert">
-            ⚠ {formError}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <Input
-            id="new-client-first-name"
-            label="Parent/guardian first name"
-            required
-            value={guardianFirstName}
-            onChange={(e) => setGuardianFirstName(e.target.value)}
-          />
-          <Input
-            id="new-client-surname"
-            label="Parent/guardian surname"
-            required
-            value={guardianSurname}
-            onChange={(e) => setGuardianSurname(e.target.value)}
-          />
-        </div>
-        <Input
-          id="new-client-email"
-          label="Email"
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Input id="new-client-phone" label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <Input
-            id="new-client-child-name"
-            label="Child's name"
-            value={childName}
-            onChange={(e) => setChildName(e.target.value)}
-          />
-          <Input
-            id="new-client-child-dob"
-            label="Child's date of birth"
-            type="date"
-            value={childDob}
-            onChange={(e) => setChildDob(e.target.value)}
-          />
-        </div>
-        <Textarea
-          id="new-client-observations"
-          label="Observations"
-          hint="e.g. dyslexia, Down syndrome — sensitive, admins only"
-          value={observations}
-          onChange={(e) => setObservations(e.target.value)}
-        />
-        <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <Button type="submit" loading={submitting} loadingLabel="Adding…">
+      <div style={{ marginBottom: 16 }}>
+        <Button type="button" onClick={() => setShowAdd(true)}>
           Add learner
         </Button>
-      </form>
+      </div>
+
+      {showAdd && (
+        <div className="l360-modal-backdrop" onClick={() => setShowAdd(false)}>
+          <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+            <Card eyebrow="Directory" title="Add a learner">
+            <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
+              Just the basics — as soon as the learner is added, the full onboarding
+              questionnaire is emailed to the parent/guardian automatically. The rest
+              of their record fills itself in when they submit it (or you can complete
+              it yourself from their detail page).
+            </p>
+            <form onSubmit={handleCreate} noValidate>
+              {formError && (
+                <div className="l360-alert l360-alert-danger" role="alert">
+                  ⚠ {formError}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <Input
+                  id="new-client-first-name"
+                  label="Parent/guardian first name"
+                  required
+                  value={guardianFirstName}
+                  onChange={(e) => setGuardianFirstName(e.target.value)}
+                />
+                <Input
+                  id="new-client-surname"
+                  label="Parent/guardian surname"
+                  required
+                  value={guardianSurname}
+                  onChange={(e) => setGuardianSurname(e.target.value)}
+                />
+              </div>
+              <Input
+                id="new-client-email"
+                label="Email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <Input id="new-client-phone" label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <Input
+                  id="new-client-child-name"
+                  label="Child's name"
+                  value={childName}
+                  onChange={(e) => setChildName(e.target.value)}
+                />
+                <Input
+                  id="new-client-child-dob"
+                  label="Child's date of birth"
+                  type="date"
+                  value={childDob}
+                  onChange={(e) => setChildDob(e.target.value)}
+                />
+              </div>
+              <Textarea
+                id="new-client-observations"
+                label="Observations"
+                hint="e.g. dyslexia, Down syndrome — sensitive, admins only"
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+              />
+              <Textarea id="new-client-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <Button type="submit" loading={submitting} loadingLabel="Adding…">
+                Add learner
+              </Button>
+            </form>
+
+              <div style={{ marginTop: 8 }}>
+                <Button type="button" variant="secondary" onClick={() => setShowAdd(false)} disabled={submitting}>
+                  Close
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
 
       <h4 style={{ margin: "28px 0 12px" }}>All learners</h4>
       {loading ? (
