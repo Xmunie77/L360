@@ -153,7 +153,7 @@ export function Bookings({ me }: { me: Me | null }) {
       }
       return (
         <Button type="button" variant="secondary" onClick={() => setVoidAskId(b.id)} disabled={busy}>
-          Void invoice & amend
+          Void / amend
         </Button>
       );
     }

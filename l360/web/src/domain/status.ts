@@ -27,7 +27,9 @@ export function statusBadgeProps(b: BookingBadgeInput): { variant: StatusVariant
     case "no_show":
       return { variant: "pending", label: "No show" };
     case "cancelled_late":
-      return { variant: "pending", label: "Session cancelled" };
+      // Same word as an in-time cancel — the Billing column (To bill /
+      // Fee waived vs a dash) carries the difference (Simon, 03/09/2026).
+      return { variant: "pending", label: "Cancelled" };
     case "cancelled":
       return { variant: "pending", label: "Cancelled" };
   }

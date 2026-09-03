@@ -652,7 +652,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
           {booking.invoiced && isAdminUser && booking.invoice_id && !voidAsk && (
             <div style={{ marginBottom: 16 }}>
               <Button type="button" variant="secondary" onClick={() => setVoidAsk(true)} disabled={busy}>
-                Void invoice &amp; amend
+                Void / amend
               </Button>
             </div>
           )}

@@ -20,7 +20,7 @@ describe("statusBadgeProps — the outcome pill", () => {
 
   it("the exception outcomes use Simon's vocabulary", () => {
     expect(outcome("no_show").label).toBe("No show");
-    expect(outcome("cancelled_late").label).toBe("Session cancelled");
+    expect(outcome("cancelled_late").label).toBe("Cancelled");
     expect(outcome("cancelled").label).toBe("Cancelled");
   });
 });

@@ -34,7 +34,7 @@ interface Props {
 const OUTCOME_ECHO: Record<Outcome, string> = {
   completed: "Delivered ✓",
   no_show: "No show",
-  cancelled_late: "Session cancelled",
+  cancelled_late: "Cancelled",
 };
 
 export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Props) {
@@ -112,7 +112,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                   No show
                 </Button>
                 <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => choose("cancelled_late")}>
-                  Session cancelled
+                  Cancelled
                 </Button>
               </>
             )}
