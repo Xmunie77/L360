@@ -128,6 +128,10 @@ export function Bookings({ me }: { me: Me | null }) {
 
     if (!canAmend(b)) return null;
 
+    // A waived fee is final — no one-tap "Charge" undo sitting in the row
+    // (Simon, 03/09/2026: "after waiving, charge should not come up").
+    if (b.charge_waived) return null;
+
     if ((b.status === "confirmed" || b.status === "completed" || b.status === "no_show") && isPast) {
       return (
         <ConfirmSessionFlow
@@ -139,16 +143,15 @@ export function Bookings({ me }: { me: Me | null }) {
       );
     }
     if (b.status === "cancelled_late") {
-      const nextCharge = b.charge_waived;
       return (
         <Button
           type="button"
           variant="secondary"
-          onClick={() => void run(b.id, () => setBookingStatus(b.id, "completed", nextCharge), "Couldn't save the change.")}
+          onClick={() => void run(b.id, () => setBookingStatus(b.id, "cancelled_late", false), "Couldn't save the change.")}
           loading={busy}
           loadingLabel="Saving…"
         >
-          {b.charge_waived ? "Charge" : "Waive charge"}
+          Waive charge
         </Button>
       );
     }

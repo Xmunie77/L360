@@ -555,6 +555,8 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   const canConfirm =
     isPast &&
     !booking.invoiced &&
+    // A waived fee is final — no re-charge path (Simon, 03/09/2026).
+    !booking.charge_waived &&
     (booking.status === "confirmed" || booking.status === "completed" || booking.status === "no_show") &&
     !!me &&
     (me.role === "admin" || booking.educator_id === me.id);
