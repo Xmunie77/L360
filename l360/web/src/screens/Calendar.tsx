@@ -545,12 +545,15 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
   const { variant, label } = statusBadgeProps(booking);
   const canModify = booking.status === "confirmed";
+  // Inside 24h the cancellation is "late" and the canceller decides whether
+  // the family is charged — same question the Bookings list asks.
+  const isLateCancel = new Date(booking.start_utc).getTime() - Date.now() < 24 * 3_600_000;
 
-  async function handleCancel() {
+  async function handleCancel(charge?: boolean) {
     setError(null);
     setBusy(true);
     try {
-      await cancelBooking(booking.id);
+      await cancelBooking(booking.id, charge);
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't cancel this booking.");
@@ -625,14 +628,29 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
                 )}
               </div>
 
-              {confirmingCancel && (
+              {confirmingCancel && !isLateCancel && (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
                   <span>Cancel this booking?</span>
-                  <Button type="button" variant="destructive" onClick={handleCancel} loading={busy} loadingLabel="Cancelling…">
+                  <Button type="button" variant="destructive" onClick={() => handleCancel()} loading={busy} loadingLabel="Cancelling…">
                     Yes, cancel
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => setConfirmingCancel(false)}>
                     No
+                  </Button>
+                </div>
+              )}
+
+              {confirmingCancel && isLateCancel && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+                  <span>Late cancellation (under 24 h) — charge for the session?</span>
+                  <Button type="button" variant="destructive" onClick={() => handleCancel(true)} loading={busy} loadingLabel="Cancelling…">
+                    Charge
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => handleCancel(false)} disabled={busy}>
+                    No charge
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setConfirmingCancel(false)} disabled={busy}>
+                    Back
                   </Button>
                 </div>
               )}
