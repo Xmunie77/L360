@@ -63,6 +63,8 @@ describe("Calendar", () => {
         invoiced: false,
         charge_waived: false,
         billing_state: "none" as const,
+        invoice_id: null,
+        invoice_number: null,
       },
     ]);
     mockGetNextAvailableRoom.mockResolvedValue({

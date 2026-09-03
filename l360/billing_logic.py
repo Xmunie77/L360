@@ -44,8 +44,15 @@ def billable_bookings_for_client(db: Session, *, client_id: int, period_start: d
     session date) that are billable and not already on any invoice line."""
     # select(InvoiceLine.booking_id) selects a single column, so .scalars()
     # already unwraps each row to that column's value — iterating gives
-    # plain ints directly, not InvoiceLine-like objects with a .booking_id.
-    already_invoiced = set(db.scalars(select(InvoiceLine.booking_id).where(InvoiceLine.booking_id.is_not(None))))
+    # plain ints directly. Lines on a VOID invoice don't count (an admin
+    # voided a mistriggered invoice — the session must be billable again).
+    already_invoiced = set(
+        db.scalars(
+            select(InvoiceLine.booking_id)
+            .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+            .where(InvoiceLine.booking_id.is_not(None), Invoice.status != "void")
+        )
+    )
     period_start_utc = datetime.combine(period_start, datetime.min.time(), tzinfo=UTC) - timedelta(days=1)
     period_end_utc = datetime.combine(period_end, datetime.min.time(), tzinfo=UTC) + timedelta(days=1)
     candidates = db.scalars(

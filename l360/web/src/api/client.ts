@@ -68,6 +68,9 @@ export interface Booking {
   charge_waived: boolean;
   /** Money state for the Billing pill. */
   billing_state: BillingState;
+  /** The live (issued/paid) invoice this booking sits on, when any. */
+  invoice_id: number | null;
+  invoice_number: string | null;
 }
 
 export interface Me {
@@ -628,6 +631,12 @@ export function setBookingStatus(id: number, status: "completed" | "no_show" | "
   // Amend a past session's outcome — no-show (± charge), undo back to
   // delivered, or revisit a late cancellation's charge decision.
   return post<Booking>(`/api/bookings/${id}/status`, { status, charge });
+}
+
+export function voidInvoice(invoiceId: number): Promise<Invoice> {
+  // Admin escape hatch: void a mistriggered issued invoice — number kept,
+  // family told to ignore it, its sessions unlock and become billable again.
+  return post<Invoice>(`/api/admin/invoices/${invoiceId}/void`);
 }
 
 export function invoiceNow(bookingId: number): Promise<Invoice> {

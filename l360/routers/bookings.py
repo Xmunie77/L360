@@ -127,35 +127,37 @@ def _client_label(client: Client) -> str:
     return f"{name} ({client.child_name})" if client.child_name else name
 
 
-def _billing_states(db: Session, bookings: list[Booking]) -> dict[int, str]:
-    """The Billing pill, server-computed per booking:
-    paid > invoice_sent (issued/partially paid) > fee_waived > to_bill > none.
-    One batched query joining lines to non-draft invoices."""
+def _billing_states(db: Session, bookings: list[Booking]) -> dict[int, dict]:
+    """The Billing pill (+ which live invoice a booking sits on),
+    server-computed per booking: paid > invoice_sent (issued/partially
+    paid) > fee_waived > to_bill > none. One batched query joining lines
+    to non-draft, non-void invoices."""
     if not bookings:
         return {}
     rows = db.execute(
-        select(InvoiceLine.booking_id, Invoice.status)
+        select(InvoiceLine.booking_id, Invoice.id, Invoice.status, Invoice.number)
         .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
         .where(
             InvoiceLine.booking_id.in_({b.id for b in bookings}),
             Invoice.status.notin_(("draft", "void")),
         )
     ).all()
-    inv_status = {bid: st for bid, st in rows}
+    inv_info = {bid: (inv_id, st, number) for bid, inv_id, st, number in rows}
     now = datetime.now(UTC)
-    out: dict[int, str] = {}
+    out: dict[int, dict] = {}
     for b in bookings:
-        st = inv_status.get(b.id)
+        inv_id, st, number = inv_info.get(b.id, (None, None, None))
         if st == "paid":
-            out[b.id] = "paid"
+            state = "paid"
         elif st is not None:
-            out[b.id] = "invoice_sent"
+            state = "invoice_sent"
         elif b.status in ("no_show", "cancelled_late"):
-            out[b.id] = "fee_waived" if b.charge_waived else "to_bill"
+            state = "fee_waived" if b.charge_waived else "to_bill"
         elif b.status in ("confirmed", "completed") and b.start_utc <= now:
-            out[b.id] = "to_bill"
+            state = "to_bill"
         else:
-            out[b.id] = "none"
+            state = "none"
+        out[b.id] = {"state": state, "invoice_id": inv_id, "invoice_number": number}
     return out
 
 
@@ -245,7 +247,9 @@ def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
             cancelled_at=b.cancelled_at,
             invoiced=b.id in invoiced,
             charge_waived=b.charge_waived,
-            billing_state=billing.get(b.id, "none"),
+            billing_state=billing[b.id]["state"] if b.id in billing else "none",
+            invoice_id=billing[b.id]["invoice_id"] if b.id in billing else None,
+            invoice_number=billing[b.id]["invoice_number"] if b.id in billing else None,
         ))
     return out
 
@@ -256,6 +260,7 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
     client = db.get(Client, b.client_id)
     service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
     invoiced = bool(_invoiced_booking_ids(db, {b.id}))
+    info = _billing_states(db, [b])[b.id]
     return BookingOut(
         id=b.id,
         room_id=b.room_id,
@@ -278,7 +283,11 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         cancelled_at=b.cancelled_at,
         invoiced=invoiced,
         charge_waived=b.charge_waived,
-        billing_state=_billing_states(db, [b]).get(b.id, "none"),
+        **{
+            "billing_state": info["state"],
+            "invoice_id": info["invoice_id"],
+            "invoice_number": info["invoice_number"],
+        },
     )
 
 
@@ -571,6 +580,10 @@ def set_booking_status(
         raise HTTPException(status_code=404, detail="Not found")
     if user.role != "admin" and b.educator_id != user.id:
         raise HTTPException(status_code=403, detail="Not your session")
+    if b.charge_waived and user.role != "admin":
+        # A waived fee is final for educators; only an admin can revisit it
+        # (Simon, 03/09/2026).
+        raise HTTPException(status_code=403, detail="A waived fee can only be changed by an admin")
     if b.status not in ("confirmed", "completed", "no_show", "cancelled_late"):
         raise HTTPException(status_code=409, detail=f"Already {b.status}")
     # Past-only — except for a late cancellation, where the event being

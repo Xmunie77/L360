@@ -3,6 +3,7 @@ import { Button, Card, Input, Money, Select, StatusBadge, Textarea } from "../ui
 import {
   ApiError,
   cancelBooking,
+  voidInvoice,
   createBooking,
   createBookingSeries,
   getNextAvailableRoom,
@@ -543,6 +544,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [voidAsk, setVoidAsk] = useState(false);
   const [moveDate, setMoveDate] = useState(toDateInputValue(new Date(booking.start_utc)));
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
   // Live pill preview while the Confirm flow is mid-decision.
@@ -552,19 +554,35 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
     preview ? (preview.charge_waived ? "fee_waived" : "to_bill") : booking.billing_state,
   );
   const isPast = new Date(booking.start_utc).getTime() <= Date.now();
+  const isAdminUser = me?.role === "admin";
   const canConfirm =
     isPast &&
     !booking.invoiced &&
-    // A waived fee is final — no re-charge path (Simon, 03/09/2026).
-    !booking.charge_waived &&
+    // A waived fee is final for educators; admins may revisit it
+    // (Simon, 03/09/2026).
+    (!booking.charge_waived || isAdminUser) &&
     (booking.status === "confirmed" || booking.status === "completed" || booking.status === "no_show") &&
     !!me &&
-    (me.role === "admin" || booking.educator_id === me.id);
+    (isAdminUser || booking.educator_id === me.id);
   // On an invoice = locked: no move, no cancel (the server refuses too).
   const canModify = booking.status === "confirmed" && !booking.invoiced;
   // Inside 24h the cancellation is "late" and the canceller decides whether
   // the family is charged — same question the Bookings list asks.
   const isLateCancel = new Date(booking.start_utc).getTime() - Date.now() < 24 * 3_600_000;
+
+  async function handleVoidInvoice() {
+    if (!booking.invoice_id) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await voidInvoice(booking.invoice_id);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Couldn't void the invoice.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleCancel(charge?: boolean) {
     setError(null);
@@ -630,6 +648,24 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
             <p className="l360-field-hint" style={{ marginBottom: 16 }}>
               This session is on an invoice — it can no longer be moved, cancelled or amended.
             </p>
+          )}
+          {booking.invoiced && isAdminUser && booking.invoice_id && !voidAsk && (
+            <div style={{ marginBottom: 16 }}>
+              <Button type="button" variant="secondary" onClick={() => setVoidAsk(true)} disabled={busy}>
+                Void invoice &amp; amend
+              </Button>
+            </div>
+          )}
+          {booking.invoiced && isAdminUser && booking.invoice_id && voidAsk && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+              <span className="l360-field-hint">Void {booking.invoice_number ?? "invoice"}? Tell the family to ignore it.</span>
+              <Button type="button" variant="destructive" onClick={handleVoidInvoice} loading={busy} loadingLabel="Voiding…">
+                Void invoice
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setVoidAsk(false)} disabled={busy}>
+                Back
+              </Button>
+            </div>
           )}
 
           {error && (

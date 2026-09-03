@@ -496,10 +496,13 @@ def test_amend_status_rules(admin_client, booking_env):
     assert r.json()["status"] == "no_show"
     assert r.json()["charge_waived"] is True
 
-    # Undo returns it to the normal delivered/billable path.
+    # A waived fee is final for educators (03/09/2026) — undo refuses...
     r = booking_env["educator_client"].post(
         f"/api/bookings/{past_id}/status", json={"status": "completed"}
     )
+    assert r.status_code == 403
+    # ...but an admin can return it to the delivered/billable path.
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "completed"})
     assert r.status_code == 200
     assert r.json()["status"] == "completed"
     assert r.json()["charge_waived"] is False
@@ -566,10 +569,13 @@ def test_late_cancel_charge_decision(admin_client, booking_env):
     assert r.json()["status"] == "cancelled_late"
     assert r.json()["charge_waived"] is True
 
-    # Revisit: charge it after all (status value is ignored for late cancels).
+    # A waived fee is final for the educator (03/09/2026)...
     r = booking_env["educator_client"].post(
         f"/api/bookings/{booking['id']}/status", json={"status": "completed", "charge": True}
     )
+    assert r.status_code == 403
+    # ...only an admin can charge it after all (status ignored for late cancels).
+    r = admin_client.post(f"/api/bookings/{booking['id']}/status", json={"status": "completed", "charge": True})
     assert r.status_code == 200
     assert r.json()["status"] == "cancelled_late"
     assert r.json()["charge_waived"] is False

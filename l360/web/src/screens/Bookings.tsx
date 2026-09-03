@@ -5,6 +5,7 @@ import {
   cancelBooking,
   listBookings,
   setBookingStatus,
+  voidInvoice,
   type Booking,
   type Me,
 } from "../api/client";
@@ -25,6 +26,8 @@ export function Bookings({ me }: { me: Me | null }) {
   const [busyId, setBusyId] = useState<number | null>(null);
   // Late-cancellation charge question for the Cancel button.
   const [cancelAskId, setCancelAskId] = useState<number | null>(null);
+  // Admin's void-invoice confirmation step.
+  const [voidAskId, setVoidAskId] = useState<number | null>(null);
   // Live pill preview while a row's Confirm flow is mid-decision.
   const [previews, setPreviews] = useState<Record<number, OutcomePreview>>({});
 
@@ -67,6 +70,7 @@ export function Bookings({ me }: { me: Me | null }) {
     try {
       await action();
       setCancelAskId(null);
+      setVoidAskId(null);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : failMsg);
@@ -83,11 +87,6 @@ export function Bookings({ me }: { me: Me | null }) {
     } else {
       void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.");
     }
-  }
-
-  function canAmend(b: Booking): boolean {
-    if (!me || b.invoiced) return false;
-    return isAdmin || b.educator_id === me.id;
   }
 
   function rowActions(b: Booking) {
@@ -126,11 +125,55 @@ export function Bookings({ me }: { me: Me | null }) {
       );
     }
 
-    if (!canAmend(b)) return null;
+    if (!me || (!isAdmin && b.educator_id !== me.id)) return null;
 
-    // A waived fee is final — no one-tap "Charge" undo sitting in the row
-    // (Simon, 03/09/2026: "after waiving, charge should not come up").
-    if (b.charge_waived) return null;
+    // Invoiced = locked for educators; admins get the escape hatch — void
+    // the mistriggered invoice (family is told to ignore it), which
+    // unlocks the session for amendment (Simon, 03/09/2026).
+    if (b.invoiced) {
+      if (!isAdmin || !b.invoice_id) return null;
+      if (voidAskId === b.id) {
+        return (
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
+            <span className="l360-field-hint">Void {b.invoice_number ?? "invoice"}? Tell the family to ignore it.</span>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void run(b.id, () => voidInvoice(b.invoice_id as number), "Couldn't void the invoice.")}
+              loading={busy}
+              loadingLabel="Voiding…"
+            >
+              Void invoice
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setVoidAskId(null)} disabled={busy}>
+              Back
+            </Button>
+          </span>
+        );
+      }
+      return (
+        <Button type="button" variant="secondary" onClick={() => setVoidAskId(b.id)} disabled={busy}>
+          Void invoice & amend
+        </Button>
+      );
+    }
+
+    // A waived fee is final for EDUCATORS — no one-tap "Charge" undo
+    // (Simon, 03/09/2026). Admins may revisit it.
+    if (b.charge_waived && !isAdmin) return null;
+    if (b.charge_waived && b.status === "cancelled_late") {
+      return (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void run(b.id, () => setBookingStatus(b.id, "cancelled_late", true), "Couldn't save the change.")}
+          loading={busy}
+          loadingLabel="Saving…"
+        >
+          Charge
+        </Button>
+      );
+    }
 
     if ((b.status === "confirmed" || b.status === "completed" || b.status === "no_show") && isPast) {
       return (

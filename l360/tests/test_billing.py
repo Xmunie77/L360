@@ -279,3 +279,49 @@ def test_invoice_now_requires_assigned_educator(admin_client, booking_env):
     other = TestClient(app)
     assert other.post("/api/login", json={"email": "other.ed@example.com", "password": "otherpass1234"}).status_code == 200
     assert other.post(f"/api/bookings/{b1}/invoice-now").status_code == 403
+
+
+def test_void_invoice_admin_escape_hatch(admin_client, booking_env):
+    """Voiding a mistriggered issued invoice (admin-only): number kept,
+    sessions unlock, become billable again, and can be re-invoiced."""
+    b1 = _setup_priced_booking(admin_client, booking_env, status="confirmed", client_price_cents=3000, local_date=date(2026, 8, 20))
+    ed = booking_env["educator_client"]
+    inv = ed.post(f"/api/bookings/{b1}/invoice-now").json()
+    assert inv["status"] == "issued"
+
+    # Educator cannot void.
+    assert ed.post(f"/api/admin/invoices/{inv['id']}/void").status_code == 403
+
+    r = admin_client.post(f"/api/admin/invoices/{inv['id']}/void")
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "void"
+    assert r.json()["number"] == inv["number"]  # number preserved, never reused
+
+    # The booking unlocked: billing shows to_bill again and amendment works.
+    listed = admin_client.get(f"/api/bookings/{b1}").json()
+    assert listed["invoiced"] is False
+    assert listed["billing_state"] == "to_bill"
+    assert admin_client.post(f"/api/bookings/{b1}/status", json={"status": "no_show", "charge": True}).status_code == 200
+
+    # Re-invoicing issues a NEW number.
+    inv2 = admin_client.post(f"/api/bookings/{b1}/invoice-now").json()
+    assert inv2["number"] != inv["number"]
+
+    # Voiding a draft or paid invoice refuses.
+    assert admin_client.post(f"/api/admin/invoices/{inv['id']}/void").status_code == 409  # already void
+
+
+def test_waived_fee_is_final_for_educators_not_admins(admin_client, booking_env):
+    from l360.tests.test_bookings import _insert_past_booking
+
+    past_id = _insert_past_booking(booking_env)
+    ed = booking_env["educator_client"]
+    assert ed.post(f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": False}).status_code == 200
+
+    # Educator cannot revisit a waived fee...
+    r = ed.post(f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": True})
+    assert r.status_code == 403
+    # ...an admin can.
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": True})
+    assert r.status_code == 200
+    assert r.json()["charge_waived"] is False

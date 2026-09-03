@@ -316,6 +316,23 @@ def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _ad
     return _invoice_out(db, inv)
 
 
+@router.post("/api/admin/invoices/{invoice_id}/void", response_model=InvoiceOut)
+def admin_void_invoice(invoice_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """Void a mistriggered issued invoice (admin escape hatch, Simon
+    03/09/2026): the number is kept for the audit trail and never reused,
+    the family is told by phone/email to ignore it, and every session on
+    it unlocks and becomes billable again."""
+    inv = db.get(Invoice, invoice_id)
+    if inv is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if inv.status not in ("issued", "partially_paid"):
+        raise HTTPException(status_code=409, detail=f"Cannot void a {inv.status} invoice")
+    inv.status = "void"
+    db.commit()
+    db.refresh(inv)
+    return _invoice_out(db, inv)
+
+
 @router.post("/api/bookings/{booking_id}/invoice-now", response_model=InvoiceOut)
 def invoice_booking_now(booking_id: int, db: Session = Depends(get_session), user: User = Depends(require_user)):
     """The Confirm-session flow's "Send invoice now": invoice THIS session

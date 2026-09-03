@@ -668,6 +668,10 @@ class BookingOut(BaseModel):
     # Server-computed money state for the Billing pill:
     # none | to_bill | fee_waived | invoice_sent | paid
     billing_state: str = "none"
+    # The live (issued/paid) invoice this booking sits on, when any — the
+    # admin's void-and-amend escape hatch needs the id + number to show.
+    invoice_id: int | None = None
+    invoice_number: str | None = None
 
 
 class SkippedOccurrence(BaseModel):
