@@ -56,6 +56,7 @@ from l360.schemas import (
     BankTxnOut,
     BillingRunIn,
     BillingRunOut,
+    BookingCancelIn,
     BookingIn,
     BookingMoveIn,
     BookingOut,
@@ -126,11 +127,20 @@ def _client_label(client: Client) -> str:
     return f"{name} ({client.child_name})" if client.child_name else name
 
 
+def _invoiced_booking_ids(db: Session, booking_ids: set[int]) -> set[int]:
+    """Which of these bookings already sit on an invoice line (any invoice
+    status) — the point at which amendments lock."""
+    if not booking_ids:
+        return set()
+    return set(db.scalars(select(InvoiceLine.booking_id).where(InvoiceLine.booking_id.in_(booking_ids))))
+
+
 def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
     """Batch shape conversion — one query per entity type for the whole
     list, instead of three db.get() calls per booking (P2, 31/08 review)."""
     if not bookings:
         return []
+    invoiced = _invoiced_booking_ids(db, {b.id for b in bookings})
     rooms = {r.id: r for r in db.scalars(select(Room).where(Room.id.in_({b.room_id for b in bookings})))}
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_({b.educator_id for b in bookings})))}
     clients = {c.id: c for c in db.scalars(select(Client).where(Client.id.in_({b.client_id for b in bookings})))}
@@ -162,6 +172,8 @@ def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
             created_by=b.created_by,
             created_at=b.created_at,
             cancelled_at=b.cancelled_at,
+            invoiced=b.id in invoiced,
+            charge_waived=b.charge_waived,
         ))
     return out
 
@@ -171,6 +183,7 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
     educator = db.get(User, b.educator_id)
     client = db.get(Client, b.client_id)
     service_type = db.get(ServiceType, b.service_type_id) if b.service_type_id else None
+    invoiced = bool(_invoiced_booking_ids(db, {b.id}))
     return BookingOut(
         id=b.id,
         room_id=b.room_id,
@@ -191,6 +204,8 @@ def _booking_out(db: Session, b: Booking) -> BookingOut:
         created_by=b.created_by,
         created_at=b.created_at,
         cancelled_at=b.cancelled_at,
+        invoiced=invoiced,
+        charge_waived=b.charge_waived,
     )
 
 
@@ -429,7 +444,12 @@ def move_booking(
 
 
 @router.post("/api/bookings/{booking_id}/cancel", response_model=BookingOut)
-def cancel_booking(booking_id: int, db: Session = Depends(get_session), user: User = Depends(require_user)):
+def cancel_booking(
+    booking_id: int,
+    body: BookingCancelIn | None = None,
+    db: Session = Depends(get_session),
+    user: User = Depends(require_user),
+):
     b = db.get(Booking, booking_id)
     if b is None:
         raise HTTPException(status_code=404, detail="Not found")
@@ -440,8 +460,14 @@ def cancel_booking(booking_id: int, db: Session = Depends(get_session), user: Us
 
     now = datetime.now(UTC)
     cutoff = timedelta(hours=CANCELLATION_CUTOFF_HOURS)
-    # Inside the cutoff window: still billable ("late"). Outside it: free.
-    b.status = "cancelled_late" if (b.start_utc - now) < cutoff else "cancelled"
+    # Inside the cutoff window: still billable ("late") — unless the
+    # canceller waives the charge (body.charge=False). Outside it: free.
+    late = (b.start_utc - now) < cutoff
+    b.status = "cancelled_late" if late else "cancelled"
+    if late:
+        b.charge_waived = body is not None and not body.charge
+        b.outcome_set_by_id = user.id
+        b.outcome_set_at = now
     b.cancelled_at = now
     db.commit()
     db.refresh(b)
@@ -454,18 +480,38 @@ def set_booking_status(
     booking_id: int,
     body: BookingStatusIn,
     db: Session = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    user: User = Depends(require_user),
 ):
-    """Admin marks a past confirmed booking as completed or no-show —
-    feeds the billing run in a later phase."""
+    """Amend a past booking's outcome. A past `confirmed` booking counts as
+    delivered/billable with no action (Fran's rule, 03/09/2026) — this
+    endpoint records the EXCEPTIONS: the assigned educator (or an admin)
+    marks a no-show and decides whether the family is charged, or amends a
+    no-show / late-cancel charge decision. Locked once invoiced."""
     b = db.get(Booking, booking_id)
     if b is None:
         raise HTTPException(status_code=404, detail="Not found")
-    if b.status != "confirmed":
+    if user.role != "admin" and b.educator_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    if b.status not in ("confirmed", "completed", "no_show", "cancelled_late"):
         raise HTTPException(status_code=409, detail=f"Already {b.status}")
-    if b.start_utc > datetime.now(UTC):
-        raise HTTPException(status_code=409, detail="Booking hasn't happened yet")
-    b.status = body.status
+    # Past-only — except for a late cancellation, where the event being
+    # amended (the cancellation and its charge) has already happened even
+    # if the session date hasn't.
+    if b.status != "cancelled_late" and b.start_utc > datetime.now(UTC):
+        raise HTTPException(status_code=409, detail="Session hasn't taken place yet")
+    if _invoiced_booking_ids(db, {b.id}):
+        raise HTTPException(status_code=409, detail="Already invoiced — amendments are locked")
+    if b.status == "cancelled_late":
+        # A late cancellation keeps its status — only the charge decision
+        # can be revisited here; body.status is ignored.
+        b.charge_waived = not body.charge
+    else:
+        b.status = body.status
+        # Waiving only makes sense on a no-show; "completed" (undo) always
+        # returns the session to the normal billable path.
+        b.charge_waived = (body.status == "no_show") and not body.charge
+    b.outcome_set_by_id = user.id
+    b.outcome_set_at = datetime.now(UTC)
     db.commit()
     db.refresh(b)
     return _booking_out(db, b)

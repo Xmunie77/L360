@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta, UTC
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from l360.billing_logic import BILLABLE_STATUSES
+from l360.billing_logic import billable_filter
 from l360.booking_logic import local_to_utc, utc_to_local
 from l360.models import Booking, Client, Invoice, Payment, Room, ServiceType, User
 
@@ -120,7 +120,9 @@ def educator_summary(db: Session, *, educator_id: int, period_start: date, perio
     candidates = db.scalars(
         select(Booking).where(
             Booking.educator_id == educator_id,
-            Booking.status.in_(BILLABLE_STATUSES),
+            # Same rule as invoicing: delivered-by-default + charged
+            # exceptions; a waived charge pays the tutor nothing either.
+            billable_filter(),
             Booking.start_utc >= period_start_dt,
             Booking.start_utc <= period_end_dt,
         )

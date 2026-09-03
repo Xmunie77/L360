@@ -431,7 +431,41 @@ def test_facility_closure_rejected(admin_client, booking_env):
     assert "closed" in r.json()["detail"].lower()
 
 
-def test_mark_status_requires_admin_and_past_booking(admin_client, booking_env):
+def _insert_past_booking(booking_env, *, status: str = "confirmed", hours_ago: int = 3) -> int:
+    from datetime import UTC, datetime, timedelta
+    from l360.db import session_scope
+    from l360.models import Booking
+
+    with session_scope() as db:
+        b = Booking(
+            room_id=booking_env["room_id"], educator_id=booking_env["educator_id"],
+            client_id=booking_env["client_id"], service_type_id=booking_env["service_type_id"],
+            client_price_cents=3500, tutor_payment_cents=3000,
+            start_utc=datetime.now(UTC) - timedelta(hours=hours_ago),
+            duration_minutes=60, status=status, created_by=1,
+        )
+        db.add(b)
+        db.flush()
+        return b.id
+
+
+def test_amend_status_rules(admin_client, booking_env):
+    """Exception-based outcomes (03/09/2026): the ASSIGNED educator (or an
+    admin) amends a past session; other educators can't; future refuses."""
+    from starlette.testclient import TestClient
+    from l360.api import app
+
+    # A second, UNRELATED educator. (The educator_client fixture can't be
+    # combined with booking_env — both create a "Junior" level.)
+    level = admin_client.post("/api/admin/educator-levels", json={"name": "Senior"}).json()
+    other = admin_client.post("/api/admin/users", json={
+        "email": "other.educator@example.com", "full_name": "Other Educator",
+        "role": "educator", "level_id": level["id"], "password": "otherpass1234",
+    }).json()
+    assert "id" in other
+    other_client = TestClient(app)
+    assert other_client.post("/api/login", json={"email": "other.educator@example.com", "password": "otherpass1234"}).status_code == 200
+    educator_client = other_client
     future_booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -441,12 +475,82 @@ def test_mark_status_requires_admin_and_past_booking(admin_client, booking_env):
         "duration_minutes": 60,
     }).json()
 
-    # Educator (non-admin) cannot mark status at all.
+    # Own future booking — 409, hasn't taken place yet.
     r = booking_env["educator_client"].post(
         f"/api/bookings/{future_booking['id']}/status", json={"status": "no_show"}
     )
+    assert r.status_code == 409
+
+    past_id = _insert_past_booking(booking_env)
+
+    # An UNRELATED educator (educator_client fixture, not the assigned one)
+    # cannot amend someone else's session.
+    r = educator_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show"})
     assert r.status_code == 403
 
-    # Admin cannot mark a future booking as completed/no-show yet.
-    r = admin_client.post(f"/api/bookings/{future_booking['id']}/status", json={"status": "no_show"})
+    # The assigned educator marks their own past session a no-show, fee waived.
+    r = booking_env["educator_client"].post(
+        f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": False}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "no_show"
+    assert r.json()["charge_waived"] is True
+
+    # Undo returns it to the normal delivered/billable path.
+    r = booking_env["educator_client"].post(
+        f"/api/bookings/{past_id}/status", json={"status": "completed"}
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "completed"
+    assert r.json()["charge_waived"] is False
+
+    # Admin can amend anyone's session (charged no-show this time).
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show"})
+    assert r.status_code == 200
+    assert r.json()["charge_waived"] is False
+
+
+def test_amend_locks_once_invoiced(admin_client, booking_env):
+    from l360.db import session_scope
+    from l360.models import Booking, Invoice, InvoiceLine
+
+    past_id = _insert_past_booking(booking_env)
+    with session_scope() as db:
+        b = db.get(Booking, past_id)
+        inv = Invoice(client_id=b.client_id, period_start=b.start_utc.date(), period_end=b.start_utc.date(), status="draft", total_cents=3500, created_by=1)
+        db.add(inv)
+        db.flush()
+        db.add(InvoiceLine(invoice_id=inv.id, booking_id=past_id, description="x", quantity=1, unit_price_cents=3500, amount_cents=3500))
+
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show"})
     assert r.status_code == 409
+    assert "invoiced" in r.json()["detail"].lower()
+    # And the list surfaces it as invoiced.
+    listed = booking_env["educator_client"].get(f"/api/bookings/{past_id}").json()
+    assert listed["invoiced"] is True
+
+
+def test_late_cancel_charge_decision(admin_client, booking_env):
+    """Cancelling inside the 24h window records the canceller's charge
+    decision; the charge can be revisited later via the status endpoint."""
+    booking = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
+        "start_utc": _inside_cutoff_start().isoformat(),
+        "duration_minutes": 60,
+    }).json()
+
+    r = booking_env["educator_client"].post(f"/api/bookings/{booking['id']}/cancel", json={"charge": False})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "cancelled_late"
+    assert r.json()["charge_waived"] is True
+
+    # Revisit: charge it after all (status value is ignored for late cancels).
+    r = booking_env["educator_client"].post(
+        f"/api/bookings/{booking['id']}/status", json={"status": "completed", "charge": True}
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "cancelled_late"
+    assert r.json()["charge_waived"] is False

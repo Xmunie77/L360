@@ -250,7 +250,7 @@ export function Calendar({ me }: { me: Me | null }) {
                   {bookingsForRoom(room.id).map((b) => {
                     const top = (localHourFraction(b.start_utc) - startHour) * HOUR_PX;
                     const height = Math.max((b.duration_minutes / 60) * HOUR_PX, 24);
-                    const { variant, label } = statusBadgeProps(b.status);
+                    const { variant, label } = statusBadgeProps(b);
                     return (
                       <button
                         key={b.id}
@@ -543,7 +543,7 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
   const [busy, setBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
-  const { variant, label } = statusBadgeProps(booking.status);
+  const { variant, label } = statusBadgeProps(booking);
   const canModify = booking.status === "confirmed";
 
   async function handleCancel() {

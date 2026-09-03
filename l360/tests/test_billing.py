@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, UTC
 
 
-def _setup_priced_booking(admin_client, booking_env, *, status: str, client_price_cents: int, local_date: date):
+def _setup_priced_booking(admin_client, booking_env, *, status: str, client_price_cents: int, local_date: date, charge_waived: bool = False):
     from sqlalchemy import select
     from l360 import booking_logic
     from datetime import time as time_cls
@@ -31,6 +31,7 @@ def _setup_priced_booking(admin_client, booking_env, *, status: str, client_pric
             client_id=booking_env["client_id"], service_type_id=service_type.id,
             client_price_cents=service_type.client_price_cents, tutor_payment_cents=service_type.tutor_payment_cents,
             start_utc=start_utc, duration_minutes=60, status=status, created_by=1,
+            charge_waived=charge_waived,
         )
         db.add(booking)
         db.flush()
@@ -56,6 +57,27 @@ def test_billing_run_skips_client_with_nothing_billable(admin_client, booking_en
     body = r.json()
     assert body["created"] == []
     assert booking_env["client_id"] in body["skipped_clients"]
+
+
+def test_past_confirmed_booking_bills_automatically(admin_client, booking_env):
+    # Delivered-by-default (Fran, 03/09/2026): a past session nobody touched
+    # is billable with no marking step at all.
+    _setup_priced_booking(admin_client, booking_env, status="confirmed", client_price_cents=3000, local_date=date(2026, 5, 10))
+    r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["created"]) == 1
+    assert r.json()["created"][0]["total_cents"] == 3000
+
+
+def test_waived_charges_are_not_billable(admin_client, booking_env):
+    # The educator waived the fee — a waived no-show or late cancel bills
+    # nothing, whatever its status says.
+    _setup_priced_booking(admin_client, booking_env, status="no_show", client_price_cents=3000, local_date=date(2026, 5, 10), charge_waived=True)
+    _setup_priced_booking(admin_client, booking_env, status="cancelled_late", client_price_cents=3000, local_date=date(2026, 5, 12), charge_waived=True)
+    r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-05-01", "period_end": "2026-05-31"})
+    assert r.status_code == 200
+    assert r.json()["created"] == []
+    assert booking_env["client_id"] in r.json()["skipped_clients"]
 
 
 def test_confirmed_booking_is_not_billable(admin_client, booking_env):

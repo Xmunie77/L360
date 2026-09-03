@@ -621,7 +621,20 @@ class BookingMoveIn(BaseModel):
 
 
 class BookingStatusIn(BaseModel):
+    # "no_show" = learner didn't turn up; "completed" = undo an amendment
+    # back to the normal delivered/billable path.
     status: Literal["completed", "no_show"]
+    # Educator's charge decision (only meaningful for no_show, and for
+    # re-charging a waived late cancellation): True bills the family,
+    # False waives the fee.
+    charge: bool = True
+
+
+class BookingCancelIn(BaseModel):
+    # Only consulted when the cancellation lands inside the late-cancel
+    # window: True (default, the 24h rule) charges the family; False
+    # waives. Ignored for free in-time cancellations.
+    charge: bool = True
 
 
 class BookingOut(BaseModel):
@@ -647,6 +660,10 @@ class BookingOut(BaseModel):
     created_by: int
     created_at: datetime
     cancelled_at: datetime | None
+    # True once the booking sits on an invoice line — amendments lock.
+    invoiced: bool = False
+    # True when the educator waived the fee on a no-show/late cancel.
+    charge_waived: bool = False
 
 
 class SkippedOccurrence(BaseModel):

@@ -407,6 +407,15 @@ class Booking(Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(
         UTCDateTime(), nullable=True
     )
+    # Educator charge discretion (Fran via Simon, 03/09/2026): on a no-show
+    # or late cancellation the educator decides whether the family pays.
+    # True = fee waived — excluded from invoicing AND from the educator's
+    # own pay summary. Meaningless on other statuses.
+    charge_waived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Audit trail for money decisions: who last amended the outcome
+    # (no-show / undo / waive) and when.
+    outcome_set_by_id: Mapped[int | None] = mapped_column(ForeignKey(_fk("users.id")), nullable=True)
+    outcome_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class NotificationLog(Base):

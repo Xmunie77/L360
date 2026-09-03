@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, UTC
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,10 +16,27 @@ from l360.booking_logic import utc_to_local
 from l360.config import INVOICE_NUMBER_PREFIX, TIMEZONE
 from l360.models import Booking, Invoice, InvoiceLine, ServiceType, User
 
-# Bookings in these states are billable — the session happened, or the
-# family is being charged for missing/late-cancelling it. `confirmed`
-# (still upcoming) and plain `cancelled` (outside the cutoff, free) are not.
+# Exception states that are billable unless the educator waived the fee.
+# Since 03/09/2026 (Fran's rule) a past `confirmed` booking is ALSO
+# billable — delivered by default, no marking step; `completed` stays
+# recognised for pre-existing data. Plain `cancelled` (in-time, free) and
+# future `confirmed` are not billable.
 BILLABLE_STATUSES = ("completed", "cancelled_late", "no_show")
+
+
+def billable_filter(now_utc: datetime | None = None):
+    """The ONE SQL filter that decides billability — shared by invoicing
+    (below) and the educator pay summary (statements_logic) so the two can
+    never disagree: delivered (past confirmed) or an exception status,
+    minus waived charges."""
+    now_utc = now_utc or datetime.now(UTC)
+    return and_(
+        or_(
+            Booking.status.in_(BILLABLE_STATUSES),
+            and_(Booking.status == "confirmed", Booking.start_utc <= now_utc),
+        ),
+        Booking.charge_waived == False,  # noqa: E712 — SQL expression, not Python bool
+    )
 
 
 def billable_bookings_for_client(db: Session, *, client_id: int, period_start: date, period_end: date) -> list[Booking]:
@@ -34,7 +51,7 @@ def billable_bookings_for_client(db: Session, *, client_id: int, period_start: d
     candidates = db.scalars(
         select(Booking).where(
             Booking.client_id == client_id,
-            Booking.status.in_(BILLABLE_STATUSES),
+            billable_filter(),
             Booking.start_utc >= period_start_utc,
             Booking.start_utc <= period_end_utc,
         )

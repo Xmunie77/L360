@@ -60,6 +60,8 @@ describe("Calendar", () => {
         created_by: 1,
         created_at: new Date().toISOString(),
         cancelled_at: null,
+        invoiced: false,
+        charge_waived: false,
       },
     ]);
     mockGetNextAvailableRoom.mockResolvedValue({

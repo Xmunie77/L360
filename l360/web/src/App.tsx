@@ -32,6 +32,23 @@ const NAV_ITEMS: NavItem[] = [
   { key: "profile", label: "Profile" },
 ];
 
+// Educators get a trimmed shell: their own sessions (Bookings), the shared
+// room calendar for booking, their pay summary (Finance) and Profile. The
+// hidden tabs are admin-only server-side anyway — this just stops them
+// rendering as 403 dead ends.
+const EDUCATOR_NAV_KEYS = new Set(["calendar", "bookings", "statements", "profile"]);
+
+function navItemsFor(me: Me | null): NavItem[] {
+  if (me && me.role !== "admin") return NAV_ITEMS.filter((n) => EDUCATOR_NAV_KEYS.has(n.key));
+  return NAV_ITEMS;
+}
+
+// Where each role lands after sign-in: educators start on their own
+// session list; admins on the day calendar.
+function landingTabFor(me: Me): string {
+  return me.role === "admin" ? "calendar" : "bookings";
+}
+
 type AuthState = "loading" | "anon" | "authed";
 
 // Router-free shell for the scaffold phase — state-based view switching,
@@ -80,7 +97,9 @@ export function App() {
     let cancelled = false;
     getMe()
       .then((m) => {
-        if (!cancelled) setMe(m);
+        if (cancelled) return;
+        setMe(m);
+        setActive(landingTabFor(m));
       })
       .catch(() => {
         // Session cookie may have expired between the /session check and
@@ -148,7 +167,7 @@ export function App() {
       <nav className="l360-sidenav" aria-label="Primary">
         <Wordmark />
         <div className="l360-nav">
-          {NAV_ITEMS.map((item) => (
+          {navItemsFor(me).map((item) => (
             <button
               key={item.key}
               type="button"
@@ -171,7 +190,7 @@ export function App() {
 
         <main id="l360-main-content" className="l360-content">
           {active === "calendar" && <Calendar me={me} />}
-          {active === "bookings" && <Bookings />}
+          {active === "bookings" && <Bookings me={me} />}
           {active === "clients" && <Clients />}
           {active === "billing" && <Billing />}
           {active === "payments" && <Reconciliation />}
