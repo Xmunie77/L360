@@ -510,24 +510,43 @@ def test_amend_status_rules(admin_client, booking_env):
     assert r.json()["charge_waived"] is False
 
 
-def test_amend_locks_once_invoiced(admin_client, booking_env):
+def _put_on_invoice(booking_id: int, *, status: str) -> int:
     from l360.db import session_scope
     from l360.models import Booking, Invoice, InvoiceLine
 
-    past_id = _insert_past_booking(booking_env)
     with session_scope() as db:
-        b = db.get(Booking, past_id)
-        inv = Invoice(client_id=b.client_id, period_start=b.start_utc.date(), period_end=b.start_utc.date(), status="draft", total_cents=3500, created_by=1)
+        b = db.get(Booking, booking_id)
+        inv = Invoice(client_id=b.client_id, period_start=b.start_utc.date(), period_end=b.start_utc.date(), status=status, total_cents=3500, created_by=1)
         db.add(inv)
         db.flush()
-        db.add(InvoiceLine(invoice_id=inv.id, booking_id=past_id, description="x", quantity=1, unit_price_cents=3500, amount_cents=3500))
+        db.add(InvoiceLine(invoice_id=inv.id, booking_id=booking_id, description="x", quantity=1, unit_price_cents=3500, amount_cents=3500))
+        return inv.id
 
-    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show"})
+
+def test_amend_locks_once_issued_but_detaches_from_draft(admin_client, booking_env):
+    """Billed/locked means an ISSUED invoice (sent to the client). A booking
+    on a mere DRAFT is still amendable — amending pulls it off the draft so
+    the draft can't charge a stale outcome (Simon, 03/09/2026)."""
+    from l360.db import session_scope
+    from l360.models import Invoice
+
+    past_id = _insert_past_booking(booking_env)
+    draft_id = _put_on_invoice(past_id, status="draft")
+
+    # Draft-linked: NOT shown as invoiced, and amendable.
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["invoiced"] is False
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "no_show", "charge": False})
+    assert r.status_code == 200, r.text
+    # The (single-line) draft was emptied and deleted.
+    with session_scope() as db:
+        assert db.get(Invoice, draft_id) is None
+
+    # Issued-linked: locked and surfaced as invoiced.
+    _put_on_invoice(past_id, status="issued")
+    r = admin_client.post(f"/api/bookings/{past_id}/status", json={"status": "completed"})
     assert r.status_code == 409
     assert "invoiced" in r.json()["detail"].lower()
-    # And the list surfaces it as invoiced.
-    listed = booking_env["educator_client"].get(f"/api/bookings/{past_id}").json()
-    assert listed["invoiced"] is True
+    assert admin_client.get(f"/api/bookings/{past_id}").json()["invoiced"] is True
 
 
 def test_late_cancel_charge_decision(admin_client, booking_env):
@@ -557,12 +576,10 @@ def test_late_cancel_charge_decision(admin_client, booking_env):
 
 
 def test_move_and_cancel_lock_once_invoiced(admin_client, booking_env):
-    """An invoiced session is fully locked — move and cancel refuse, not
-    just status amendments (03/09/2026: a Billed session was movable from
-    the Calendar modal)."""
+    """A session on an ISSUED invoice is fully locked — move and cancel
+    refuse, not just status amendments (03/09/2026: a Billed session was
+    movable from the Calendar modal)."""
     from datetime import UTC, datetime, timedelta
-    from l360.db import session_scope
-    from l360.models import Booking, Invoice, InvoiceLine
 
     booking = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
@@ -572,12 +589,7 @@ def test_move_and_cancel_lock_once_invoiced(admin_client, booking_env):
         "start_utc": _safe_morning_start().isoformat(),
         "duration_minutes": 60,
     }).json()
-    with session_scope() as db:
-        b = db.get(Booking, booking["id"])
-        inv = Invoice(client_id=b.client_id, period_start=b.start_utc.date(), period_end=b.start_utc.date(), status="draft", total_cents=3500, created_by=1)
-        db.add(inv)
-        db.flush()
-        db.add(InvoiceLine(invoice_id=inv.id, booking_id=b.id, description="x", quantity=1, unit_price_cents=3500, amount_cents=3500))
+    _put_on_invoice(booking["id"], status="issued")
 
     new_start = (datetime.now(UTC) + timedelta(days=30)).isoformat()
     r = admin_client.patch(f"/api/bookings/{booking['id']}", json={"start_utc": new_start})

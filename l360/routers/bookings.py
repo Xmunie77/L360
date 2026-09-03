@@ -128,11 +128,46 @@ def _client_label(client: Client) -> str:
 
 
 def _invoiced_booking_ids(db: Session, booking_ids: set[int]) -> set[int]:
-    """Which of these bookings already sit on an invoice line (any invoice
-    status) — the point at which amendments lock."""
+    """Which of these bookings sit on an ISSUED (or paid) invoice — i.e.
+    one that's gone to the client. That's the lock point AND what the UI
+    shows as "Billed" (Simon, 03/09/2026: a draft isn't billed). A booking
+    on a mere draft stays amendable — amending detaches it from the draft
+    (see _release_from_draft_invoices)."""
     if not booking_ids:
         return set()
-    return set(db.scalars(select(InvoiceLine.booking_id).where(InvoiceLine.booking_id.in_(booking_ids))))
+    return set(
+        db.scalars(
+            select(InvoiceLine.booking_id)
+            .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+            .where(
+                InvoiceLine.booking_id.in_(booking_ids),
+                Invoice.status.notin_(("draft", "void")),
+            )
+        )
+    )
+
+
+def _release_from_draft_invoices(db: Session, booking_id: int) -> None:
+    """Remove this booking's lines from any DRAFT invoice before an
+    amendment, so a pending draft can never charge an outcome that no
+    longer holds. The booking becomes billable again (no invoice line) and
+    the next billing run re-adds it with the amended state. An emptied
+    draft is deleted outright. No-op when the booking isn't on a draft."""
+    lines = db.scalars(
+        select(InvoiceLine)
+        .join(Invoice, Invoice.id == InvoiceLine.invoice_id)
+        .where(InvoiceLine.booking_id == booking_id, Invoice.status == "draft")
+    ).all()
+    for line in lines:
+        invoice = db.get(Invoice, line.invoice_id)
+        db.delete(line)
+        if invoice is not None:
+            invoice.total_cents -= line.amount_cents
+            remaining = db.scalar(
+                select(InvoiceLine.id).where(InvoiceLine.invoice_id == invoice.id, InvoiceLine.id != line.id)
+            )
+            if remaining is None:
+                db.delete(invoice)
 
 
 def _booking_outs(db: Session, bookings: list[Booking]) -> list[BookingOut]:
@@ -409,6 +444,7 @@ def move_booking(
         raise HTTPException(status_code=409, detail=f"Cannot move a {b.status} booking")
     if _invoiced_booking_ids(db, {b.id}):
         raise HTTPException(status_code=409, detail="Already invoiced — this session is locked")
+    _release_from_draft_invoices(db, b.id)
 
     new_service_type = _resolve_bookable_service_type(db, body.service_type_id) if body.service_type_id is not None else None
 
@@ -461,6 +497,7 @@ def cancel_booking(
         raise HTTPException(status_code=409, detail=f"Already {b.status}")
     if _invoiced_booking_ids(db, {b.id}):
         raise HTTPException(status_code=409, detail="Already invoiced — this session is locked")
+    _release_from_draft_invoices(db, b.id)
 
     now = datetime.now(UTC)
     cutoff = timedelta(hours=CANCELLATION_CUTOFF_HOURS)
@@ -505,6 +542,7 @@ def set_booking_status(
         raise HTTPException(status_code=409, detail="Session hasn't taken place yet")
     if _invoiced_booking_ids(db, {b.id}):
         raise HTTPException(status_code=409, detail="Already invoiced — amendments are locked")
+    _release_from_draft_invoices(db, b.id)
     if b.status == "cancelled_late":
         # A late cancellation keeps its status — only the charge decision
         # can be revisited here; body.status is ignored.
