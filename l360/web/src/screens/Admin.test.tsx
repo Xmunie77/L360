@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Admin } from "./Admin";
+import { ClientsAdmin } from "./admin/ClientsAdmin";
 
 vi.mock("../api/client", async () => {
   const actual = await vi.importActual<typeof import("../api/client")>("../api/client");
@@ -75,7 +76,7 @@ describe("Admin", () => {
     await waitFor(() => expect(mockAdminDeactivateRoom).toHaveBeenCalledWith(1));
   });
 
-  it("shows the clients tab with an add-client form", async () => {
+  it("Learners screen (now a top-level tab, not under Admin) lists clients with an add form", async () => {
     mockAdminListRooms.mockResolvedValue([]);
     mockAdminListClients.mockResolvedValue([
       {
@@ -102,11 +103,13 @@ describe("Admin", () => {
       },
     ]);
 
-    render(<Admin />);
-    fireEvent.click(screen.getByRole("button", { name: "Learners" }));
+    render(<ClientsAdmin />);
 
     await waitFor(() => expect(screen.getByText("Aġius family")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Add learner" })).toBeTruthy();
+    // And the Admin shell no longer offers a Learners pill.
+    render(<Admin />);
+    expect(screen.queryByRole("button", { name: "Learners" })).toBeNull();
   });
 
   it("facility hours: Open toggle saves itself and Closed days hide their times", async () => {

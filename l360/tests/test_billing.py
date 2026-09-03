@@ -233,3 +233,47 @@ def test_invoice_line_carries_educator_and_pdf_downloads(admin_client, booking_e
     assert r.status_code == 200
     assert r.content[:5] == b"%PDF-"
     assert "DRAFT" in r.headers["content-disposition"]
+
+
+def test_invoice_now_sweeps_family_and_locks(admin_client, booking_env):
+    """Confirm-flow "Send invoice now": educator triggers; everything
+    unbilled for the family lands on ONE issued invoice; repeat refuses;
+    the monthly run afterwards has nothing left to bill."""
+    b1 = _setup_priced_booking(admin_client, booking_env, status="confirmed", client_price_cents=3000, local_date=date(2026, 8, 20))
+    b2 = _setup_priced_booking(admin_client, booking_env, status="no_show", client_price_cents=4000, local_date=date(2026, 8, 25))
+    waived = _setup_priced_booking(admin_client, booking_env, status="no_show", client_price_cents=4000, local_date=date(2026, 8, 26), charge_waived=True)
+
+    ed = booking_env["educator_client"]
+    r = ed.post(f"/api/bookings/{b1}/invoice-now")
+    assert r.status_code == 200, r.text
+    inv = r.json()
+    assert inv["status"] == "issued"
+    assert inv["number"] is not None
+    assert inv["total_cents"] == 7000  # both billable sessions, not the waived one
+
+    # Locked now — repeat and amendments refuse.
+    assert ed.post(f"/api/bookings/{b1}/invoice-now").status_code == 409
+    assert ed.post(f"/api/bookings/{b2}/status", json={"status": "completed"}).status_code == 409
+    # The waived no-show is not billable via invoice-now either.
+    assert ed.post(f"/api/bookings/{waived}/invoice-now").status_code == 409
+
+    # Monthly safety-net run finds nothing left for this family.
+    r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-08-01", "period_end": "2026-08-31"})
+    assert r.json()["created"] == []
+
+
+def test_invoice_now_requires_assigned_educator(admin_client, booking_env):
+    from starlette.testclient import TestClient
+    from l360.api import app
+
+    b1 = _setup_priced_booking(admin_client, booking_env, status="confirmed", client_price_cents=3000, local_date=date(2026, 8, 20))
+    # A second, UNRELATED educator (the educator_client fixture can't be
+    # combined with booking_env — both create a "Junior" level).
+    level = admin_client.post("/api/admin/educator-levels", json={"name": "Senior"}).json()
+    admin_client.post("/api/admin/users", json={
+        "email": "other.ed@example.com", "full_name": "Other Ed",
+        "role": "educator", "level_id": level["id"], "password": "otherpass1234",
+    })
+    other = TestClient(app)
+    assert other.post("/api/login", json={"email": "other.ed@example.com", "password": "otherpass1234"}).status_code == 200
+    assert other.post(f"/api/bookings/{b1}/invoice-now").status_code == 403

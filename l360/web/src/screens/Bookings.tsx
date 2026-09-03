@@ -8,25 +8,25 @@ import {
   type Booking,
   type Me,
 } from "../api/client";
+import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { statusBadgeProps } from "../domain/status";
 import { dayBoundsISO, formatBookingWhen, todayStr } from "../domain/datetime";
 
 const WINDOW_DAYS = 14;
 
-// The charge question, asked inline in a row's action cell before a money
-// decision is written: marking a no-show, or cancelling inside 24h.
-type PendingAsk = { id: number; kind: "no_show" | "late_cancel" } | null;
-
 // Bookings list — the last 14 days and the next 14. The recent past is the
-// working half since 03/09/2026: sessions deliver (and bill) by default
-// once their time passes, and this list is where the educator records the
-// EXCEPTIONS — no-shows, and charge-or-waive decisions — until invoiced.
+// working half: sessions deliver (and bill) by default once their time
+// passes; the Confirm flow records what actually happened — and can send
+// the invoice on the spot. Monthly billing runs remain the safety net.
 export function Bookings({ me }: { me: Me | null }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [pendingAsk, setPendingAsk] = useState<PendingAsk>(null);
+  // Late-cancellation charge question for the Cancel button.
+  const [cancelAskId, setCancelAskId] = useState<number | null>(null);
+  // Live pill preview while a row's Confirm flow is mid-decision.
+  const [previews, setPreviews] = useState<Record<number, OutcomePreview>>({});
 
   const isAdmin = me?.role === "admin";
 
@@ -57,12 +57,16 @@ export function Bookings({ me }: { me: Me | null }) {
     refresh();
   }, [isAdmin]);
 
+  function setPreview(id: number, p: OutcomePreview) {
+    setPreviews((prev) => ({ ...prev, [id]: p }));
+  }
+
   async function run(id: number, action: () => Promise<unknown>, failMsg: string) {
     setBusyId(id);
     setError(null);
     try {
       await action();
-      setPendingAsk(null);
+      setCancelAskId(null);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : failMsg);
@@ -75,7 +79,7 @@ export function Bookings({ me }: { me: Me | null }) {
     const hoursAway = (new Date(b.start_utc).getTime() - Date.now()) / 3_600_000;
     if (hoursAway < 24) {
       // Late cancellation — the canceller decides whether the family pays.
-      setPendingAsk({ id: b.id, kind: "late_cancel" });
+      setCancelAskId(b.id);
     } else {
       void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.");
     }
@@ -90,24 +94,17 @@ export function Bookings({ me }: { me: Me | null }) {
     const busy = busyId === b.id;
     const isPast = new Date(b.start_utc).getTime() <= Date.now();
 
-    if (pendingAsk?.id === b.id) {
-      const isNoShow = pendingAsk.kind === "no_show";
-      const commit = (charge: boolean) =>
-        void run(
-          b.id,
-          () => (isNoShow ? setBookingStatus(b.id, "no_show", charge) : cancelBooking(b.id, charge)),
-          "Couldn't save the change.",
-        );
+    if (cancelAskId === b.id) {
       return (
         <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
-          <span className="l360-field-hint">{isNoShow ? "No show — charge?" : "Late cancel — charge?"}</span>
-          <Button type="button" variant="secondary" onClick={() => commit(true)} loading={busy} loadingLabel="Saving…">
+          <span className="l360-field-hint">Late cancel — charge?</span>
+          <Button type="button" variant="secondary" onClick={() => void run(b.id, () => cancelBooking(b.id, true), "Couldn't cancel.")} loading={busy} loadingLabel="Saving…">
             Charge
           </Button>
-          <Button type="button" variant="secondary" onClick={() => commit(false)} disabled={busy}>
+          <Button type="button" variant="secondary" onClick={() => void run(b.id, () => cancelBooking(b.id, false), "Couldn't cancel.")} disabled={busy}>
             No charge
           </Button>
-          <Button type="button" variant="secondary" onClick={() => setPendingAsk(null)} disabled={busy}>
+          <Button type="button" variant="secondary" onClick={() => setCancelAskId(null)} disabled={busy}>
             Back
           </Button>
         </span>
@@ -115,7 +112,7 @@ export function Bookings({ me }: { me: Me | null }) {
     }
 
     if (b.status === "confirmed" && !isPast) {
-      if (b.invoiced) return null; // on an invoice = locked, server refuses too
+      if (b.invoiced) return null; // on an issued invoice = locked
       return (
         <Button
           type="button"
@@ -131,24 +128,14 @@ export function Bookings({ me }: { me: Me | null }) {
 
     if (!canAmend(b)) return null;
 
-    if ((b.status === "confirmed" || b.status === "completed") && isPast) {
+    if ((b.status === "confirmed" || b.status === "completed" || b.status === "no_show") && isPast) {
       return (
-        <Button type="button" variant="secondary" onClick={() => setPendingAsk({ id: b.id, kind: "no_show" })} disabled={busy}>
-          No show
-        </Button>
-      );
-    }
-    if (b.status === "no_show") {
-      return (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => void run(b.id, () => setBookingStatus(b.id, "completed", true), "Couldn't undo.")}
-          loading={busy}
-          loadingLabel="Saving…"
-        >
-          Undo
-        </Button>
+        <ConfirmSessionFlow
+          booking={b}
+          onPreview={(p) => setPreview(b.id, p)}
+          onDone={() => void refresh()}
+          onError={(msg) => setError(msg)}
+        />
       );
     }
     if (b.status === "cancelled_late") {
@@ -175,9 +162,9 @@ export function Bookings({ me }: { me: Me | null }) {
         {WINDOW_DAYS}, with status at a glance.
       </p>
       <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
-        Past sessions are billed automatically — only record the exceptions: mark a no show, and
-        choose whether it's charged. (B) = the family is charged, (W) = charge waived. Locked once
-        invoiced.
+        A past session reading "Delivered?" is assumed to have taken place and bills automatically —
+        Confirm records what actually happened, and can send the invoice on the spot. (B) = the
+        family is charged, (W) = charge waived. Locked once invoiced.
       </p>
 
       {error && (
@@ -208,7 +195,8 @@ export function Bookings({ me }: { me: Me | null }) {
             </thead>
             <tbody>
               {bookings.map((b) => {
-                const { variant, label } = statusBadgeProps(b);
+                const preview = previews[b.id];
+                const { variant, label } = statusBadgeProps(preview ? { ...b, ...preview } : b);
                 return (
                   <tr key={b.id}>
                     <td>{formatBookingWhen(b.start_utc)}</td>
@@ -216,7 +204,7 @@ export function Bookings({ me }: { me: Me | null }) {
                     <td>{b.educator_name}</td>
                     <td>{b.client_label}</td>
                     <td>{b.duration_minutes} min</td>
-                    <td><StatusBadge variant={variant} label={label} /></td>
+                    <td><StatusBadge variant={variant} label={preview ? `${label} …` : label} /></td>
                     <td>{rowActions(b)}</td>
                   </tr>
                 );

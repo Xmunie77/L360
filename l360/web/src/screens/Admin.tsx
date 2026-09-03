@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button, Card } from "../ui/ui";
-import { ClientsAdmin } from "./admin/ClientsAdmin";
 import { ClosuresAdmin } from "./admin/ClosuresAdmin";
 import { EmailSettingsAdmin } from "./admin/EmailSettingsAdmin";
 import { FacilityHoursAdmin } from "./admin/FacilityHoursAdmin";
@@ -15,14 +14,13 @@ import { UtilisationCard } from "./UtilisationCard";
 // (split 31/08/2026, P3 of the engineering review, so parallel sessions
 // stop colliding in one 1,900-line file).
 
-type TabKey = "rooms" | "levels" | "users" | "clients" | "service-types" | "hours" | "closures" | "reports" | "email" | "invoicing";
+type TabKey = "rooms" | "levels" | "users" | "service-types" | "hours" | "closures" | "reports" | "email" | "invoicing";
 
 // `hint` renders as the pill's hover tooltip (native title attribute).
 const TABS: { key: TabKey; label: string; hint: string }[] = [
   { key: "rooms", label: "Rooms", hint: "The bookable rooms and the order they appear in" },
   { key: "levels", label: "Educator levels", hint: "Educator grades — each tutor is assigned one; prices per level live under Sessions & services" },
   { key: "users", label: "Users", hint: "Staff accounts — educators and admins, logins, onboarding forms, vetting checklist and contracts" },
-  { key: "clients", label: "Learners", hint: "Add learners, see onboarding status, resend forms, deactivate records" },
   { key: "service-types", label: "Sessions & services", hint: "Session types and the price list — what each session bills the family and pays the tutor" },
   { key: "hours", label: "Facility hours", hint: "Weekly opening hours — bookings must fall inside these" },
   { key: "closures", label: "Closures", hint: "One-off closed dates (public holidays etc.) — whole centre or a single room" },
@@ -55,7 +53,6 @@ export function Admin() {
       {tab === "rooms" && <RoomsAdmin />}
       {tab === "levels" && <LevelsAdmin />}
       {tab === "users" && <UsersAdmin />}
-      {tab === "clients" && <ClientsAdmin />}
       {tab === "service-types" && <ServiceTypesAdmin />}
       {tab === "hours" && <FacilityHoursAdmin />}
       {tab === "closures" && <ClosuresAdmin />}

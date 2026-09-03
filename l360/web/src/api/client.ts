@@ -625,6 +625,12 @@ export function setBookingStatus(id: number, status: "completed" | "no_show", ch
   return post<Booking>(`/api/bookings/${id}/status`, { status, charge });
 }
 
+export function invoiceNow(bookingId: number): Promise<Invoice> {
+  // "Send invoice now" from the Confirm-session flow: sweeps everything
+  // unbilled for this booking's family into one invoice, issues + emails it.
+  return post<Invoice>(`/api/bookings/${bookingId}/invoice-now`);
+}
+
 // --- admin: rooms -----------------------------------------------------
 
 export function adminListRooms(): Promise<Room[]> {

@@ -18,11 +18,11 @@ describe("statusBadgeProps — the Booked → Delivered → Billed ladder", () =
     expect(badge("confirmed")).toEqual({ variant: "success", label: "Booked" });
   });
 
-  it("past confirmed reads Delivered — no marking step exists", () => {
-    expect(badge("confirmed", { start_utc: past })).toEqual({ variant: "info", label: "Delivered" });
+  it("past confirmed reads Delivered? — assumed, awaiting the Confirm flow", () => {
+    expect(badge("confirmed", { start_utc: past })).toEqual({ variant: "info", label: "Delivered?" });
   });
 
-  it("legacy completed also reads Delivered until invoiced", () => {
+  it("educator-confirmed (completed) reads Delivered, no question mark", () => {
     expect(badge("completed", { start_utc: past })).toEqual({ variant: "info", label: "Delivered" });
   });
 

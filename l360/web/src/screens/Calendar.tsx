@@ -22,6 +22,7 @@ import {
   type ServiceType,
   type SkippedOccurrence,
 } from "../api/client";
+import { ConfirmSessionFlow, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { statusBadgeProps } from "../domain/status";
 import {
   combineDateTime,
@@ -296,6 +297,7 @@ export function Calendar({ me }: { me: Me | null }) {
       {selectedBooking && (
         <BookingDetailModal
           booking={selectedBooking}
+          me={me}
           onClose={() => setSelectedBooking(null)}
           onChanged={() => {
             setSelectedBooking(null);
@@ -532,17 +534,27 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
 
 interface BookingDetailModalProps {
   booking: Booking;
+  me: Me | null;
   onClose: () => void;
   onChanged: () => void;
 }
 
-function BookingDetailModal({ booking, onClose, onChanged }: BookingDetailModalProps) {
+function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [moveDate, setMoveDate] = useState(toDateInputValue(new Date(booking.start_utc)));
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
-  const { variant, label } = statusBadgeProps(booking);
+  // Live pill preview while the Confirm flow is mid-decision.
+  const [preview, setPreview] = useState<OutcomePreview>(null);
+  const { variant, label } = statusBadgeProps(preview ? { ...booking, ...preview } : booking);
+  const isPast = new Date(booking.start_utc).getTime() <= Date.now();
+  const canConfirm =
+    isPast &&
+    !booking.invoiced &&
+    (booking.status === "confirmed" || booking.status === "completed" || booking.status === "no_show") &&
+    !!me &&
+    (me.role === "admin" || booking.educator_id === me.id);
   // On an invoice = locked: no move, no cancel (the server refuses too).
   const canModify = booking.status === "confirmed" && !booking.invoiced;
   // Inside 24h the cancellation is "late" and the canceller decides whether
@@ -592,11 +604,21 @@ function BookingDetailModal({ booking, onClose, onChanged }: BookingDetailModalP
             </p>
           )}
           <p style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <StatusBadge variant={variant} label={label} />
+            <StatusBadge variant={variant} label={preview ? `${label} …` : label} />
             <span className="l360-mono">
               {toTimeInputValue(booking.start_utc)} · {booking.duration_minutes} min
             </span>
           </p>
+          {canConfirm && (
+            <div style={{ marginBottom: 16 }}>
+              <ConfirmSessionFlow
+                booking={booking}
+                onPreview={setPreview}
+                onDone={onChanged}
+                onError={setError}
+              />
+            </div>
+          )}
           {booking.notes && <p style={{ marginBottom: 16, color: "var(--l360-bgrey)" }}>{booking.notes}</p>}
           {booking.invoiced && (
             <p className="l360-field-hint" style={{ marginBottom: 16 }}>

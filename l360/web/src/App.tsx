@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Wordmark } from "./ui/ui";
 import { Calendar } from "./screens/Calendar";
 import { Bookings } from "./screens/Bookings";
-import { Clients } from "./screens/Clients";
+import { ClientsAdmin } from "./screens/admin/ClientsAdmin";
 import { Billing } from "./screens/Billing";
 import { Reconciliation } from "./screens/Reconciliation";
 import { Statements } from "./screens/Statements";
@@ -191,7 +191,7 @@ export function App() {
         <main id="l360-main-content" className="l360-content">
           {active === "calendar" && <Calendar me={me} />}
           {active === "bookings" && <Bookings me={me} />}
-          {active === "clients" && <Clients />}
+          {active === "clients" && <ClientsAdmin />}
           {active === "billing" && <Billing />}
           {active === "payments" && <Reconciliation />}
           {active === "statements" && <Statements me={me} />}

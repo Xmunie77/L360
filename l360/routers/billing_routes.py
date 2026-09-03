@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
@@ -279,16 +279,11 @@ def admin_get_invoice(invoice_id: int, db: Session = Depends(get_session), _admi
     return InvoiceDetailOut(**base.model_dump(), lines=[InvoiceLineOut.model_validate(l, from_attributes=True) for l in lines])
 
 
-@router.post("/api/admin/invoices/{invoice_id}/issue", response_model=InvoiceOut)
-def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
-    inv = db.get(Invoice, invoice_id)
-    if inv is None:
-        raise HTTPException(status_code=404, detail="Not found")
-    try:
-        billing_logic.issue_invoice(db, inv)
-    except BillingError as e:
-        raise HTTPException(status_code=409, detail=e.reason)
-
+def _issue_and_email(db: Session, inv: Invoice) -> None:
+    """Issue (number + lock) an invoice and email the PDF to the payer —
+    shared by the admin Billing tab and the Confirm-session flow's
+    "Send invoice now". Raises BillingError if not issuable."""
+    billing_logic.issue_invoice(db, inv)
     client = db.get(Client, inv.client_id)
     if client and client.email:
         pdf_bytes = invoice_pdf.build_invoice_pdf(_invoice_pdf_data(db, inv))
@@ -307,6 +302,62 @@ def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _ad
             dedupe_key=f"invoice_issued:{inv.id}",
             attachment=(f"Invoice {inv.number}.pdf", pdf_bytes),
         )
+
+
+@router.post("/api/admin/invoices/{invoice_id}/issue", response_model=InvoiceOut)
+def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    inv = db.get(Invoice, invoice_id)
+    if inv is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        _issue_and_email(db, inv)
+    except BillingError as e:
+        raise HTTPException(status_code=409, detail=e.reason)
+    return _invoice_out(db, inv)
+
+
+@router.post("/api/bookings/{booking_id}/invoice-now", response_model=InvoiceOut)
+def invoice_booking_now(booking_id: int, db: Session = Depends(get_session), user: User = Depends(require_user)):
+    """The Confirm-session flow's "Send invoice now": sweep EVERYTHING
+    unbilled and billable for this booking's family — this session, earlier
+    unconfirmed ones, charged no-shows — into ONE invoice, issue it and
+    email the PDF immediately. The assigned educator (or an admin) may
+    trigger it. Monthly billing runs stay the safety net; they skip
+    anything invoiced here by construction."""
+    from l360.booking_logic import local_today, utc_to_local
+    from l360.routers.bookings import _invoiced_booking_ids, _release_from_draft_invoices
+
+    b = db.get(Booking, booking_id)
+    if b is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if user.role != "admin" and b.educator_id != user.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    if _invoiced_booking_ids(db, {b.id}):
+        raise HTTPException(status_code=409, detail="Already invoiced")
+    # A pending draft from an earlier billing run would otherwise hide this
+    # booking from the sweep — pull it off first (the draft shrinks or is
+    # deleted, exactly as an amendment would).
+    _release_from_draft_invoices(db, b.id)
+
+    period_end = local_today()
+    earliest = db.scalar(
+        select(func.min(Booking.start_utc)).where(Booking.client_id == b.client_id, billing_logic.billable_filter())
+    )
+    period_start = utc_to_local(earliest)[0] if earliest is not None else utc_to_local(b.start_utc)[0]
+
+    candidates = billing_logic.billable_bookings_for_client(
+        db, client_id=b.client_id, period_start=period_start, period_end=period_end
+    )
+    if b.id not in {c.id for c in candidates}:
+        raise HTTPException(status_code=409, detail="This session isn't billable (future, waived or cancelled)")
+
+    inv = billing_logic.generate_draft_invoice(
+        db, client_id=b.client_id, period_start=period_start, period_end=period_end, created_by=user.id
+    )
+    try:
+        _issue_and_email(db, inv)
+    except BillingError as e:
+        raise HTTPException(status_code=409, detail=e.reason)
     return _invoice_out(db, inv)
 
 
