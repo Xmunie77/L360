@@ -296,7 +296,6 @@ export function Calendar({ me }: { me: Me | null }) {
       {selectedBooking && (
         <BookingDetailModal
           booking={selectedBooking}
-          date={date}
           onClose={() => setSelectedBooking(null)}
           onChanged={() => {
             setSelectedBooking(null);
@@ -533,18 +532,19 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
 
 interface BookingDetailModalProps {
   booking: Booking;
-  date: string;
   onClose: () => void;
   onChanged: () => void;
 }
 
-function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetailModalProps) {
+function BookingDetailModal({ booking, onClose, onChanged }: BookingDetailModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [moveDate, setMoveDate] = useState(toDateInputValue(new Date(booking.start_utc)));
   const [moveTime, setMoveTime] = useState(toTimeInputValue(booking.start_utc));
   const { variant, label } = statusBadgeProps(booking);
-  const canModify = booking.status === "confirmed";
+  // On an invoice = locked: no move, no cancel (the server refuses too).
+  const canModify = booking.status === "confirmed" && !booking.invoiced;
   // Inside 24h the cancellation is "late" and the canceller decides whether
   // the family is charged — same question the Bookings list asks.
   const isLateCancel = new Date(booking.start_utc).getTime() - Date.now() < 24 * 3_600_000;
@@ -566,7 +566,7 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
     setError(null);
     setBusy(true);
     try {
-      await moveBooking(booking.id, { start_utc: combineDateTime(date, moveTime) });
+      await moveBooking(booking.id, { start_utc: combineDateTime(moveDate, moveTime) });
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't move this booking.");
@@ -598,6 +598,11 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
             </span>
           </p>
           {booking.notes && <p style={{ marginBottom: 16, color: "var(--l360-bgrey)" }}>{booking.notes}</p>}
+          {booking.invoiced && (
+            <p className="l360-field-hint" style={{ marginBottom: 16 }}>
+              This session is on an invoice — it can no longer be moved, cancelled or amended.
+            </p>
+          )}
 
           {error && (
             <div className="l360-alert l360-alert-danger" role="alert">
@@ -607,7 +612,14 @@ function BookingDetailModal({ booking, date, onClose, onChanged }: BookingDetail
 
           {canModify && (
             <>
-              <div className="l360-field">
+              <div className="l360-field" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Input
+                  id="move-date"
+                  label="Move to date"
+                  type="date"
+                  value={moveDate}
+                  onChange={(e) => setMoveDate(e.target.value)}
+                />
                 <Input
                   id="move-time"
                   label="Move to time"

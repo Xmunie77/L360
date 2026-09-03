@@ -554,3 +554,36 @@ def test_late_cancel_charge_decision(admin_client, booking_env):
     assert r.status_code == 200
     assert r.json()["status"] == "cancelled_late"
     assert r.json()["charge_waived"] is False
+
+
+def test_move_and_cancel_lock_once_invoiced(admin_client, booking_env):
+    """An invoiced session is fully locked — move and cancel refuse, not
+    just status amendments (03/09/2026: a Billed session was movable from
+    the Calendar modal)."""
+    from datetime import UTC, datetime, timedelta
+    from l360.db import session_scope
+    from l360.models import Booking, Invoice, InvoiceLine
+
+    booking = admin_client.post("/api/bookings", json={
+        "room_id": booking_env["room_id"],
+        "educator_id": booking_env["educator_id"],
+        "client_id": booking_env["client_id"],
+        "service_type_id": booking_env["service_type_id"],
+        "start_utc": _safe_morning_start().isoformat(),
+        "duration_minutes": 60,
+    }).json()
+    with session_scope() as db:
+        b = db.get(Booking, booking["id"])
+        inv = Invoice(client_id=b.client_id, period_start=b.start_utc.date(), period_end=b.start_utc.date(), status="draft", total_cents=3500, created_by=1)
+        db.add(inv)
+        db.flush()
+        db.add(InvoiceLine(invoice_id=inv.id, booking_id=b.id, description="x", quantity=1, unit_price_cents=3500, amount_cents=3500))
+
+    new_start = (datetime.now(UTC) + timedelta(days=30)).isoformat()
+    r = admin_client.patch(f"/api/bookings/{booking['id']}", json={"start_utc": new_start})
+    assert r.status_code == 409
+    assert "invoiced" in r.json()["detail"].lower()
+
+    r = admin_client.post(f"/api/bookings/{booking['id']}/cancel")
+    assert r.status_code == 409
+    assert "invoiced" in r.json()["detail"].lower()

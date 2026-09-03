@@ -407,6 +407,8 @@ def move_booking(
         raise HTTPException(status_code=403, detail="Not your booking")
     if b.status != "confirmed":
         raise HTTPException(status_code=409, detail=f"Cannot move a {b.status} booking")
+    if _invoiced_booking_ids(db, {b.id}):
+        raise HTTPException(status_code=409, detail="Already invoiced — this session is locked")
 
     new_service_type = _resolve_bookable_service_type(db, body.service_type_id) if body.service_type_id is not None else None
 
@@ -457,6 +459,8 @@ def cancel_booking(
         raise HTTPException(status_code=403, detail="Not your booking")
     if b.status != "confirmed":
         raise HTTPException(status_code=409, detail=f"Already {b.status}")
+    if _invoiced_booking_ids(db, {b.id}):
+        raise HTTPException(status_code=409, detail="Already invoiced — this session is locked")
 
     now = datetime.now(UTC)
     cutoff = timedelta(hours=CANCELLATION_CUTOFF_HOURS)

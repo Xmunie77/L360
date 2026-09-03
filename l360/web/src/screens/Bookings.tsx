@@ -115,6 +115,7 @@ export function Bookings({ me }: { me: Me | null }) {
     }
 
     if (b.status === "confirmed" && !isPast) {
+      if (b.invoiced) return null; // on an invoice = locked, server refuses too
       return (
         <Button
           type="button"
