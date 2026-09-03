@@ -975,6 +975,10 @@ export function adminListFacilityHours(): Promise<FacilityHours[]> {
 }
 
 /** Upsert by weekday. */
+export function adminDeleteFacilityHours(weekday: number): Promise<{ ok: boolean }> {
+  return del<{ ok: boolean }>(`/api/admin/facility-hours/${weekday}`);
+}
+
 export function adminUpsertFacilityHours(body: FacilityHoursInput): Promise<FacilityHours> {
   return put<FacilityHours>("/api/admin/facility-hours", body);
 }

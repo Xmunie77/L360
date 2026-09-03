@@ -420,6 +420,17 @@ def admin_upsert_hours(
     return row
 
 
+@router.delete("/api/admin/facility-hours/{weekday}")
+def admin_delete_hours(weekday: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """Mark a weekday closed — no hours row means no bookings that day.
+    Idempotent: deleting an already-closed day is a no-op success."""
+    row = db.scalar(select(FacilityHours).where(FacilityHours.weekday == weekday))
+    if row is not None:
+        db.delete(row)
+        db.commit()
+    return {"ok": True}
+
+
 @router.get("/api/admin/closures", response_model=list[FacilityClosureOut])
 def admin_list_closures(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
     return db.scalars(select(FacilityClosure).order_by(FacilityClosure.date)).all()

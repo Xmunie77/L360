@@ -219,3 +219,12 @@ def test_client_list_survives_blank_guardian_first_name(admin_client):
     r = admin_client.get("/api/admin/clients")
     assert r.status_code == 200
     assert any(x["guardian_first_name"] == "" for x in r.json())
+
+
+def test_facility_hours_delete_marks_day_closed(admin_client):
+    r = admin_client.put("/api/admin/facility-hours", json={"weekday": 5, "open_time": "09:00:00", "close_time": "13:00:00"})
+    assert r.status_code == 200
+    assert admin_client.delete("/api/admin/facility-hours/5").status_code == 200
+    assert not any(h["weekday"] == 5 for h in admin_client.get("/api/admin/facility-hours").json())
+    # Idempotent — deleting an already-closed day is a no-op success.
+    assert admin_client.delete("/api/admin/facility-hours/5").status_code == 200

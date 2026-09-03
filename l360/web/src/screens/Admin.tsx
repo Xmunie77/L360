@@ -17,17 +17,18 @@ import { UtilisationCard } from "./UtilisationCard";
 
 type TabKey = "rooms" | "levels" | "users" | "clients" | "service-types" | "hours" | "closures" | "reports" | "email" | "invoicing";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "rooms", label: "Rooms" },
-  { key: "levels", label: "Educator levels" },
-  { key: "users", label: "Users" },
-  { key: "clients", label: "Learners" },
-  { key: "service-types", label: "Sessions & services" },
-  { key: "hours", label: "Facility hours" },
-  { key: "closures", label: "Closures" },
-  { key: "reports", label: "Reports" },
-  { key: "email", label: "Email" },
-  { key: "invoicing", label: "Invoicing" },
+// `hint` renders as the pill's hover tooltip (native title attribute).
+const TABS: { key: TabKey; label: string; hint: string }[] = [
+  { key: "rooms", label: "Rooms", hint: "The bookable rooms and the order they appear in" },
+  { key: "levels", label: "Educator levels", hint: "Educator grades — each tutor is assigned one; prices per level live under Sessions & services" },
+  { key: "users", label: "Users", hint: "Staff accounts — educators and admins, logins, onboarding forms, vetting checklist and contracts" },
+  { key: "clients", label: "Learners", hint: "Add learners, see onboarding status, resend forms, deactivate records" },
+  { key: "service-types", label: "Sessions & services", hint: "Session types and the price list — what each session bills the family and pays the tutor" },
+  { key: "hours", label: "Facility hours", hint: "Weekly opening hours — bookings must fall inside these" },
+  { key: "closures", label: "Closures", hint: "One-off closed dates (public holidays etc.) — whole centre or a single room" },
+  { key: "reports", label: "Reports", hint: "Room utilisation — how busy each room is over time" },
+  { key: "email", label: "Email", hint: "Settings for the system's outgoing email, plus a test-email button" },
+  { key: "invoicing", label: "Invoicing", hint: "Invoice letterhead, bank details and footer, with a sample PDF preview" },
 ];
 
 export function Admin() {
@@ -42,6 +43,7 @@ export function Admin() {
               key={t.key}
               type="button"
               variant={tab === t.key ? "primary" : "secondary"}
+              title={t.hint}
               onClick={() => setTab(t.key)}
             >
               {t.label}
