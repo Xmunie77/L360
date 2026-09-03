@@ -204,3 +204,18 @@ def test_facility_closure_crud(admin_client):
     r = admin_client.delete(f"/api/admin/closures/{closure['id']}")
     assert r.status_code == 200
     assert not any(c["id"] == closure["id"] for c in admin_client.get("/api/admin/closures").json())
+
+
+def test_client_list_survives_blank_guardian_first_name(admin_client):
+    """Regression (03/09/2026): the 29/08 Google Form import holds one adult
+    learner with guardian_first_name='' — she typed "Blank" into the guardian
+    fields. Output schemas must return stored data as-is, never 500 on it."""
+    from l360.db import session_scope
+    from l360.models import Client
+
+    with session_scope() as db:
+        db.add(Client(guardian_first_name="", guardian_surname="Blank", email="adult.learner@example.com"))
+
+    r = admin_client.get("/api/admin/clients")
+    assert r.status_code == 200
+    assert any(x["guardian_first_name"] == "" for x in r.json())

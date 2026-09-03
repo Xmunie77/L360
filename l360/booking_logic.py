@@ -37,6 +37,13 @@ def utc_to_local(dt: datetime, tz_name: str = TIMEZONE) -> tuple[date, time]:
     return local_dt.date(), local_dt.time()
 
 
+def local_today(tz_name: str = TIMEZONE) -> date:
+    """Today as a Malta calendar date. Never use bare date.today() for a
+    business date — the servers run UTC, so between midnight and ~2am Malta
+    that returns YESTERDAY (invoice dates, price-list lookups, contracts)."""
+    return datetime.now(ZoneInfo(tz_name)).date()
+
+
 def expand_weekly_dates(starts_on: date, ends_on: date, weekday: int, interval_weeks: int = 1) -> list[date]:
     """All dates in [starts_on, ends_on] falling on the given weekday
     (0=Monday .. 6=Sunday, matching date.weekday()), every `interval_weeks`
@@ -70,8 +77,15 @@ def check_within_hours_and_open(db: Session, room_id: int, start_utc: datetime, 
     local_end = local_end_dt.time()
 
     hours = db.scalar(select(FacilityHours).where(FacilityHours.weekday == local_date.weekday()))
-    if hours is None or local_start < hours.open_time or local_end > hours.close_time:
-        raise SlotError("Outside facility opening hours")
+    if hours is None:
+        # Distinct message: "no hours set for Fridays" is an admin-config gap,
+        # not a too-early/too-late slot — first hit live 03/09/2026 (Fran).
+        day = local_date.strftime("%A")
+        raise SlotError(f"No opening hours are set for {day}s — an admin can add them under Admin → Opening hours")
+    if local_start < hours.open_time or local_end > hours.close_time:
+        raise SlotError(
+            f"Outside opening hours ({hours.open_time:%H:%M}–{hours.close_time:%H:%M} on {local_date.strftime('%A')}s)"
+        )
 
     closure = db.scalar(
         select(FacilityClosure).where(

@@ -147,11 +147,9 @@ def admin_save_invoice_settings(
 def admin_sample_invoice_pdf(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
     """A dummy invoice rendered with the CURRENT letterhead — so template
     changes can be eyeballed without touching a real invoice."""
-    from datetime import date as _date
-
     data = invoice_pdf.InvoicePdfData(
         number="SAMPLE-0000",
-        issue_date=_date.today(),
+        issue_date=booking_logic.local_today(),
         learner_name="Sample Learner",
         attn="Alex and Sam Parent",
         bill_address="1, Example Street\nSwatar",
@@ -192,7 +190,7 @@ def _invoice_pdf_data(db: Session, inv: Invoice) -> invoice_pdf.InvoicePdfData:
     paid = inv.total_cents - reconciliation.outstanding_cents(db, inv)
     return invoice_pdf.InvoicePdfData(
         number=inv.number or "DRAFT",
-        issue_date=(inv.issued_at.date() if inv.issued_at else inv.created_at.date()),
+        issue_date=booking_logic.utc_to_local(inv.issued_at or inv.created_at)[0],
         learner_name=(client.child_name or client.guardian_name) if client else "?",
         attn=" and ".join(attn_names),
         bill_address=client.address if client else None,

@@ -161,7 +161,9 @@ def price_list_current(
     _user: User = Depends(require_user),
 ):
     """For each (level, duration), the entry with the latest valid_from <= as_of."""
-    as_of = as_of or date_cls.today()
+    # Malta calendar date, not the UTC server date — a price change taking
+    # effect "today" must apply from Malta midnight, not 2am.
+    as_of = as_of or booking_logic.local_today()
     rows = db.scalars(select(PriceListEntry).where(PriceListEntry.valid_from <= as_of)).all()
     latest: dict[tuple[int, int], PriceListEntry] = {}
     for row in rows:

@@ -6,13 +6,14 @@ generation, and sequential invoice numbering at issue time.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, UTC
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from l360.booking_logic import utc_to_local
-from l360.config import INVOICE_NUMBER_PREFIX
+from l360.config import INVOICE_NUMBER_PREFIX, TIMEZONE
 from l360.models import Booking, Invoice, InvoiceLine, ServiceType, User
 
 # Bookings in these states are billable — the session happened, or the
@@ -125,7 +126,10 @@ def issue_invoice(db: Session, invoice: Invoice, *, due_in_days: int = 14) -> In
         raise BillingError(f"Cannot issue a {invoice.status} invoice")
 
     now = datetime.now(UTC)
-    year = now.year
+    # Invoice number year + due date follow the MALTA calendar — an invoice
+    # issued 00:30 on 1 Jan Malta time is still 31 Dec in UTC.
+    local_now = now.astimezone(ZoneInfo(TIMEZONE))
+    year = local_now.year
     # Small retry loop: two concurrent issues in the same year could both
     # compute the same "next" number — the unique constraint on `number`
     # catches that and we just recompute and try again.
@@ -134,7 +138,7 @@ def issue_invoice(db: Session, invoice: Invoice, *, due_in_days: int = 14) -> In
         invoice.number = candidate
         invoice.status = "issued"
         invoice.issued_at = now
-        invoice.due_date = (now + timedelta(days=due_in_days)).date()
+        invoice.due_date = (local_now + timedelta(days=due_in_days)).date()
         db.add(invoice)
         try:
             db.commit()

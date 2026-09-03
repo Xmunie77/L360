@@ -20,7 +20,7 @@ contract — it still gets reviewed, completed and signed on paper.
 from __future__ import annotations
 
 import io
-from datetime import date
+from datetime import date, datetime
 
 from docx import Document
 from docx.shared import Pt
@@ -37,7 +37,14 @@ def _para(doc, text: str, *, bold: bool = False, size: int = 10) -> None:
 
 def build_contract(answers: dict, *, today: date | None = None) -> bytes:
     """answers = EducatorOnboardingForm.answers (validated submission)."""
-    today = today or date.today()
+    if today is None:
+        # Malta calendar date — the server clock is UTC (see booking_logic.
+        # local_today; not imported to keep this module docx-only/pure).
+        from zoneinfo import ZoneInfo
+
+        from l360.config import TIMEZONE
+
+        today = datetime.now(ZoneInfo(TIMEZONE)).date()
     name = answers.get("full_legal_name") or _BLANK
     id_number = answers.get("id_passport_number") or _BLANK
     address = answers.get("residential_address") or _BLANK

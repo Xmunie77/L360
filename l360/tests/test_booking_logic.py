@@ -63,8 +63,14 @@ def test_check_within_hours_rejects_outside_open_hours(client):
     with ss() as db:
         # Monday 2026-09-07 08:00 local is before the 09:00 open time.
         start_utc = booking_logic.local_to_utc(date(2026, 9, 7), time(8, 0))
-        with pytest.raises(SlotError, match="Outside facility opening hours"):
+        with pytest.raises(SlotError, match=r"Outside opening hours \(09:00–17:00 on Mondays\)"):
             booking_logic.check_within_hours_and_open(db, room_id=1, start_utc=start_utc, duration_minutes=60)
+        # A weekday with NO hours row gets the distinct config-gap message
+        # (first hit live 03/09/2026: only Mon-Thu had hours, Friday bookings
+        # all failed with the generic wording).
+        friday_utc = booking_logic.local_to_utc(date(2026, 9, 11), time(10, 0))
+        with pytest.raises(SlotError, match="No opening hours are set for Fridays"):
+            booking_logic.check_within_hours_and_open(db, room_id=1, start_utc=friday_utc, duration_minutes=60)
 
 
 def test_find_conflict_detects_room_overlap(client):

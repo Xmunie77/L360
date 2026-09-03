@@ -130,6 +130,12 @@ class ClientOut(ClientIn):
     # pending | submitted | None (no onboarding form created yet — e.g. a
     # client added before this feature existed).
     onboarding_status: str | None = None
+    # Reads must never 500 on imperfect stored data (the 29/08 Google Form
+    # import holds an adult learner whose guardian first name is blank —
+    # she typed "Blank" into the guardian fields). Min-length rules guard
+    # what's typed IN; what's read back out is returned as-is.
+    guardian_first_name: str = Field(max_length=200)
+    guardian_surname: str = Field(max_length=200)
 
 
 class EmailSettingsIn(BaseModel):
