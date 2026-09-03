@@ -44,9 +44,9 @@ function navItemsFor(me: Me | null): NavItem[] {
 }
 
 // Where each role lands after sign-in: educators start on their own
-// session list; admins on the day calendar.
+// session list; admins on the Admin page (Simon, 03/09/2026).
 function landingTabFor(me: Me): string {
-  return me.role === "admin" ? "calendar" : "bookings";
+  return me.role === "admin" ? "admin" : "bookings";
 }
 
 type AuthState = "loading" | "anon" | "authed";
