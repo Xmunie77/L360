@@ -80,6 +80,17 @@ class UserIn(BaseModel):
     role: str = Field(pattern="^(admin|educator)$")
     level_id: int | None = None
     password: str = Field(min_length=8, max_length=200)
+    bio: str | None = Field(default=None, max_length=4000)
+    # Skip the automatic onboarding-form invite — for importing staff who
+    # are already working here (Simon, 04/09/2026).
+    send_onboarding: bool = True
+
+
+class ProfileUpdateIn(BaseModel):
+    """What a user may change about their own profile."""
+
+    bio: str | None = Field(default=None, max_length=4000)
+    image_consent: bool | None = None
 
 
 class UserUpdate(BaseModel):
@@ -87,6 +98,10 @@ class UserUpdate(BaseModel):
     level_id: int | None = None
     active: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=200)
+    bio: str | None = Field(default=None, max_length=4000)
+    # Admin recording that the person consented to their photo/bio being
+    # used in the app. False withdraws it (and clears the photo).
+    image_consent: bool | None = None
 
 
 class UserOut(BaseModel):
@@ -96,6 +111,11 @@ class UserOut(BaseModel):
     role: str
     level_id: int | None
     active: bool
+    bio: str | None = None
+    # True when a headshot is stored — the image itself is fetched from
+    # /api/users/{id}/photo rather than inlined here.
+    has_photo: bool = False
+    image_consent_at: datetime | None = None
     # pending | submitted | None — educator onboarding form status (always
     # None for admins and for accounts predating the feature).
     onboarding_status: str | None = None

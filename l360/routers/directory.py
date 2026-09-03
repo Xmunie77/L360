@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import date as date_cls
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, File, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
@@ -98,6 +98,7 @@ from l360.schemas import (
     PaymentOut,
     PriceListEntryIn,
     PriceListEntryOut,
+    ProfileUpdateIn,
     RecordPaymentIn,
     ResetPasswordIn,
     RoomIn,
@@ -301,6 +302,7 @@ def admin_deactivate_service_type(
 # --- admin: users (educators/admins) --------------------------------------
 def _user_out(db: Session, row: User) -> UserOut:
     out = UserOut.model_validate(row, from_attributes=True)
+    out.has_photo = row.photo is not None
     form = db.scalar(select(EducatorOnboardingForm).where(EducatorOnboardingForm.user_id == row.id))
     out.onboarding_status = form.status if form else None
     return out
@@ -313,6 +315,7 @@ def admin_list_users(db: Session = Depends(get_session), _admin: User = Depends(
     out = []
     for r in rows:
         u = UserOut.model_validate(r, from_attributes=True)
+        u.has_photo = r.photo is not None
         u.onboarding_status = statuses.get(r.id)
         out.append(u)
     return out
@@ -330,13 +333,15 @@ def admin_create_user(
         role=body.role,
         level_id=body.level_id,
         password_hash=auth.hash_password(body.password),
+        bio=body.bio,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
     # New educators get the onboarding questionnaire automatically, same as
-    # new learners; admins don't (nothing to onboard).
-    if row.role == "educator":
+    # new learners; admins don't (nothing to onboard). `send_onboarding=False`
+    # imports someone already working here without firing the invite.
+    if row.role == "educator" and body.send_onboarding:
         form = educator_onboarding.get_or_create_form(db, row)
         educator_onboarding.send_invite(db, row, form)
     return _user_out(db, row)
@@ -357,11 +362,106 @@ def admin_update_user(
         pw = data.pop("password")
         if pw:
             row.password_hash = auth.hash_password(pw)
+    if "image_consent" in data:
+        _set_image_consent(row, data.pop("image_consent"), source="admin")
     for k, v in data.items():
         setattr(row, k, v)
     db.commit()
     db.refresh(row)
-    return row
+    return _user_out(db, row)
+
+
+def _set_image_consent(row: User, granted: bool, *, source: str) -> None:
+    """Record or withdraw consent to use someone's photo/bio in the app.
+    Withdrawing also removes the photo — consent is the lawful basis for
+    holding it (04/09/2026 privacy review)."""
+    if granted:
+        row.image_consent_at = datetime.now(UTC)
+        row.image_consent_source = source
+    else:
+        row.image_consent_at = None
+        row.image_consent_source = None
+        row.photo = None
+        row.photo_content_type = None
+
+
+@router.get("/api/users/{user_id}/photo")
+def user_photo(user_id: int, db: Session = Depends(get_session), _user: User = Depends(require_user)):
+    """Serve a staff headshot to signed-in colleagues (never public)."""
+    row = db.get(User, user_id)
+    if row is None or row.photo is None:
+        raise HTTPException(status_code=404, detail="No photo")
+    return Response(
+        content=row.photo,
+        media_type=row.photo_content_type or "image/jpeg",
+        headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
+_MAX_PHOTO_BYTES = 5 * 1024 * 1024
+_ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+@router.post("/api/users/{user_id}/photo", response_model=UserOut)
+async def upload_user_photo(
+    user_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_session),
+    user: User = Depends(require_user),
+):
+    """Upload/replace a headshot — your own, or anyone's if you're an admin.
+    Storing a photo records image consent if it isn't already on file."""
+    row = db.get(User, user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if user.role != "admin" and user.id != row.id:
+        raise HTTPException(status_code=403, detail="Not your profile")
+    if file.content_type not in _ALLOWED_PHOTO_TYPES:
+        raise HTTPException(status_code=422, detail="Photo must be a JPEG, PNG or WebP image")
+    content = await file.read()
+    if len(content) > _MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=422, detail="Photo must be under 5 MB")
+    row.photo = content
+    row.photo_content_type = file.content_type
+    if row.image_consent_at is None:
+        _set_image_consent(row, True, source="self" if user.id == row.id else "admin")
+    db.commit()
+    db.refresh(row)
+    return _user_out(db, row)
+
+
+@router.delete("/api/users/{user_id}/photo", response_model=UserOut)
+def delete_user_photo(user_id: int, db: Session = Depends(get_session), user: User = Depends(require_user)):
+    row = db.get(User, user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    if user.role != "admin" and user.id != row.id:
+        raise HTTPException(status_code=403, detail="Not your profile")
+    row.photo = None
+    row.photo_content_type = None
+    db.commit()
+    db.refresh(row)
+    return _user_out(db, row)
+
+
+@router.get("/api/me/profile", response_model=UserOut)
+def my_profile(db: Session = Depends(get_session), user: User = Depends(require_user)):
+    return _user_out(db, user)
+
+
+@router.put("/api/me/profile", response_model=UserOut)
+def update_my_profile(
+    body: ProfileUpdateIn, db: Session = Depends(get_session), user: User = Depends(require_user)
+):
+    """Everyone may edit their own bio and grant/withdraw image consent."""
+    data = body.model_dump(exclude_unset=True)
+    if "image_consent" in data:
+        _set_image_consent(user, data.pop("image_consent"), source="self")
+    if "bio" in data:
+        user.bio = data["bio"]
+    db.commit()
+    db.refresh(user)
+    return _user_out(db, user)
 
 
 @router.delete("/api/admin/users/{user_id}")

@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime, time
 from sqlalchemy import (
     JSON,
     Boolean,
+    LargeBinary,
     Date,
     DateTime,
     ForeignKey,
@@ -101,6 +102,17 @@ class User(Base):
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Login throttling: consecutive failures + lock expiry (P0-1, 31/08/2026).
+    # Colleague-facing profile (Educators tab). Sensitive HR material —
+    # police conduct, ID number, home address — deliberately lives in Drive,
+    # not here (04/09/2026 privacy review).
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    photo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    photo_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # When (and how) they consented to their photo/bio being used. Image use
+    # is one of the few staff-data purposes where consent IS the right
+    # lawful basis; payroll/safeguarding data is not consent-based.
+    image_consent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    image_consent_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
     failed_logins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

@@ -171,6 +171,12 @@ export interface AdminUser {
   role: string;
   level_id: number | null;
   active: boolean;
+  /** Short profile paragraph shown on the Educators tab. */
+  bio?: string | null;
+  /** True when a headshot is stored — fetch it from /api/users/{id}/photo. */
+  has_photo?: boolean;
+  /** When they consented to their photo/bio being used in the app. */
+  image_consent_at?: string | null;
   /** "pending" | "submitted" | null — educator onboarding form status (null for admins). */
   onboarding_status?: string | null;
 }
@@ -182,6 +188,10 @@ export interface UserCreateInput {
   level_id?: number | null;
   /** Min 8 chars — enforced server-side too. */
   password: string;
+  bio?: string | null;
+  /** false = import an existing staff member without emailing them the
+   *  onboarding questionnaire. */
+  send_onboarding?: boolean;
 }
 
 export interface UserUpdateInput {
@@ -189,6 +199,10 @@ export interface UserUpdateInput {
   level_id?: number | null;
   active?: boolean;
   password?: string;
+  bio?: string | null;
+  /** Record/withdraw consent to use their photo + bio (withdrawing also
+   *  deletes the photo). */
+  image_consent?: boolean;
 }
 
 /** GET /api/admin/clients returns the full ClientOut shape (email/phone/notes/
@@ -1161,4 +1175,43 @@ export function createOrRotateCalendarToken(): Promise<CalendarToken> {
 
 export function revokeCalendarToken(): Promise<{ ok: boolean }> {
   return del<{ ok: boolean }>("/api/me/calendar-token");
+}
+
+// --- staff profile: photo + bio + image consent -------------------------
+
+/** URL for a staff headshot (signed-in users only). */
+export function userPhotoUrl(userId: number): string {
+  return `/api/users/${userId}/photo`;
+}
+
+export async function uploadUserPhoto(userId: number, file: File): Promise<AdminUser> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`/api/users/${userId}/photo`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    let detail = "Couldn't upload that photo.";
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      // non-JSON error body — keep the default message
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
+export function deleteUserPhoto(userId: number): Promise<AdminUser> {
+  return del<AdminUser>(`/api/users/${userId}/photo`);
+}
+
+export function getMyProfile(): Promise<AdminUser> {
+  return get<AdminUser>("/api/me/profile");
+}
+
+export function updateMyProfile(body: { bio?: string | null; image_consent?: boolean }): Promise<AdminUser> {
+  return put<AdminUser>("/api/me/profile", body);
 }

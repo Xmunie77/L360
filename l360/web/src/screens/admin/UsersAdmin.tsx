@@ -11,6 +11,7 @@ import {
   type UserRole,
 } from "../../api/client";
 import { errorMessage } from "./shared";
+import { EducatorAvatar, EducatorDetailModal } from "../../components/EducatorDetailModal";
 
 // --- users -----------------------------------------------------------------
 
@@ -46,6 +47,8 @@ export function UsersAdmin() {
   // "Add educator" opens the form in a modal (Simon, 04/09/2026 — same
   // pattern as Learners); the list sits below under its own heading.
   const [showAdd, setShowAdd] = useState(false);
+  // Tapping a name opens their profile (photo, bio, consent).
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLevelId, setEditLevelId] = useState("");
@@ -238,7 +241,12 @@ export function UsersAdmin() {
               {users.map((u) =>
                 editingId === u.id ? (
                   <tr key={u.id}>
-                    <td>{u.full_name}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                        <EducatorAvatar user={u} />
+                        {u.full_name}
+                      </span>
+                    </td>
                     <td>{u.email}</td>
                     <td style={{ textTransform: "capitalize" }}>{u.role}</td>
                     <td>
@@ -269,7 +277,14 @@ export function UsersAdmin() {
                   </tr>
                 ) : (
                   <tr key={u.id}>
-                    <td>{u.full_name}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                        <EducatorAvatar user={u} />
+                        <button type="button" className="l360-link-btn" onClick={() => setDetailId(u.id)}>
+                          {u.full_name}
+                        </button>
+                      </span>
+                    </td>
                     <td>{u.email}</td>
                     <td style={{ textTransform: "capitalize" }}>{u.role}</td>
                     <td>{levelName(u.level_id)}</td>
@@ -297,6 +312,17 @@ export function UsersAdmin() {
             </tbody>
           </table>
         </div>
+      )}
+
+
+      {detailId !== null && users.find((u) => u.id === detailId) && (
+        <EducatorDetailModal
+          user={users.find((u) => u.id === detailId)!}
+          levelName={levelName(users.find((u) => u.id === detailId)!.level_id)}
+          canEdit
+          onClose={() => setDetailId(null)}
+          onChanged={() => void refresh()}
+        />
       )}
 
     </Card>

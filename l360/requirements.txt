@@ -16,3 +16,4 @@ apscheduler>=3.10.4      # python -m l360.jobs — reminders/digest, run as a se
 
 # Tests
 pytest>=8.0.0
+python-multipart>=0.0.9
