@@ -318,13 +318,12 @@ def admin_issue_invoice(invoice_id: int, db: Session = Depends(get_session), _ad
 
 @router.post("/api/bookings/{booking_id}/invoice-now", response_model=InvoiceOut)
 def invoice_booking_now(booking_id: int, db: Session = Depends(get_session), user: User = Depends(require_user)):
-    """The Confirm-session flow's "Send invoice now": sweep EVERYTHING
-    unbilled and billable for this booking's family — this session, earlier
-    unconfirmed ones, charged no-shows — into ONE invoice, issue it and
-    email the PDF immediately. The assigned educator (or an admin) may
-    trigger it. Monthly billing runs stay the safety net; they skip
-    anything invoiced here by construction."""
-    from l360.booking_logic import local_today, utc_to_local
+    """The Confirm-session flow's "Send invoice now": invoice THIS session
+    only (Simon 03/09 — per individual session), issue it and email the
+    PDF immediately. The assigned educator (or an admin) may trigger it.
+    Monthly billing runs look after anything not sent this way — they skip
+    invoiced bookings by construction."""
+    from l360.booking_logic import utc_to_local
     from l360.routers.bookings import _invoiced_booking_ids, _release_from_draft_invoices
 
     b = db.get(Booking, booking_id)
@@ -334,26 +333,20 @@ def invoice_booking_now(booking_id: int, db: Session = Depends(get_session), use
         raise HTTPException(status_code=403, detail="Not your session")
     if _invoiced_booking_ids(db, {b.id}):
         raise HTTPException(status_code=409, detail="Already invoiced")
-    # A pending draft from an earlier billing run would otherwise hide this
-    # booking from the sweep — pull it off first (the draft shrinks or is
-    # deleted, exactly as an amendment would).
+    # A pending draft from an earlier billing run would otherwise keep this
+    # booking's line — pull it off first (the draft shrinks or is deleted,
+    # exactly as an amendment would).
     _release_from_draft_invoices(db, b.id)
 
-    period_end = local_today()
-    earliest = db.scalar(
-        select(func.min(Booking.start_utc)).where(Booking.client_id == b.client_id, billing_logic.billable_filter())
-    )
-    period_start = utc_to_local(earliest)[0] if earliest is not None else utc_to_local(b.start_utc)[0]
-
+    # Billability check via the shared rule, scoped to the session's day.
+    local_date = utc_to_local(b.start_utc)[0]
     candidates = billing_logic.billable_bookings_for_client(
-        db, client_id=b.client_id, period_start=period_start, period_end=period_end
+        db, client_id=b.client_id, period_start=local_date, period_end=local_date
     )
     if b.id not in {c.id for c in candidates}:
         raise HTTPException(status_code=409, detail="This session isn't billable (future, waived or cancelled)")
 
-    inv = billing_logic.generate_draft_invoice(
-        db, client_id=b.client_id, period_start=period_start, period_end=period_end, created_by=user.id
-    )
+    inv = billing_logic.generate_invoice_for_booking(db, booking=b, created_by=user.id)
     try:
         _issue_and_email(db, inv)
     except BillingError as e:

@@ -235,10 +235,10 @@ def test_invoice_line_carries_educator_and_pdf_downloads(admin_client, booking_e
     assert "DRAFT" in r.headers["content-disposition"]
 
 
-def test_invoice_now_sweeps_family_and_locks(admin_client, booking_env):
-    """Confirm-flow "Send invoice now": educator triggers; everything
-    unbilled for the family lands on ONE issued invoice; repeat refuses;
-    the monthly run afterwards has nothing left to bill."""
+def test_invoice_now_is_per_session_and_locks(admin_client, booking_env):
+    """Confirm-flow "Send invoice now": ONE invoice for THAT session only
+    (Simon 03/09); repeat refuses; the monthly run still picks up the
+    family's other unsent sessions."""
     b1 = _setup_priced_booking(admin_client, booking_env, status="confirmed", client_price_cents=3000, local_date=date(2026, 8, 20))
     b2 = _setup_priced_booking(admin_client, booking_env, status="no_show", client_price_cents=4000, local_date=date(2026, 8, 25))
     waived = _setup_priced_booking(admin_client, booking_env, status="no_show", client_price_cents=4000, local_date=date(2026, 8, 26), charge_waived=True)
@@ -249,17 +249,19 @@ def test_invoice_now_sweeps_family_and_locks(admin_client, booking_env):
     inv = r.json()
     assert inv["status"] == "issued"
     assert inv["number"] is not None
-    assert inv["total_cents"] == 7000  # both billable sessions, not the waived one
+    assert inv["total_cents"] == 3000  # just b1 — not the no-show, not the waived one
 
-    # Locked now — repeat and amendments refuse.
+    # b1 locked now — repeat refuses; b2 is untouched and still amendable.
     assert ed.post(f"/api/bookings/{b1}/invoice-now").status_code == 409
-    assert ed.post(f"/api/bookings/{b2}/status", json={"status": "completed"}).status_code == 409
-    # The waived no-show is not billable via invoice-now either.
+    assert ed.get(f"/api/bookings/{b2}").json()["invoiced"] is False
+    # The waived no-show is not billable via invoice-now.
     assert ed.post(f"/api/bookings/{waived}/invoice-now").status_code == 409
 
-    # Monthly safety-net run finds nothing left for this family.
+    # Monthly safety-net run picks up the remaining charged no-show only.
     r = admin_client.post("/api/admin/billing/run", json={"period_start": "2026-08-01", "period_end": "2026-08-31"})
-    assert r.json()["created"] == []
+    created = r.json()["created"]
+    assert len(created) == 1
+    assert created[0]["total_cents"] == 4000
 
 
 def test_invoice_now_requires_assigned_educator(admin_client, booking_env):

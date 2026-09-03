@@ -78,7 +78,20 @@ def generate_draft_invoice(
     bookings = billable_bookings_for_client(db, client_id=client_id, period_start=period_start, period_end=period_end)
     if not bookings:
         raise BillingError("No billable sessions for this learner in the given period")
+    return _build_invoice(db, client_id=client_id, bookings=bookings, period_start=period_start, period_end=period_end, created_by=created_by)
 
+
+def generate_invoice_for_booking(db: Session, *, booking: Booking, created_by: int) -> Invoice:
+    """A single-session invoice — the Confirm flow's "Send invoice now"
+    (Simon 03/09: per individual session; the monthly run looks after
+    anything not sent). Caller must already have checked billability."""
+    local_date, _ = utc_to_local(booking.start_utc)
+    return _build_invoice(db, client_id=booking.client_id, bookings=[booking], period_start=local_date, period_end=local_date, created_by=created_by)
+
+
+def _build_invoice(
+    db: Session, *, client_id: int, bookings: list[Booking], period_start: date, period_end: date, created_by: int
+) -> Invoice:
     invoice = Invoice(
         client_id=client_id,
         period_start=period_start,
