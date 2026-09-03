@@ -19,6 +19,7 @@ vi.mock("../api/client", async () => {
     adminDeactivateUser: vi.fn(),
     adminListFacilityHours: vi.fn(),
     adminUpsertFacilityHours: vi.fn(),
+    adminDeleteFacilityHours: vi.fn(),
     adminListClosures: vi.fn(),
     adminCreateClosure: vi.fn(),
     adminDeleteClosure: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../api/client", async () => {
 
 import {
   adminDeactivateRoom,
+  adminDeleteFacilityHours,
   adminListClients,
   adminListFacilityHours,
   adminListRooms,
@@ -46,6 +48,7 @@ const mockAdminDeactivateRoom = vi.mocked(adminDeactivateRoom);
 const mockAdminListClients = vi.mocked(adminListClients);
 const mockAdminListFacilityHours = vi.mocked(adminListFacilityHours);
 const mockAdminUpsertFacilityHours = vi.mocked(adminUpsertFacilityHours);
+const mockAdminDeleteFacilityHours = vi.mocked(adminDeleteFacilityHours);
 const mockAdminListServiceTypes = vi.mocked(adminListServiceTypes);
 
 describe("Admin", () => {
@@ -106,27 +109,33 @@ describe("Admin", () => {
     expect(screen.getByRole("button", { name: "Add learner" })).toBeTruthy();
   });
 
-  it("saving one day's facility hours doesn't clear another day's Saved confirmation", async () => {
+  it("facility hours: Open toggle saves itself and Closed days hide their times", async () => {
     mockAdminListRooms.mockResolvedValue([]);
     mockAdminListFacilityHours.mockResolvedValue([
       { id: 1, weekday: 0, open_time: "09:00:00", close_time: "17:00:00" },
-      { id: 2, weekday: 1, open_time: "09:00:00", close_time: "17:00:00" },
     ]);
-    mockAdminUpsertFacilityHours.mockResolvedValue({ id: 1, weekday: 0, open_time: "09:00:00", close_time: "17:00:00" });
+    mockAdminUpsertFacilityHours.mockResolvedValue({ id: 3, weekday: 2, open_time: "08:00:00", close_time: "19:00:00" });
+    mockAdminDeleteFacilityHours.mockResolvedValue({ ok: true });
 
     render(<Admin />);
     fireEvent.click(screen.getByRole("button", { name: "Facility hours" }));
     await waitFor(() => expect(screen.getByLabelText("Monday open time")).toBeTruthy());
 
-    const saveButtons = () => screen.getAllByRole("button", { name: /^Save(d)?$/ });
+    // A day with no hours row reads Closed and shows no time inputs.
+    expect(screen.queryByLabelText("Wednesday open time")).toBeNull();
+    expect(screen.getByLabelText("Wednesday open")).toBeTruthy();
 
-    fireEvent.click(saveButtons()[0]); // Monday
-    await waitFor(() => expect(saveButtons()[0].textContent).toBe("Saved"));
+    // Toggling a closed day on upserts default 08:00-19:00 hours.
+    fireEvent.click(screen.getByLabelText("Wednesday open"));
+    await waitFor(() =>
+      expect(mockAdminUpsertFacilityHours).toHaveBeenCalledWith({ weekday: 2, open_time: "08:00:00", close_time: "19:00:00" }),
+    );
+    expect(screen.getByLabelText("Wednesday open time")).toBeTruthy();
 
-    fireEvent.click(saveButtons()[1]); // Tuesday
-    await waitFor(() => expect(saveButtons()[1].textContent).toBe("Saved"));
-    // Monday must still read "Saved" — this is the regression the bug report caught.
-    expect(saveButtons()[0].textContent).toBe("Saved");
+    // Toggling an open day off deletes its row and hides the times.
+    fireEvent.click(screen.getByLabelText("Monday open"));
+    await waitFor(() => expect(mockAdminDeleteFacilityHours).toHaveBeenCalledWith(0));
+    expect(screen.queryByLabelText("Monday open time")).toBeNull();
   });
 
   it("splits service types into Sessions and Additional services tables", async () => {
