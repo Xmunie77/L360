@@ -27,9 +27,9 @@ export function statusBadgeProps(b: BookingBadgeInput): { variant: StatusVariant
       return isPast ? { variant: "info", label: "Delivered" } : { variant: "success", label: "Booked" };
     }
     case "no_show":
-      return { variant: "pending", label: b.charge_waived ? "No Show" : "No Show (B)" };
+      return { variant: "pending", label: b.charge_waived ? "No Show (W)" : "No Show (B)" };
     case "cancelled_late":
-      return { variant: "pending", label: b.charge_waived ? "Late cancel" : "Late cancel (B)" };
+      return { variant: "pending", label: b.charge_waived ? "Late cancel (W)" : "Late cancel (B)" };
     case "cancelled":
       return { variant: "pending", label: "Cancelled" };
   }

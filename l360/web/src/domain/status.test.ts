@@ -31,11 +31,11 @@ describe("statusBadgeProps — the Booked → Delivered → Billed ladder", () =
     expect(badge("completed", { start_utc: past, invoiced: true }).label).toBe("Billed");
   });
 
-  it("(B) marks a charged exception; waived drops it", () => {
+  it("(B) marks a charged exception, (W) a waived one", () => {
     expect(badge("no_show").label).toBe("No Show (B)");
-    expect(badge("no_show", { charge_waived: true }).label).toBe("No Show");
+    expect(badge("no_show", { charge_waived: true }).label).toBe("No Show (W)");
     expect(badge("cancelled_late").label).toBe("Late cancel (B)");
-    expect(badge("cancelled_late", { charge_waived: true }).label).toBe("Late cancel");
+    expect(badge("cancelled_late", { charge_waived: true }).label).toBe("Late cancel (W)");
   });
 
   it("an in-time cancellation is just Cancelled", () => {

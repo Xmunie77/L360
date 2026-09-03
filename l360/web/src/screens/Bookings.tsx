@@ -175,7 +175,8 @@ export function Bookings({ me }: { me: Me | null }) {
       </p>
       <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
         Past sessions are billed automatically — only record the exceptions: mark a no show, and
-        choose whether it's charged. (B) = the family is charged. Locked once invoiced.
+        choose whether it's charged. (B) = the family is charged, (W) = charge waived. Locked once
+        invoiced.
       </p>
 
       {error && (
