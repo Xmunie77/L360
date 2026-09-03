@@ -241,10 +241,10 @@ export function ClientsAdmin() {
           <table className="l360-table">
             <thead>
               <tr>
+                <th>Learner</th>
                 <th>Parent / Guardian</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Child's name</th>
                 <th>Educators</th>
                 <th>Onboarding</th>
                 <th>Status</th>
@@ -256,12 +256,12 @@ export function ClientsAdmin() {
                 <tr key={c.id}>
                   <td>
                     <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
-                      {c.guardian_first_name} {c.guardian_surname}
+                      {c.child_name ?? "—"}
                     </a>
                   </td>
+                  <td>{c.guardian_first_name} {c.guardian_surname}</td>
                   <td>{c.email}</td>
                   <td>{c.phone ?? "—"}</td>
-                  <td>{c.child_name ?? "—"}</td>
                   <td>{c.educators.length ? c.educators.join(", ") : "—"}</td>
                   <td>
                     <StatusBadge
