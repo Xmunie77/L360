@@ -228,3 +228,14 @@ def test_facility_hours_delete_marks_day_closed(admin_client):
     assert not any(h["weekday"] == 5 for h in admin_client.get("/api/admin/facility-hours").json())
     # Idempotent — deleting an already-closed day is a no-op success.
     assert admin_client.delete("/api/admin/facility-hours/5").status_code == 200
+
+
+def test_client_list_includes_associated_educators(admin_client, booking_env):
+    """Learners search by educator (03/09/2026): the admin list carries the
+    distinct educators who taught each learner, from non-cancelled bookings."""
+    from l360.tests.test_bookings import _insert_past_booking
+
+    _insert_past_booking(booking_env)
+    rows = admin_client.get("/api/admin/clients").json()
+    row = next(r for r in rows if r["id"] == booking_env["client_id"])
+    assert row["educators"] == ["Booking Educator"]

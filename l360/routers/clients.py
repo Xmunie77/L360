@@ -132,11 +132,32 @@ def _onboarding_status(db: Session, client_id: int) -> str | None:
     return form.status if form else None
 
 
+def _educators_by_client(db: Session) -> dict[int, list[str]]:
+    """client_id -> sorted distinct educator names from their non-cancelled
+    bookings. One query for the whole directory."""
+    rows = db.execute(
+        select(Booking.client_id, User.full_name)
+        .join(User, User.id == Booking.educator_id)
+        .where(Booking.status.notin_(("cancelled", "cancelled_late")))
+        .distinct()
+    ).all()
+    out: dict[int, set[str]] = {}
+    for client_id, name in rows:
+        out.setdefault(client_id, set()).add(name)
+    return {cid: sorted(names) for cid, names in out.items()}
+
+
 @router.get("/api/admin/clients", response_model=list[ClientOut])
 def admin_list_clients(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
     rows = db.scalars(select(Client).order_by(Client.guardian_surname, Client.guardian_first_name)).all()
     statuses = {f.client_id: f.status for f in db.scalars(select(OnboardingForm)).all()}
-    return [_client_out(r, statuses.get(r.id)) for r in rows]
+    educators = _educators_by_client(db)
+    out = []
+    for r in rows:
+        c = _client_out(r, statuses.get(r.id))
+        c.educators = educators.get(r.id, [])
+        out.append(c)
+    return out
 
 
 @router.get("/api/admin/clients/{client_id}", response_model=ClientOut)

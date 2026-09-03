@@ -100,6 +100,7 @@ describe("Admin", () => {
         notes: null,
         active: true,
         onboarding_status: null,
+        educators: ["M. Vella"],
       },
     ]);
 

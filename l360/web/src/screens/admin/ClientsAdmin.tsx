@@ -29,6 +29,27 @@ export function ClientsAdmin() {
   // "Add learner" opens a modal (Simon, 03/09/2026) — same pattern as the
   // booking modals; the form no longer sits inline above the list.
   const [showAdd, setShowAdd] = useState(false);
+  // Directory search — parent/guardian (both), learner, email, or any
+  // educator who has taught them (Simon, 03/09/2026: 188 learners is too
+  // many to scroll).
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? clients.filter((c) =>
+        [
+          c.guardian_first_name,
+          c.guardian_surname,
+          c.guardian2_name ?? "",
+          c.child_name ?? "",
+          c.email,
+          ...c.educators,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      )
+    : clients;
 
   async function refresh() {
     setLoading(true);
@@ -199,10 +220,22 @@ export function ClientsAdmin() {
       )}
 
       <h4 style={{ margin: "28px 0 12px" }}>All learners</h4>
+      <div style={{ marginBottom: 12 }}>
+        <Input
+          id="client-search"
+          label="Search"
+          hint={`Parent, guardian, learner, email or educator — ${visible.length} of ${clients.length} shown`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="e.g. Dingli, Francesca, or a child's name"
+        />
+      </div>
       {loading ? (
         <p className="l360-empty">Loading…</p>
       ) : clients.length === 0 ? (
         <p className="l360-empty">No learners configured yet.</p>
+      ) : visible.length === 0 ? (
+        <p className="l360-empty">No learners match "{query}".</p>
       ) : (
         <div style={{ overflowX: "auto", marginBottom: 20 }}>
           <table className="l360-table">
@@ -212,13 +245,14 @@ export function ClientsAdmin() {
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Child's name</th>
+                <th>Educators</th>
                 <th>Onboarding</th>
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {clients.map((c) => (
+              {visible.map((c) => (
                 <tr key={c.id}>
                   <td>
                     <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
@@ -228,6 +262,7 @@ export function ClientsAdmin() {
                   <td>{c.email}</td>
                   <td>{c.phone ?? "—"}</td>
                   <td>{c.child_name ?? "—"}</td>
+                  <td>{c.educators.length ? c.educators.join(", ") : "—"}</td>
                   <td>
                     <StatusBadge
                       variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}

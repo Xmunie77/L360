@@ -136,6 +136,9 @@ class ClientOut(ClientIn):
     # what's typed IN; what's read back out is returned as-is.
     guardian_first_name: str = Field(max_length=200)
     guardian_surname: str = Field(max_length=200)
+    # Educators who have taught this learner (from non-cancelled bookings)
+    # — powers the Learners search "by associated educator" (Simon, 03/09).
+    educators: list[str] = []
 
 
 class EmailSettingsIn(BaseModel):

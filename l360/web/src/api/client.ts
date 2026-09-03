@@ -217,6 +217,8 @@ export interface AdminClient {
   active: boolean;
   /** "pending" | "submitted" | null (no onboarding form created yet). */
   onboarding_status: string | null;
+  /** Educators who have taught this learner (non-cancelled bookings). */
+  educators: string[];
 }
 
 export interface ClientInput {
