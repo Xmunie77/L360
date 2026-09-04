@@ -128,7 +128,7 @@ export function ClientsAdmin() {
   }
 
   return (
-    <Card eyebrow="Directory" title="Learners">
+    <Card>
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">
           ⚠ {error}

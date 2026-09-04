@@ -11,14 +11,13 @@ import { UtilisationCard } from "./UtilisationCard";
 // (split 31/08/2026, P3 of the engineering review, so parallel sessions
 // stop colliding in one 1,900-line file).
 
-type TabKey = "rooms" | "levels" | "service-types" | "reports" | "email" | "invoicing";
+type TabKey = "rooms" | "levels" | "service-types" | "email" | "invoicing";
 
 // `hint` renders as the pill's hover tooltip (native title attribute).
 const TABS: { key: TabKey; label: string; hint: string }[] = [
-  { key: "rooms", label: "Rooms", hint: "The bookable rooms and the order they appear in" },
+  { key: "rooms", label: "Rooms", hint: "The bookable rooms, the order they appear in, and how busy each one is" },
   { key: "levels", label: "Educator levels", hint: "Educator grades — each tutor is assigned one; prices per level live under Services Price List" },
   { key: "service-types", label: "Services Price List", hint: "Session types and additional services — what each bills the family and pays the tutor" },
-  { key: "reports", label: "Reports", hint: "Room utilisation — how busy each room is over time" },
   { key: "email", label: "Email", hint: "Settings for the system's outgoing email, plus a test-email button" },
   { key: "invoicing", label: "Invoice template", hint: "Invoice letterhead, bank details and footer, with a sample PDF preview" },
 ];
@@ -44,10 +43,14 @@ export function Admin() {
         </div>
       </Card>
 
-      {tab === "rooms" && <RoomsAdmin />}
+      {tab === "rooms" && (
+        <>
+          <RoomsAdmin />
+          <UtilisationCard />
+        </>
+      )}
       {tab === "levels" && <LevelsAdmin />}
       {tab === "service-types" && <ServiceTypesAdmin />}
-      {tab === "reports" && <UtilisationCard />}
       {tab === "email" && <EmailSettingsAdmin />}
       {tab === "invoicing" && <InvoiceSettingsAdmin />}
     </>

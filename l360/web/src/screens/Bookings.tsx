@@ -155,7 +155,7 @@ export function Bookings({ me }: { me: Me | null }) {
   }
 
   return (
-    <Card eyebrow="Scheduling" title="Sessions">
+    <Card>
       <p style={{ marginBottom: 4 }}>
         {isAdmin ? "Every session" : "Your sessions"} from the last {WINDOW_DAYS} days to the next{" "}
         {WINDOW_DAYS}, with status at a glance.

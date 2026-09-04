@@ -165,7 +165,7 @@ export function Calendar({ me }: { me: Me | null }) {
 
   return (
     <>
-      <Card eyebrow="Scheduling" title="Calendar">
+      <Card>
         <div className="l360-cal-toolbar">
           <Input
             id="cal-date"
