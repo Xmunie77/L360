@@ -275,13 +275,10 @@ export function EducatorFormView({ userId, onClose }: { userId: number; onClose:
   return (
     <div className="l360-app">
       <header className="l360-topbar">
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            ‹ Back
-          </Button>
-          <h1>Educator onboarding form</h1>
-        </span>
-        <span className="l360-topbar-meta">Learning 360°</span>
+        <Button type="button" variant="secondary" onClick={onClose}>
+          ‹ Back
+        </Button>
+        <h1 className="l360-visually-hidden">Educator onboarding form</h1>
       </header>
       <main className="l360-content" style={{ maxWidth: 760 }}>
         {!loaded ? (

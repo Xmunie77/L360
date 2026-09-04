@@ -254,13 +254,13 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
   return (
     <div className="l360-app">
       <header className="l360-topbar">
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            ‹ Back
-          </Button>
-          <h1>Learner details</h1>
-        </span>
-        <span className="l360-topbar-meta">Learning 360°</span>
+        {/* Just the Back button — the title and app name squashed into
+            three cramped columns on a phone (Simon, 05/09/2026); the card
+            below already names the learner. */}
+        <Button type="button" variant="secondary" onClick={onClose}>
+          ‹ Back
+        </Button>
+        <h1 className="l360-visually-hidden">Learner details</h1>
       </header>
       <main className="l360-content" style={{ maxWidth: 640 }}>
         {loading ? (
@@ -271,7 +271,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
           </div>
         ) : (
           <>
-            <Card eyebrow="Directory" title={`${client!.guardian_first_name} ${client!.guardian_surname}`}>
+            <Card eyebrow="Learner" title={`${client!.guardian_first_name} ${client!.guardian_surname}`}>
               <form onSubmit={handleSave} noValidate>
                 {saveError && (
                   <div className="l360-alert l360-alert-danger" role="alert">
