@@ -190,10 +190,6 @@ export function Calendar({ me }: { me: Me | null }) {
                   Book
                 </Button>
               </>
-            ) : nextAvailable.reason === "no_facility_hours" ? (
-              <span>
-                No facility hours are set up yet — add them under Admin → Facility hours before rooms can be booked.
-              </span>
             ) : (
               <span>No rooms free in the next two weeks.</span>
             )}

@@ -143,16 +143,14 @@ def test_next_available_room_with_explicit_duration_query_param(admin_client, bo
     assert r.status_code == 200, r.text
 
 
-def test_next_available_room_reports_missing_facility_hours(admin_client):
-    # No booking_env here — a fresh admin has no facility hours configured
-    # yet. Every day gets skipped, but the reason should say why rather
-    # than just looking indistinguishable from "genuinely fully booked".
+def test_next_available_room_reports_fully_booked_without_rooms(admin_client):
+    # No rooms configured: nothing to suggest. (Facility hours stopped
+    # mattering on 04/09/2026, so that reason is gone.)
     r = admin_client.get("/api/bookings/next-available")
     assert r.status_code == 200
     body = r.json()
     assert body["room_id"] is None
-    assert body["reason"] == "no_facility_hours"
-    assert r.json() is not None
+    assert body["reason"] == "fully_booked"
 
 
 def test_next_available_room_skips_conflict(admin_client, booking_env):
@@ -391,16 +389,20 @@ def test_other_educator_cannot_modify_booking(admin_client, booking_env, educato
     assert r.status_code == 403
 
 
-def test_outside_facility_hours_rejected(admin_client, booking_env):
-    # Narrow the hours for booking_env's weekday down to a small window,
-    # then request a slot outside it.
+def test_bookings_ignore_hours_and_closures(admin_client, booking_env):
+    """Educators run sessions whenever they like — Sundays, evenings and
+    public holidays included (Simon, 04/09/2026). Narrow opening hours and
+    a same-day closure must NOT block a booking any more."""
     from l360 import booking_logic
     from datetime import time as time_cls
+
     target_date = (datetime.now(UTC) + timedelta(days=14)).date()
     admin_client.put("/api/admin/facility-hours", json={
         "weekday": target_date.weekday(), "open_time": "09:00:00", "close_time": "10:00:00",
     })
-    start_utc = booking_logic.local_to_utc(target_date, time_cls(11, 0))
+    admin_client.post("/api/admin/closures", json={"date": str(target_date), "reason": "Public holiday"})
+
+    start_utc = booking_logic.local_to_utc(target_date, time_cls(21, 0))  # outside hours, on a closed day
     r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -409,16 +411,17 @@ def test_outside_facility_hours_rejected(admin_client, booking_env):
         "start_utc": start_utc.isoformat(),
         "duration_minutes": 60,
     })
-    assert r.status_code == 409
-    assert "hours" in r.json()["detail"].lower()
+    assert r.status_code == 200, r.text
 
 
-def test_facility_closure_rejected(admin_client, booking_env):
+def test_booking_crossing_midnight_still_rejected(admin_client, booking_env):
+    """The one calendar-shape rule that survives: a session must end on the
+    day it starts, or it lands on the wrong day and bills the wrong date."""
     from l360 import booking_logic
     from datetime import time as time_cls
-    target_date = (datetime.now(UTC) + timedelta(days=14)).date()
-    admin_client.post("/api/admin/closures", json={"date": str(target_date), "reason": "Public holiday"})
-    start_utc = booking_logic.local_to_utc(target_date, time_cls(10, 0))
+
+    target_date = (datetime.now(UTC) + timedelta(days=10)).date()
+    start_utc = booking_logic.local_to_utc(target_date, time_cls(23, 30))
     r = admin_client.post("/api/bookings", json={
         "room_id": booking_env["room_id"],
         "educator_id": booking_env["educator_id"],
@@ -428,7 +431,7 @@ def test_facility_closure_rejected(admin_client, booking_env):
         "duration_minutes": 60,
     })
     assert r.status_code == 409
-    assert "closed" in r.json()["detail"].lower()
+    assert "midnight" in r.json()["detail"].lower()
 
 
 def _insert_past_booking(booking_env, *, status: str = "confirmed", hours_ago: int = 3) -> int:

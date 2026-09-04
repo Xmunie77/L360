@@ -342,7 +342,7 @@ def next_available_room(
         raise HTTPException(status_code=422, detail="duration_minutes must be 60, 90, or 120")
     found = booking_logic.find_next_available_room(db, duration_minutes=duration_minutes)
     if found is None:
-        reason = "no_facility_hours" if not booking_logic.facility_hours_configured(db) else "fully_booked"
+        reason = "fully_booked"
         return NextAvailableOut(reason=reason)
     room, start_utc = found
     return NextAvailableOut(room_id=room.id, room_name=room.name, start_utc=start_utc)

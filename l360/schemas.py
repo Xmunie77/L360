@@ -605,7 +605,7 @@ class NextAvailableOut(BaseModel):
     # Set (and the room_* fields left null) when nothing was found, so the
     # UI can tell "no facility hours configured yet" apart from "genuinely
     # fully booked" instead of showing one flat "nothing available".
-    reason: Literal["no_facility_hours", "fully_booked"] | None = None
+    reason: Literal["fully_booked"] | None = None
 
 
 class BookingIn(BaseModel):

@@ -55,22 +55,15 @@ def test_expand_weekly_dates_empty_range_returns_empty():
     assert booking_logic.expand_weekly_dates(date(2026, 9, 10), date(2026, 9, 1), weekday=0) == []
 
 
-def test_check_within_hours_rejects_outside_open_hours(client):
-    from l360.db import session_scope
-    with session_scope() as db:
-        db.add(FacilityHours(weekday=0, open_time=time(9, 0), close_time=time(17, 0)))
-    from l360.db import session_scope as ss
-    with ss() as db:
-        # Monday 2026-09-07 08:00 local is before the 09:00 open time.
-        start_utc = booking_logic.local_to_utc(date(2026, 9, 7), time(8, 0))
-        with pytest.raises(SlotError, match=r"Outside opening hours \(09:00–17:00 on Mondays\)"):
-            booking_logic.check_within_hours_and_open(db, room_id=1, start_utc=start_utc, duration_minutes=60)
-        # A weekday with NO hours row gets the distinct config-gap message
-        # (first hit live 03/09/2026: only Mon-Thu had hours, Friday bookings
-        # all failed with the generic wording).
-        friday_utc = booking_logic.local_to_utc(date(2026, 9, 11), time(10, 0))
-        with pytest.raises(SlotError, match="No opening hours are set for Fridays"):
-            booking_logic.check_within_hours_and_open(db, room_id=1, start_utc=friday_utc, duration_minutes=60)
+def test_check_slot_sane_rejects_midnight_crossing():
+    """Opening hours and closures no longer gate bookings (04/09/2026); the
+    only shape rule left is that a session ends on the day it starts."""
+    ok = booking_logic.local_to_utc(date(2026, 9, 7), time(20, 0))
+    booking_logic.check_slot_sane(ok, 60)  # late evening is fine now
+
+    crosses = booking_logic.local_to_utc(date(2026, 9, 7), time(23, 30))
+    with pytest.raises(SlotError, match="midnight"):
+        booking_logic.check_slot_sane(crosses, 60)
 
 
 def _fk_scaffolding():

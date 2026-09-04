@@ -36,20 +36,14 @@ vi.mock("../api/client", async () => {
 
 import {
   adminDeactivateRoom,
-  adminDeleteFacilityHours,
   adminListClients,
-  adminListFacilityHours,
   adminListRooms,
   adminListServiceTypes,
-  adminUpsertFacilityHours,
 } from "../api/client";
 
 const mockAdminListRooms = vi.mocked(adminListRooms);
 const mockAdminDeactivateRoom = vi.mocked(adminDeactivateRoom);
 const mockAdminListClients = vi.mocked(adminListClients);
-const mockAdminListFacilityHours = vi.mocked(adminListFacilityHours);
-const mockAdminUpsertFacilityHours = vi.mocked(adminUpsertFacilityHours);
-const mockAdminDeleteFacilityHours = vi.mocked(adminDeleteFacilityHours);
 const mockAdminListServiceTypes = vi.mocked(adminListServiceTypes);
 
 describe("Admin", () => {
@@ -59,8 +53,12 @@ describe("Admin", () => {
     render(<Admin />);
 
     expect(screen.getByRole("button", { name: "Educator levels" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sessions & services" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Facility hours" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Services Price List" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Invoice template" })).toBeTruthy();
+    // Facility hours and Closures stopped gating bookings on 04/09/2026 —
+    // educators run sessions whenever they like, so both screens are gone.
+    expect(screen.queryByRole("button", { name: "Facility hours" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Closures" })).toBeNull();
     await waitFor(() => expect(screen.getByText("Room A")).toBeTruthy());
   });
 
@@ -113,35 +111,6 @@ describe("Admin", () => {
     expect(screen.queryByRole("button", { name: "Learners" })).toBeNull();
   });
 
-  it("facility hours: Open toggle saves itself and Closed days hide their times", async () => {
-    mockAdminListRooms.mockResolvedValue([]);
-    mockAdminListFacilityHours.mockResolvedValue([
-      { id: 1, weekday: 0, open_time: "09:00:00", close_time: "17:00:00" },
-    ]);
-    mockAdminUpsertFacilityHours.mockResolvedValue({ id: 3, weekday: 2, open_time: "08:00:00", close_time: "19:00:00" });
-    mockAdminDeleteFacilityHours.mockResolvedValue({ ok: true });
-
-    render(<Admin />);
-    fireEvent.click(screen.getByRole("button", { name: "Facility hours" }));
-    await waitFor(() => expect(screen.getByLabelText("Monday open time")).toBeTruthy());
-
-    // A day with no hours row reads Closed and shows no time inputs.
-    expect(screen.queryByLabelText("Wednesday open time")).toBeNull();
-    expect(screen.getByLabelText("Wednesday open")).toBeTruthy();
-
-    // Toggling a closed day on upserts default 08:00-19:00 hours.
-    fireEvent.click(screen.getByLabelText("Wednesday open"));
-    await waitFor(() =>
-      expect(mockAdminUpsertFacilityHours).toHaveBeenCalledWith({ weekday: 2, open_time: "08:00:00", close_time: "19:00:00" }),
-    );
-    expect(screen.getByLabelText("Wednesday open time")).toBeTruthy();
-
-    // Toggling an open day off deletes its row and hides the times.
-    fireEvent.click(screen.getByLabelText("Monday open"));
-    await waitFor(() => expect(mockAdminDeleteFacilityHours).toHaveBeenCalledWith(0));
-    expect(screen.queryByLabelText("Monday open time")).toBeNull();
-  });
-
   it("splits service types into Sessions and Additional services tables", async () => {
     mockAdminListRooms.mockResolvedValue([]);
     mockAdminListServiceTypes.mockResolvedValue([
@@ -150,7 +119,7 @@ describe("Admin", () => {
     ]);
 
     render(<Admin />);
-    fireEvent.click(screen.getByRole("button", { name: "Sessions & services" }));
+    fireEvent.click(screen.getByRole("button", { name: "Services Price List" }));
 
     await waitFor(() => expect(screen.getByText("Onboarding Meeting")).toBeTruthy());
     expect(screen.getByText("Flashcards A4")).toBeTruthy();

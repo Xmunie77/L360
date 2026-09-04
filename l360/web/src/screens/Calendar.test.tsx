@@ -97,22 +97,4 @@ describe("Calendar", () => {
     });
   });
 
-  it("explains when nothing is available because facility hours aren't set up", async () => {
-    mockListRooms.mockResolvedValue([{ id: 1, name: "Room A", sort_order: 0, active: true }]);
-    mockListEducators.mockResolvedValue([]);
-    mockListClients.mockResolvedValue([]);
-    mockListSessionTypes.mockResolvedValue([]);
-    mockListBookings.mockResolvedValue([]);
-    mockGetNextAvailableRoom.mockResolvedValue({
-      room_id: null,
-      room_name: null,
-      start_utc: null,
-      reason: "no_facility_hours",
-    });
-
-    render(<Calendar me={null} />);
-
-    await waitFor(() => expect(screen.getByText(/Facility hours/)).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
-  });
 });
