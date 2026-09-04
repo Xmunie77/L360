@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, email_templates, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -189,14 +189,10 @@ def forgot_password(body: ForgotPasswordIn, db: Session = Depends(get_session)):
         ))
         db.commit()
         link = f"{PUBLIC_BASE_URL}/?reset={token}"
-        notify.send_email(
-            user.email,
-            "Reset your Learning 360° password",
-            f"Hi {user.full_name},\n\n"
-            f"Click the link below to set a new password. It expires in 1 hour "
-            f"and can only be used once.\n\n{link}\n\n"
-            "If you didn't request this, you can ignore this email.",
+        subject, body = email_templates.render(
+            db, "password_reset", full_name=user.full_name, link=link
         )
+        notify.send_email(user.email, subject, body)
     return {"ok": True}
 
 

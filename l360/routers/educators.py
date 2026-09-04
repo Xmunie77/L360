@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, email_templates, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -216,19 +216,14 @@ def submit_educator_onboarding(token: str, body: EducatorOnboardingSubmitIn, db:
     if form.status == "submitted":
         raise HTTPException(status_code=409, detail="This onboarding form has already been submitted.")
     educator_onboarding.apply_submission(db, form, body)
+    subject, body = email_templates.render(
+        db, "educator_onboarding_submitted", full_name=user.full_name
+    )
     notify.send_once(
         db,
         to=user.email,
-        subject="Learning 360\u00b0 — onboarding form received",
-        body=(
-            f"Dear {user.full_name},\n\n"
-            "Thank you — we've received your educator onboarding form. We'll "
-            "review it and complete the remaining checks, and be in touch about "
-            "next steps.\n\n"
-            "Warm regards,\n"
-            "Learning 360\u00b0 Foundation\n"
-            "Swatar, Malta"
-        ),
+        subject=subject,
+        body=body,
         booking_id=None,
         user_id=user.id,
         kind="educator_onboarding_submitted",

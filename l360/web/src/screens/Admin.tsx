@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Card } from "../ui/ui";
+import { EmailTemplatesAdmin } from "./admin/EmailTemplatesAdmin";
 import { EmailSettingsAdmin } from "./admin/EmailSettingsAdmin";
 import { InvoiceSettingsAdmin } from "./admin/InvoiceSettingsAdmin";
 import { LevelsAdmin } from "./admin/LevelsAdmin";
@@ -51,7 +52,12 @@ export function Admin() {
       )}
       {tab === "levels" && <LevelsAdmin />}
       {tab === "service-types" && <ServiceTypesAdmin />}
-      {tab === "email" && <EmailSettingsAdmin />}
+      {tab === "email" && (
+        <>
+          <EmailSettingsAdmin />
+          <EmailTemplatesAdmin />
+        </>
+      )}
       {tab === "invoicing" && <InvoiceSettingsAdmin />}
     </>
   );

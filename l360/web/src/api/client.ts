@@ -979,6 +979,54 @@ export function adminTestEmail(): Promise<{ ok: boolean; detail: string }> {
   return post<{ ok: boolean; detail: string }>("/api/admin/email-settings/test");
 }
 
+export interface EmailTemplate {
+  kind: string;
+  label: string;
+  description: string;
+  subject: string;
+  body: string;
+  default_subject: string;
+  default_body: string;
+  is_custom: boolean;
+  /** [placeholder, what it fills in with] pairs usable in subject/body. */
+  placeholders: [string, string][];
+}
+
+export function adminListEmailTemplates(): Promise<EmailTemplate[]> {
+  return get<EmailTemplate[]>("/api/admin/email-templates");
+}
+
+export function adminSaveEmailTemplate(kind: string, subject: string, body: string): Promise<EmailTemplate> {
+  return put<EmailTemplate>(`/api/admin/email-templates/${kind}`, { subject, body });
+}
+
+export function adminResetEmailTemplate(kind: string): Promise<EmailTemplate> {
+  return del<EmailTemplate>(`/api/admin/email-templates/${kind}`);
+}
+
+/** Admin-only HR details — served only by /api/admin/users/{id}/hr. */
+export interface UserHr {
+  mobile: string | null;
+  address: string | null;
+  id_card_number: string | null;
+  nationality: string | null;
+  date_of_birth: string | null;
+  iban: string | null;
+  bank_account_holder: string | null;
+  tax_vat_number: string | null;
+  social_security_number: string | null;
+  emergency_name: string | null;
+  emergency_phone: string | null;
+}
+
+export function adminGetUserHr(userId: number): Promise<UserHr> {
+  return get<UserHr>(`/api/admin/users/${userId}/hr`);
+}
+
+export function adminSaveUserHr(userId: number, body: UserHr): Promise<UserHr> {
+  return put<UserHr>(`/api/admin/users/${userId}/hr`, body);
+}
+
 export function adminSendOnboarding(id: number): Promise<OnboardingAdmin> {
   return post<OnboardingAdmin>(`/api/admin/clients/${id}/onboarding/send`);
 }

@@ -1,19 +1,24 @@
-import { useRef, useState } from "react";
-import { Button, Card, StatusBadge, Textarea } from "../ui/ui";
+import { useEffect, useRef, useState } from "react";
+import { Button, Card, Input, StatusBadge, Textarea } from "../ui/ui";
 import {
   ApiError,
+  adminGetUserHr,
+  adminSaveUserHr,
   adminUpdateUser,
   deleteUserPhoto,
   uploadUserPhoto,
   userPhotoUrl,
   type AdminUser,
+  type UserHr,
 } from "../api/client";
 
 // Staff profile card — opened by tapping a name on the Educators tab.
-// Deliberately holds only colleague-facing details (photo, bio, role,
-// level, contact). Police conducts, ID numbers and home addresses stay in
-// Drive, out of the app (04/09/2026 privacy review); the photo/bio need a
-// recorded consent, which is shown and revocable here.
+// The top half is colleague-facing (photo, bio, role, level, contact);
+// the photo/bio need a recorded consent, shown and revocable here.
+// Below that, ADMINS ONLY see the HR details section (ID card, bank,
+// emergency contact) — those fields exist only on the admin HR endpoints,
+// so a non-admin session can't fetch them at all (Simon, 04/09/2026,
+// revising the earlier keep-in-Drive stance).
 
 export function EducatorAvatar({ user, size = 36 }: { user: AdminUser; size?: number }) {
   const initials = user.full_name
@@ -177,11 +182,109 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
             )}
           </p>
 
+          {canEdit && <HrDetailsSection userId={user.id} />}
+
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             Close
           </Button>
         </Card>
       </div>
+    </div>
+  );
+}
+
+const HR_FIELDS: { key: keyof UserHr; label: string; hint?: string }[] = [
+  { key: "mobile", label: "Mobile" },
+  { key: "address", label: "Home address" },
+  { key: "id_card_number", label: "ID card number" },
+  { key: "nationality", label: "Nationality" },
+  { key: "date_of_birth", label: "Date of birth", hint: "YYYY-MM-DD" },
+  { key: "iban", label: "IBAN" },
+  { key: "bank_account_holder", label: "Bank account holder" },
+  { key: "tax_vat_number", label: "Tax / VAT number" },
+  { key: "social_security_number", label: "Social security number" },
+  { key: "emergency_name", label: "Emergency contact" },
+  { key: "emergency_phone", label: "Emergency phone" },
+];
+
+function HrDetailsSection({ userId }: { userId: number }) {
+  const [hr, setHr] = useState<UserHr | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminGetUserHr(userId)
+      .then(setHr)
+      .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load the HR details."));
+  }, [userId]);
+
+  async function save() {
+    if (!hr) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setHr(await adminSaveUserHr(userId, hr));
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Couldn't save the HR details.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ borderTop: "1px solid var(--l360-sand)", margin: "16px 0", paddingTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <h3 style={{ margin: 0, fontSize: 15 }}>HR details</h3>
+        <StatusBadge variant="pending" label="Admins only" />
+      </div>
+      <p className="l360-field-hint" style={{ margin: "4px 0 12px" }}>
+        Payment and statutory details — visible to admins only, never to colleagues.
+      </p>
+      {error && (
+        <div className="l360-alert l360-alert-danger" role="alert">
+          ⚠ {error}
+        </div>
+      )}
+      {hr === null && !error && <p className="l360-empty">Loading…</p>}
+      {hr && !editing && (
+        <>
+          <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: "0 0 12px" }}>
+            {HR_FIELDS.map(({ key, label }) => (
+              <div key={key} style={{ display: "contents" }}>
+                <dt style={{ color: "var(--l360-bgrey)" }}>{label}</dt>
+                <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{hr[key] || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+            Edit HR details
+          </Button>
+        </>
+      )}
+      {hr && editing && (
+        <>
+          {HR_FIELDS.map(({ key, label, hint }) => (
+            <Input
+              key={key}
+              id={`hr-${key}-${userId}`}
+              label={label}
+              hint={hint}
+              value={hr[key] ?? ""}
+              onChange={(e) => setHr({ ...hr, [key]: e.target.value })}
+            />
+          ))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button type="button" onClick={() => void save()} loading={busy} loadingLabel="Saving…">
+              Save HR details
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

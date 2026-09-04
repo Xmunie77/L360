@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, email_templates, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -88,6 +88,8 @@ from l360.schemas import (
     EducatorOnboardingPrefillOut,
     EducatorOnboardingSubmitIn,
     EmailSettingsIn,
+    EmailTemplateIn,
+    EmailTemplateOut,
     EmailSettingsOut,
     EmailTestOut,
     InvoiceSettingsIn,
@@ -177,5 +179,53 @@ def admin_test_email(db: Session = Depends(get_session), admin: User = Depends(r
         return EmailTestOut(ok=False, detail=f"Send failed: {e}")
     return EmailTestOut(ok=True, detail=f"Test email sent to {admin.email}.")
 
+def _template_out(db: Session, kind: str) -> EmailTemplateOut:
+    tpl = email_templates.DEFAULTS[kind]
+    subject, body = email_templates.get(db, kind)
+    return EmailTemplateOut(
+        kind=kind,
+        label=tpl.label,
+        description=tpl.description,
+        subject=subject,
+        body=body,
+        default_subject=tpl.subject,
+        default_body=tpl.body,
+        is_custom=subject != tpl.subject or body != tpl.body,
+        placeholders=list(tpl.placeholders),
+    )
 
 
+@router.get("/api/admin/email-templates", response_model=list[EmailTemplateOut])
+def admin_list_email_templates(db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    return [_template_out(db, kind) for kind in email_templates.DEFAULTS]
+
+
+@router.put("/api/admin/email-templates/{kind}", response_model=EmailTemplateOut)
+def admin_save_email_template(
+    kind: str, body: EmailTemplateIn, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    tpl = email_templates.DEFAULTS.get(kind)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail="No such email template.")
+    subject = body.subject.strip()
+    text = body.body.strip()
+    if not subject or not text:
+        raise HTTPException(status_code=422, detail="Subject and body can't be empty — use Reset to go back to the default wording.")
+    subject_key, body_key = email_templates.setting_keys(kind)
+    # Saving wording identical to the default clears the override, so
+    # "is_custom" always means a real difference.
+    _upsert_setting(db, subject_key, "" if subject == tpl.subject else subject)
+    _upsert_setting(db, body_key, "" if text == tpl.body else text)
+    db.commit()
+    return _template_out(db, kind)
+
+
+@router.delete("/api/admin/email-templates/{kind}", response_model=EmailTemplateOut)
+def admin_reset_email_template(kind: str, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    if kind not in email_templates.DEFAULTS:
+        raise HTTPException(status_code=404, detail="No such email template.")
+    subject_key, body_key = email_templates.setting_keys(kind)
+    _upsert_setting(db, subject_key, "")
+    _upsert_setting(db, body_key, "")
+    db.commit()
+    return _template_out(db, kind)

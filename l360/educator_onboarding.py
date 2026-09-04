@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from l360 import notify
+from l360 import email_templates, notify
 from l360.config import PUBLIC_BASE_URL
 from l360.models import EducatorOnboardingForm, NotificationLog, User
 
@@ -75,30 +75,14 @@ def send_invite(db: Session, user: User, form: EducatorOnboardingForm) -> bool:
         )
     ) or 0
     link = form_link(form)
+    subject, body = email_templates.render(
+        db, "educator_onboarding_invite", full_name=user.full_name, link=link
+    )
     sent = notify.send_once(
         db,
         to=user.email,
-        subject="Welcome to Learning 360° — your educator onboarding form",
-        body=(
-            f"Dear {user.full_name},\n\n"
-            "Welcome to the Learning 360° Foundation team!\n\n"
-            "Before your first sessions we need a few things from you — your "
-            "contact and right-to-work details, qualifications, availability, "
-            "safeguarding declarations, referees and payment details. Our "
-            "educator onboarding form collects all of it in one place and "
-            "takes around 15–20 minutes. You can find it here:\n\n"
-            f"{link}\n\n"
-            "Please have to hand: your ID/passport number, any teaching "
-            "qualification details, two referees' contact details, and your "
-            "bank details (IBAN) for payment.\n\n"
-            "Everything you provide is handled confidentially and used only "
-            "for recruitment, onboarding, safeguarding, scheduling, payment "
-            "and legal compliance.\n\n"
-            "If anything is unclear, just reply to this email.\n\n"
-            "Warm regards,\n"
-            "Learning 360° Foundation\n"
-            "Swatar, Malta"
-        ),
+        subject=subject,
+        body=body,
         booking_id=None,
         user_id=user.id,
         kind="educator_onboarding_invite",

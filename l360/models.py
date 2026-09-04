@@ -102,9 +102,7 @@ class User(Base):
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Login throttling: consecutive failures + lock expiry (P0-1, 31/08/2026).
-    # Colleague-facing profile (Educators tab). Sensitive HR material —
-    # police conduct, ID number, home address — deliberately lives in Drive,
-    # not here (04/09/2026 privacy review).
+    # Colleague-facing profile (Educators tab).
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     photo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     photo_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -113,6 +111,23 @@ class User(Base):
     # lawful basis; payroll/safeguarding data is not consent-based.
     image_consent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     image_consent_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # --- HR details — ADMIN-ONLY, never in the colleague-facing payloads.
+    # Kept in the app (not just Drive) so payment + statutory paperwork has
+    # one source (Simon, 04/09/2026, revising the earlier keep-in-Drive
+    # stance). Field names mirror the educator onboarding form's §2 + §11
+    # so a submitted form can fill the same columns later. Only exposed via
+    # the /api/admin/users/{id}/hr endpoints (require_admin).
+    mobile: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    id_card_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    nationality: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    iban: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    bank_account_holder: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tax_vat_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    social_security_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    emergency_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    emergency_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     failed_logins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

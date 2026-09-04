@@ -7,7 +7,12 @@ users table, matching on email.
 
 Payload shape (a list):
     [{"email": "...", "full_name": "...", "bio": "...",
-      "photo_b64": "...", "photo_content_type": "image/jpeg"}, ...]
+      "photo_b64": "...", "photo_content_type": "image/jpeg",
+      # optional admin-only HR fields (l360.schemas.UserHr keys), e.g.:
+      "iban": "...", "id_card_number": "...", "address": "...",
+      # optional level by NAME — only set when a level with that exact
+      # name already exists (levels drive pay rates; never auto-created):
+      "level": "Senior"}, ...]
 
 Usage (run where DATABASE_URL points at the target DB):
     python -m l360.import_educator_bios payload.json [--create-missing]
@@ -32,7 +37,10 @@ from sqlalchemy import select
 
 from l360 import auth
 from l360.db import session_scope
-from l360.models import User
+from l360.models import EducatorLevel, User
+from l360.schemas import UserHr
+
+_HR_FIELDS = tuple(UserHr.model_fields)
 
 
 def import_bios(payload: list[dict], *, create_missing: bool = False) -> dict:
@@ -69,6 +77,16 @@ def import_bios(payload: list[dict], *, create_missing: bool = False) -> dict:
                 if user.image_consent_at is None:
                     user.image_consent_at = datetime.now(UTC)
                     user.image_consent_source = "import"
+            for field in _HR_FIELDS:
+                value = entry.get(field)
+                if isinstance(value, str) and value.strip():
+                    setattr(user, field, value.strip())
+            if entry.get("level"):
+                level = db.scalar(select(EducatorLevel).where(EducatorLevel.name == entry["level"].strip()))
+                if level is not None:
+                    user.level_id = level.id
+                else:
+                    skipped.append(f"{email}: no level named '{entry['level']}' — not set")
     return {"created": created, "updated": updated, "skipped": skipped}
 
 

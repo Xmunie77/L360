@@ -111,6 +111,7 @@ from l360.schemas import (
     StatementPaymentLineOut,
     SummarySessionLineOut,
     SyncResultOut,
+    UserHr,
     UserIn,
     UserOut,
     UserUpdate,
@@ -369,6 +370,36 @@ def admin_update_user(
     db.commit()
     db.refresh(row)
     return _user_out(db, row)
+
+
+_HR_FIELDS = tuple(UserHr.model_fields)
+
+
+@router.get("/api/admin/users/{user_id}/hr", response_model=UserHr)
+def admin_get_user_hr(user_id: int, db: Session = Depends(get_session), _admin: User = Depends(require_admin)):
+    """HR details — admin-only by design (ID card, bank, emergency contact
+    live nowhere else in the API; UserOut never carries them)."""
+    row = db.get(User, user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return UserHr.model_validate(row, from_attributes=True)
+
+
+@router.put("/api/admin/users/{user_id}/hr", response_model=UserHr)
+def admin_update_user_hr(
+    user_id: int, body: UserHr, db: Session = Depends(get_session), _admin: User = Depends(require_admin)
+):
+    row = db.get(User, user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    for field in _HR_FIELDS:
+        value = getattr(body, field)
+        if isinstance(value, str):
+            value = value.strip() or None
+        setattr(row, field, value)
+    db.commit()
+    db.refresh(row)
+    return UserHr.model_validate(row, from_attributes=True)
 
 
 def _set_image_consent(row: User, granted: bool, *, source: str) -> None:

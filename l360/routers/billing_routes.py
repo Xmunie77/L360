@@ -19,7 +19,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError as _IntegrityError
 from sqlalchemy.orm import Session
 
-from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
+from l360 import auth, billing_logic, booking_logic, contract, educator_onboarding, email_templates, ical, invoice_pdf, notifications, notify, onboarding, reconciliation, statements_logic
 from l360.billing_logic import BillingError
 from l360.booking_logic import SlotError
 from l360.config import (
@@ -287,15 +287,20 @@ def _issue_and_email(db: Session, inv: Invoice) -> None:
     client = db.get(Client, inv.client_id)
     if client and client.email:
         pdf_bytes = invoice_pdf.build_invoice_pdf(_invoice_pdf_data(db, inv))
+        subject, body = email_templates.render(
+            db,
+            "invoice_issued",
+            number=inv.number,
+            total=f"{inv.total_cents / 100:.2f}",
+            period_start=inv.period_start,
+            period_end=inv.period_end,
+            due_date=inv.due_date,
+        )
         notify.send_once(
             db,
             to=client.email,
-            subject=f"Invoice {inv.number} — €{inv.total_cents / 100:.2f}",
-            body=(
-                f"Invoice {inv.number} for the period {inv.period_start} to {inv.period_end} is attached.\n"
-                f"Total: €{inv.total_cents / 100:.2f} (VAT exempt). Due: {inv.due_date}.\n"
-                f"Please use \"{inv.number}\" as your payment reference."
-            ),
+            subject=subject,
+            body=body,
             booking_id=None,
             user_id=None,
             kind="invoice_issued",

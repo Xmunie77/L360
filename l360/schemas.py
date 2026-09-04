@@ -121,6 +121,24 @@ class UserOut(BaseModel):
     onboarding_status: str | None = None
 
 
+class UserHr(BaseModel):
+    """Admin-only HR details for one staff member — served and accepted
+    ONLY by the /api/admin/users/{id}/hr endpoints, never mixed into the
+    colleague-facing UserOut payloads. Same shape both ways."""
+
+    mobile: str | None = Field(default=None, max_length=50)
+    address: str | None = Field(default=None, max_length=500)
+    id_card_number: str | None = Field(default=None, max_length=50)
+    nationality: str | None = Field(default=None, max_length=100)
+    date_of_birth: date | None = None
+    iban: str | None = Field(default=None, max_length=50)
+    bank_account_holder: str | None = Field(default=None, max_length=200)
+    tax_vat_number: str | None = Field(default=None, max_length=100)
+    social_security_number: str | None = Field(default=None, max_length=100)
+    emergency_name: str | None = Field(default=None, max_length=200)
+    emergency_phone: str | None = Field(default=None, max_length=50)
+
+
 # --- clients -----------------------------------------------------------
 class ClientIn(BaseModel):
     guardian_first_name: str = Field(min_length=1, max_length=100)
@@ -200,6 +218,27 @@ class EmailSettingsOut(BaseModel):
 class EmailTestOut(BaseModel):
     ok: bool
     detail: str
+
+
+class EmailTemplateOut(BaseModel):
+    """One automated email's wording — the effective subject/body plus the
+    built-in default so the UI can show "customised" and offer a reset."""
+
+    kind: str
+    label: str
+    description: str
+    subject: str
+    body: str
+    default_subject: str
+    default_body: str
+    is_custom: bool
+    # (placeholder, meaning) pairs the admin may use in subject/body.
+    placeholders: list[tuple[str, str]]
+
+
+class EmailTemplateIn(BaseModel):
+    subject: str = Field(max_length=500)
+    body: str = Field(max_length=10_000)
 
 
 class InvoiceSettingsIn(BaseModel):

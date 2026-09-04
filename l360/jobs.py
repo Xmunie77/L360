@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from l360 import notify
+from l360 import email_templates, notify
 from l360.booking_logic import local_to_utc, utc_to_local
 from l360.config import TIMEZONE
 from l360.models import Booking, Client, User
@@ -44,8 +44,12 @@ def send_24h_reminders(db: Session, *, now: datetime | None = None) -> int:
         client = db.get(Client, booking.client_id)
         local_date, local_time = utc_to_local(booking.start_utc)
         when = f"{local_date.strftime('%A %d %B %Y')} at {local_time.strftime('%H:%M')}"
-        subject = f"Reminder — session {when}"
-        body = f"Reminder: session with {client.guardian_name if client else '?'} {when}."
+        subject, body = email_templates.render(
+            db,
+            "reminder_24h",
+            when=when,
+            guardian_name=client.guardian_name if client else "?",
+        )
 
         for email, user_id in filter(None, [
             (educator.email, educator.id) if educator and educator.email else None,
@@ -88,10 +92,16 @@ def send_daily_digest(db: Session, *, today: date_cls | None = None) -> int:
             client = clients.get(b.client_id)
             _, local_time = utc_to_local(b.start_utc)
             lines.append(f"{local_time.strftime('%H:%M')} — {client.guardian_name if client else '?'}")
-        body = "Today's sessions:\n" + "\n".join(lines)
+        subject, body = email_templates.render(
+            db,
+            "digest",
+            date=today.strftime("%d %B"),
+            sessions="\n".join(lines),
+            educator_name=educator.full_name,
+        )
         dedupe_key = f"digest:{today.isoformat()}:{educator.id}"
         if notify.send_once(
-            db, to=educator.email, subject=f"Your sessions today ({today.strftime('%d %B')})", body=body,
+            db, to=educator.email, subject=subject, body=body,
             booking_id=None, user_id=educator.id, kind="digest", dedupe_key=dedupe_key,
         ):
             sent += 1

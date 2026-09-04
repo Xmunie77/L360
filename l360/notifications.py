@@ -9,18 +9,11 @@ from typing import Literal
 
 from sqlalchemy.orm import Session
 
-from l360 import notify
+from l360 import email_templates, notify
 from l360.booking_logic import utc_to_local
 from l360.models import Booking, Client, Room, User
 
 EventKind = Literal["confirmation", "change", "cancel"]
-
-_SUBJECTS = {
-    "confirmation": "Booking confirmed",
-    "change": "Booking changed",
-    "cancel": "Booking cancelled",
-}
-
 
 def _describe(db: Session, booking: Booking) -> tuple[str, str, str]:
     room = db.get(Room, booking.room_id)
@@ -32,10 +25,14 @@ def _describe(db: Session, booking: Booking) -> tuple[str, str, str]:
 
 def notify_booking_event(db: Session, booking: Booking, kind: EventKind) -> None:
     when, room_name, guardian_name = _describe(db, booking)
-    subject = f"{_SUBJECTS[kind]} — {when}"
-    body = (
-        f"Session for {guardian_name} in {room_name}, {when} "
-        f"({booking.duration_minutes} minutes).\nStatus: {booking.status}."
+    subject, body = email_templates.render(
+        db,
+        kind,
+        when=when,
+        room_name=room_name,
+        guardian_name=guardian_name,
+        duration=booking.duration_minutes,
+        status=booking.status,
     )
     # Dedupe key includes the booking's current start/status so a
     # "confirmation" then later a "change" to the same booking are both

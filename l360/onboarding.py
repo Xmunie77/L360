@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from l360 import notify
+from l360 import email_templates, notify
 from l360.config import PUBLIC_BASE_URL
 from l360.models import Client, NotificationLog, OnboardingForm
 
@@ -92,24 +92,18 @@ def send_invite(db: Session, client: Client, form: OnboardingForm) -> bool:
         .where(NotificationLog.kind == "onboarding_invite", NotificationLog.dedupe_key.like(f"onboarding_invite:{form.id}:%"))
     ) or 0
     link = form_link(form)
+    subject, body = email_templates.render(
+        db,
+        "onboarding_invite",
+        guardian_first_name=client.guardian_first_name,
+        guardian_surname=client.guardian_surname,
+        link=link,
+    )
     sent = notify.send_once(
         db,
         to=client.email,
-        subject="Welcome to Learning 360° — your onboarding form",
-        body=(
-            f"Dear {client.guardian_first_name} {client.guardian_surname},\n\n"
-            "Welcome to Learning 360° Foundation.\n\n"
-            "To complete your registration, please fill in our client onboarding "
-            "form — it covers your contact details, your learner's details, and "
-            "our policies, and takes about five minutes:\n\n"
-            f"{link}\n\n"
-            "Your information is stored securely by Learning 360° Foundation and "
-            "is never shared with third parties.\n\n"
-            "If anything in the form is unclear, just reply to this email.\n\n"
-            "Warm regards,\n"
-            "Learning 360° Foundation\n"
-            "Swatar, Malta"
-        ),
+        subject=subject,
+        body=body,
         booking_id=None,
         user_id=None,
         kind="onboarding_invite",
