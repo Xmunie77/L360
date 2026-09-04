@@ -69,7 +69,14 @@ describe("Billing", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Issue invoice" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
+    // Issuing numbers the invoice and emails the family, so it now asks
+    // first, spelling out who gets the email.
+    expect(mockIssueInvoice).not.toHaveBeenCalled();
+    expect(screen.getByText(/emails it to/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Issue & email" }));
 
     await waitFor(() => expect(mockIssueInvoice).toHaveBeenCalledWith(1));
+    // Success stays on screen instead of the modal silently vanishing.
+    await waitFor(() => expect(screen.getByText(/issued and emailed to/)).toBeTruthy());
   });
 });

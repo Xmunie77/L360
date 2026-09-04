@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { Modal } from "../../components/Modal";
 import { Button, Card, Input, Select, StatusBadge } from "../../ui/ui";
 import {
@@ -295,15 +296,26 @@ export function UsersAdmin() {
                       <Button type="button" variant="secondary" onClick={() => startEditLevel(u)}>
                         Edit level
                       </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => toggleActive(u)}
-                        loading={busyId === u.id}
-                        loadingLabel="Saving…"
-                      >
-                        {u.active ? "Deactivate" : "Reactivate"}
-                      </Button>
+                      {u.active ? (
+                        <ConfirmButton
+                          onConfirm={() => void toggleActive(u)}
+                          confirmLabel="Really deactivate?"
+                          loading={busyId === u.id}
+                          loadingLabel="Saving…"
+                        >
+                          Deactivate
+                        </ConfirmButton>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => toggleActive(u)}
+                          loading={busyId === u.id}
+                          loadingLabel="Saving…"
+                        >
+                          Reactivate
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ),

@@ -258,6 +258,8 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
   const [loadError, setLoadError] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
+  const [confirmingIssue, setConfirmingIssue] = useState(false);
+  const [issuedMessage, setIssuedMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,7 +284,15 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
     setIssuing(true);
     try {
       await issueInvoice(invoiceId);
-      onChanged();
+      // Stay open and say what happened — issuing numbers the invoice AND
+      // emails the family, and before 04/09/2026 the modal just vanished
+      // with no confirmation either had occurred.
+      const refreshed = await getInvoice(invoiceId);
+      setInvoice(refreshed);
+      setConfirmingIssue(false);
+      setIssuedMessage(
+        `Invoice ${refreshed.number ?? ""} issued and emailed to ${refreshed.client_label}.`,
+      );
     } catch (err) {
       setIssueError(errorMessage(err, "Couldn't issue this invoice."));
     } finally {
@@ -290,8 +300,14 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
     }
   }
 
+  function close() {
+    // The list behind needs refreshing once an issue has happened.
+    if (issuedMessage) onChanged();
+    else onClose();
+  }
+
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={close}>
         <Card eyebrow="Invoice" title={invoice?.number ?? "Draft invoice"}>
           {loading && <p className="l360-empty">Loading…</p>}
           {loadError && (
@@ -351,17 +367,39 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
                   ⚠ {issueError}
                 </div>
               )}
+              {issuedMessage && (
+                <div className="l360-alert l360-alert-info" role="status">
+                  {issuedMessage}
+                </div>
+              )}
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {invoice.status === "draft" && (
-                  <Button type="button" onClick={handleIssue} loading={issuing} loadingLabel="Issuing…">
-                    Issue invoice
+              {confirmingIssue && invoice.status === "draft" ? (
+                <>
+                  <p style={{ marginBottom: 12 }}>
+                    This assigns the invoice its number and emails it to{" "}
+                    <strong>{invoice.client_label}</strong>. It can't be un-issued — only voided.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button type="button" onClick={handleIssue} loading={issuing} loadingLabel="Issuing…">
+                      Issue &amp; email
+                    </Button>
+                    <Button type="button" variant="secondary" disabled={issuing} onClick={() => setConfirmingIssue(false)}>
+                      Back
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {invoice.status === "draft" && (
+                    <Button type="button" onClick={() => setConfirmingIssue(true)}>
+                      Issue invoice
+                    </Button>
+                  )}
+                  <Button type="button" variant="secondary" onClick={close}>
+                    Close
                   </Button>
-                )}
-                <Button type="button" variant="secondary" onClick={onClose}>
-                  Close
-                </Button>
-              </div>
+                </div>
+              )}
             </>
           )}
 

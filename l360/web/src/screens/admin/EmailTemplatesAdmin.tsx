@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { Modal } from "../../components/Modal";
 import { Button, Card, Input, StatusBadge, Textarea } from "../../ui/ui";
 import {
@@ -30,13 +31,21 @@ function TemplateEditorModal({
   const [error, setError] = useState<string | null>(null);
   const dirty = subject !== tpl.subject || body !== tpl.body;
 
-  async function run(action: () => Promise<EmailTemplate>, failMsg: string) {
+  async function run(action: () => Promise<EmailTemplate>, failMsg: string, stayOpen = false) {
     setBusy(true);
     setError(null);
     try {
       const saved = await action();
       onSaved(saved);
-      onClose();
+      if (stayOpen) {
+        // Reset keeps the modal open showing the restored wording — before
+        // 04/09/2026 it closed instantly and you never saw what came back.
+        setSubject(saved.subject);
+        setBody(saved.body);
+        setBusy(false);
+      } else {
+        onClose();
+      }
     } catch (err) {
       setError(errorMessage(err, failMsg));
       setBusy(false);
@@ -92,16 +101,19 @@ function TemplateEditorModal({
               Save wording
             </Button>
             {(tpl.is_custom || dirty) && (
-              <Button
-                type="button"
-                variant="secondary"
+              <ConfirmButton
+                confirmLabel="Really reset?"
                 disabled={busy}
-                onClick={() =>
-                  void run(() => adminResetEmailTemplate(tpl.kind), "Couldn't reset the template.")
+                onConfirm={() =>
+                  void run(
+                    () => adminResetEmailTemplate(tpl.kind),
+                    "Couldn't reset the template.",
+                    true,
+                  )
                 }
               >
                 Reset to default
-              </Button>
+              </ConfirmButton>
             )}
             <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
               Close

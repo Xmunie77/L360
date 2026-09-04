@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ConfirmButton } from "./ConfirmButton";
 import { Modal } from "./Modal";
 import { Button, Card, Input, StatusBadge, Textarea } from "../ui/ui";
 import {
@@ -132,14 +133,13 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
                   {user.has_photo ? "Replace photo" : "Add photo"}
                 </Button>
                 {user.has_photo && (
-                  <Button
-                    type="button"
-                    variant="secondary"
+                  <ConfirmButton
+                    confirmLabel="Really remove?"
                     disabled={busy}
-                    onClick={() => void run(() => deleteUserPhoto(user.id), "Couldn't remove the photo.")}
+                    onConfirm={() => void run(() => deleteUserPhoto(user.id), "Couldn't remove the photo.")}
                   >
                     Remove photo
-                  </Button>
+                  </ConfirmButton>
                 )}
                 <input
                   ref={fileRef}
@@ -169,12 +169,14 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
                   type="button"
                   className="l360-link-btn"
                   disabled={busy}
-                  onClick={() =>
+                  onClick={() => {
+                    // Irreversible: consent record AND photo go together.
+                    if (!window.confirm("Withdraw image consent and delete the photo?")) return;
                     void run(
                       () => adminUpdateUser(user.id, { image_consent: false }),
                       "Couldn't withdraw consent.",
-                    )
-                  }
+                    );
+                  }}
                 >
                   Withdraw consent and delete photo
                 </button>

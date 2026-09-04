@@ -69,7 +69,12 @@ describe("Admin", () => {
     render(<Admin />);
     await waitFor(() => expect(screen.getByText("Room A")).toBeTruthy());
 
+    // Deactivate is now a two-step guard: first click arms, second confirms
+    // (with a short double-tap grace period in between).
     fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    expect(mockAdminDeactivateRoom).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 400));
+    fireEvent.click(screen.getByRole("button", { name: "Really deactivate?" }));
 
     await waitFor(() => expect(mockAdminDeactivateRoom).toHaveBeenCalledWith(1));
   });

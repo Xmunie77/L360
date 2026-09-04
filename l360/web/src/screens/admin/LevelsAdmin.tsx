@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { Button, Card, Input, StatusBadge } from "../../ui/ui";
 import {
   adminCreateEducatorLevel,
@@ -103,15 +104,26 @@ export function LevelsAdmin() {
                     <StatusBadge variant={l.active ? "success" : "pending"} label={l.active ? "Active" : "Inactive"} />
                   </td>
                   <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => toggleActive(l)}
-                      loading={busyId === l.id}
-                      loadingLabel="Saving…"
-                    >
-                      {l.active ? "Deactivate" : "Reactivate"}
-                    </Button>
+                    {l.active ? (
+                      <ConfirmButton
+                        onConfirm={() => void toggleActive(l)}
+                        confirmLabel="Really deactivate?"
+                        loading={busyId === l.id}
+                        loadingLabel="Saving…"
+                      >
+                        Deactivate
+                      </ConfirmButton>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => toggleActive(l)}
+                        loading={busyId === l.id}
+                        loadingLabel="Saving…"
+                      >
+                        Reactivate
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

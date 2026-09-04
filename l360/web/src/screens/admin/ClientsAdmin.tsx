@@ -1,4 +1,5 @@
 import { AgeBadge } from "../../components/AgeBadge";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { Modal } from "../../components/Modal";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Input, StatusBadge, Textarea } from "../../ui/ui";
@@ -274,15 +275,26 @@ export function ClientsAdmin() {
                     <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />
                   </td>
                   <td>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => toggleActive(c)}
-                      loading={busyId === c.id}
-                      loadingLabel="Saving…"
-                    >
-                      {c.active ? "Deactivate" : "Reactivate"}
-                    </Button>
+                    {c.active ? (
+                      <ConfirmButton
+                        onConfirm={() => void toggleActive(c)}
+                        confirmLabel="Really deactivate?"
+                        loading={busyId === c.id}
+                        loadingLabel="Saving…"
+                      >
+                        Deactivate
+                      </ConfirmButton>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => toggleActive(c)}
+                        loading={busyId === c.id}
+                        loadingLabel="Saving…"
+                      >
+                        Reactivate
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

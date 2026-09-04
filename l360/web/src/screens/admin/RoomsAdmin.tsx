@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ConfirmButton } from "../../components/ConfirmButton";
 import { Button, Card, Input, StatusBadge } from "../../ui/ui";
 import {
   adminCreateRoom,
@@ -163,15 +164,26 @@ export function RoomsAdmin() {
                       <Button type="button" variant="secondary" onClick={() => startEdit(r)}>
                         Edit
                       </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => toggleActive(r)}
-                        loading={busyId === r.id}
-                        loadingLabel="Saving…"
-                      >
-                        {r.active ? "Deactivate" : "Reactivate"}
-                      </Button>
+                      {r.active ? (
+                        <ConfirmButton
+                          onConfirm={() => void toggleActive(r)}
+                          confirmLabel="Really deactivate?"
+                          loading={busyId === r.id}
+                          loadingLabel="Saving…"
+                        >
+                          Deactivate
+                        </ConfirmButton>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => toggleActive(r)}
+                          loading={busyId === r.id}
+                          loadingLabel="Saving…"
+                        >
+                          Reactivate
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ),
