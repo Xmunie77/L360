@@ -302,9 +302,14 @@ input[type="time"].l360-input {
   }
 
   /* The topbar is now the topmost element on mobile — it takes over the
-     notch inset the drawer no longer provides in the page flow. */
+     notch inset the drawer no longer provides in the page flow, and pins
+     so scrolled content passes under it rather than colliding with the
+     iOS clock (Simon, 05/09/2026). */
   .l360-topbar {
     padding-top: env(safe-area-inset-top);
+    position: sticky;
+    top: 0;
+    z-index: 40;
   }
 
   .l360-wordmark {
@@ -764,6 +769,11 @@ input[type="time"].l360-input {
 
 .l360-cal-grid {
   display: grid;
+  /* Interactive surface, not prose: iOS long-press selected a whole
+     column as text (Simon, 05/09/2026). */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   /* min-width is set inline from the column count (a week needs far more
      than a day) — this is only the floor. */
   min-width: 640px;
@@ -809,6 +819,7 @@ input[type="time"].l360-input {
 
 .l360-cal-room-col {
   position: relative;
+  touch-action: manipulation;
   border-left: 1px solid var(--l360-lgrey);
   background-image: repeating-linear-gradient(
     to bottom,
