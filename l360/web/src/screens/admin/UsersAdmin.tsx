@@ -45,6 +45,7 @@ export function UsersAdmin() {
   const [levelId, setLevelId] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   // "Add educator" opens the form in a modal (Simon, 04/09/2026 — same
   // pattern as Learners); the list sits below under its own heading.
@@ -80,8 +81,14 @@ export function UsersAdmin() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !fullName.trim() || password.length < 8) {
-      setFormError("Email, full name and a password of at least 8 characters are required.");
+    const errs: Record<string, string> = {};
+    if (!email.trim()) errs.email = "Email is required.";
+    if (!fullName.trim()) errs.fullName = "Full name is required.";
+    if (password.length < 8) errs.password = "At least 8 characters.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstId = errs.email ? "new-user-email" : errs.fullName ? "new-user-name" : "new-user-password";
+      document.getElementById(firstId)?.focus();
       return;
     }
     setFormError(null);
@@ -174,8 +181,8 @@ export function UsersAdmin() {
                   ⚠ {formError}
                 </div>
               )}
-              <Input id="new-user-email" label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              <Input id="new-user-name" label="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Input id="new-user-email" label="Email" type="email" error={fieldErrors.email} required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="new-user-name" label="Full name" error={fieldErrors.fullName} required value={fullName} onChange={(e) => setFullName(e.target.value)} />
               <Select
                 id="new-user-role"
                 label="Role"
@@ -198,6 +205,7 @@ export function UsersAdmin() {
               />
               <Input
                 id="new-user-password"
+                error={fieldErrors.password}
                 label="Password"
                 type="password"
                 hint="At least 8 characters"

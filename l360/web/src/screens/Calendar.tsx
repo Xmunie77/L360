@@ -721,17 +721,23 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
   const [repeat, setRepeat] = useState("none");
   const [repeatEndsOn, setRepeatEndsOn] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [skipped, setSkipped] = useState<SkippedOccurrence[] | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!educatorId || !clientId || !sessionTypeId) {
-      setError("Choose an educator, a learner and a session type.");
-      return;
-    }
-    if (repeat !== "none" && !repeatEndsOn) {
-      setError("Choose a date to repeat until.");
+    // Per-field errors: mark exactly what's missing and put focus there,
+    // instead of one lumped sentence at the top (04/09/2026 UI audit).
+    const errs: Record<string, string> = {};
+    if (!educatorId) errs.educator = "Choose an educator.";
+    if (!clientId) errs.client = "Choose a learner.";
+    if (!sessionTypeId) errs.sessionType = "Choose a session type.";
+    if (repeat !== "none" && !repeatEndsOn) errs.repeatEndsOn = "Choose a date to repeat until.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstId = errs.educator ? "nb-educator" : errs.client ? "nb-client" : errs.sessionType ? "nb-session-type" : "nb-repeat-ends";
+      document.getElementById(firstId)?.focus();
       return;
     }
     setError(null);
@@ -819,6 +825,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
             />
             <Select
               id="nb-educator"
+              error={fieldErrors.educator}
               label="Educator"
               required
               placeholder="Choose an educator"
@@ -828,6 +835,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
             />
             <Select
               id="nb-client"
+              error={fieldErrors.client}
               label="Learner"
               required
               placeholder="Choose a learner"
@@ -842,6 +850,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
             />
             <Select
               id="nb-session-type"
+              error={fieldErrors.sessionType}
               label="Session type"
               required
               placeholder="Choose a session type"
@@ -877,6 +886,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
             {repeat !== "none" && (
               <Input
                 id="nb-repeat-ends"
+                error={fieldErrors.repeatEndsOn}
                 label="Repeat until"
                 type="date"
                 required

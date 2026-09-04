@@ -28,6 +28,7 @@ export function ClientsAdmin() {
   const [observations, setObservations] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   // "Add learner" opens a modal (Simon, 03/09/2026) — same pattern as the
   // booking modals; the form no longer sits inline above the list.
@@ -73,8 +74,14 @@ export function ClientsAdmin() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!guardianFirstName.trim() || !guardianSurname.trim() || !email.trim()) {
-      setFormError("Parent/guardian first name, surname and email are required.");
+    const errs: Record<string, string> = {};
+    if (!guardianFirstName.trim()) errs.firstName = "First name is required.";
+    if (!guardianSurname.trim()) errs.surname = "Surname is required.";
+    if (!email.trim()) errs.email = "Email is required.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstId = errs.firstName ? "new-client-first-name" : errs.surname ? "new-client-surname" : "new-client-email";
+      document.getElementById(firstId)?.focus();
       return;
     }
     setFormError(null);
@@ -161,6 +168,7 @@ export function ClientsAdmin() {
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 <Input
                   id="new-client-first-name"
+                  error={fieldErrors.firstName}
                   label="Parent/guardian first name"
                   required
                   value={guardianFirstName}
@@ -168,6 +176,7 @@ export function ClientsAdmin() {
                 />
                 <Input
                   id="new-client-surname"
+                  error={fieldErrors.surname}
                   label="Parent/guardian surname"
                   required
                   value={guardianSurname}
@@ -176,6 +185,7 @@ export function ClientsAdmin() {
               </div>
               <Input
                 id="new-client-email"
+                  error={fieldErrors.email}
                 label="Email"
                 type="email"
                 required

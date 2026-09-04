@@ -169,6 +169,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
   const [observations, setObservations] = useState("");
   const [notes, setNotes] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -205,8 +206,15 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
-    if (!guardianFirstName.trim() || !guardianSurname.trim() || !email.trim() || !client) {
-      setSaveError("Parent/guardian first name, surname and email are required.");
+    if (!client) return;
+    const errs: Record<string, string> = {};
+    if (!guardianFirstName.trim()) errs.firstName = "First name is required.";
+    if (!guardianSurname.trim()) errs.surname = "Surname is required.";
+    if (!email.trim()) errs.email = "Email is required.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstId = errs.firstName ? "cd-first-name" : errs.surname ? "cd-surname" : "cd-email";
+      document.getElementById(firstId)?.focus();
       return;
     }
     setSaveError(null);
@@ -286,6 +294,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                   <Input
                     id="cd-first-name"
+                    error={fieldErrors.firstName}
                     label="Parent/guardian first name"
                     required
                     value={guardianFirstName}
@@ -293,6 +302,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                   />
                   <Input
                     id="cd-surname"
+                    error={fieldErrors.surname}
                     label="Parent/guardian surname"
                     required
                     value={guardianSurname}
@@ -302,6 +312,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                   <Input
                     id="cd-email"
+                    error={fieldErrors.email}
                     label="Email"
                     type="email"
                     required

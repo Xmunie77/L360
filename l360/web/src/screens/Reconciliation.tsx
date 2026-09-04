@@ -240,6 +240,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
   const [staff, setStaff] = useState<AdminUser[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -250,12 +251,21 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!invoiceId || !amount || !receivedAt) {
-      setError("Choose an invoice, amount and date received.");
-      return;
-    }
-    if (method === "cash" && !receivedById) {
-      setError("Please record who received the cash.");
+    const errs: Record<string, string> = {};
+    if (!invoiceId) errs.invoice = "Choose an invoice.";
+    if (!amount) errs.amount = "Enter the amount.";
+    if (!receivedAt) errs.receivedAt = "Enter the date received.";
+    if (method === "cash" && !receivedById) errs.receivedBy = "Record who took the cash.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const firstId = errs.invoice
+        ? "record-payment-invoice"
+        : errs.amount
+          ? "record-payment-amount"
+          : errs.receivedAt
+            ? "record-payment-date"
+            : "record-payment-received-by";
+      document.getElementById(firstId)?.focus();
       return;
     }
     // Guard the classic slip: €300 typed against a €30 invoice. The chosen
@@ -263,7 +273,8 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
     const chosen = openInvoices.find((inv) => String(inv.id) === invoiceId);
     const cents = Math.round(Number(amount) * 100);
     if (!Number.isFinite(cents) || cents <= 0) {
-      setError("Enter an amount above zero.");
+      setFieldErrors({ amount: "Enter an amount above zero." });
+      document.getElementById("record-payment-amount")?.focus();
       return;
     }
     if (chosen && cents > chosen.outstanding_cents) {
@@ -312,6 +323,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
 
         <Select
           id="record-payment-invoice"
+          error={fieldErrors.invoice}
           label="Invoice"
           required
           placeholder="Choose an invoice…"
@@ -321,6 +333,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
         />
         <Input
           id="record-payment-amount"
+          error={fieldErrors.amount}
           label="Amount (€)"
           type="number"
           step="0.01"
@@ -343,6 +356,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
         {method === "cash" && (
           <Select
             id="record-payment-received-by"
+          error={fieldErrors.receivedBy}
             label="Received by"
             hint="Who physically took the cash."
             required
@@ -354,6 +368,7 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
         )}
         <Input
           id="record-payment-date"
+          error={fieldErrors.receivedAt}
           label="Date received"
           type="date"
           required
