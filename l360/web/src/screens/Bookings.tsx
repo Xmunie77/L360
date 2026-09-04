@@ -11,6 +11,7 @@ import {
 import { ConfirmSessionFlow, LateCancelModal, VoidInvoiceModal, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import { dayBoundsISO, formatBookingWhenShort, todayStr } from "../domain/datetime";
+import { MOBILE_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 
 const WINDOW_DAYS = 14;
 
@@ -66,6 +67,7 @@ export function Bookings({ me }: { me: Me | null }) {
   // asks first — the same two-step the Calendar's detail modal uses
   // (a mis-tap here used to cancel a family's session outright).
   const [confirmingCancelId, setConfirmingCancelId] = useState<number | null>(null);
+  const isMobile = useMediaQuery(MOBILE_QUERY);
 
   function setPreview(id: number, p: OutcomePreview) {
     setPreviews((prev) => ({ ...prev, [id]: p }));
@@ -178,14 +180,9 @@ export function Bookings({ me }: { me: Me | null }) {
 
   return (
     <Card>
-      <p style={{ marginBottom: 4 }}>
-        {isAdmin ? "Every session" : "Your sessions"} from the last {WINDOW_DAYS} days to the next{" "}
-        {WINDOW_DAYS}, with status at a glance.
-      </p>
       <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
-        Past sessions are assumed delivered and bill automatically — Confirm records what actually
-        happened and can send the invoice on the spot. Billing shows where the money stands; a
-        session locks once its invoice is sent.
+        {isAdmin ? "Every session" : "Your sessions"}, ±{WINDOW_DAYS} days. Past sessions bill
+        automatically — Confirm records exceptions and can send the invoice on the spot.
       </p>
 
       {error && (
@@ -198,6 +195,35 @@ export function Bookings({ me }: { me: Me | null }) {
         <p className="l360-empty">Loading…</p>
       ) : bookings.length === 0 ? (
         <p className="l360-empty">No sessions in this window.</p>
+      ) : isMobile ? (
+        /* The 8-column table is ~870px of nowrap content — on a phone the
+           Confirm button needed a 500px sideways scroll to reach. Cards
+           put the action in thumb range (04/09/2026 UI audit). */
+        <div>
+          {bookings.map((b) => {
+            const preview = previews[b.id];
+            const { variant, label } = statusBadgeProps(preview ? { ...b, ...preview } : b);
+            const billing = billingBadgeProps(
+              preview ? (preview.charge_waived ? "fee_waived" : "to_bill") : b.billing_state,
+            );
+            return (
+              <div key={b.id} className="l360-session-card">
+                <div className="l360-session-card-top">
+                  <span style={{ fontWeight: 600 }}>{formatBookingWhenShort(b.start_utc)}</span>
+                  <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                    <StatusBadge variant={variant} label={preview ? `${label} …` : label} />
+                    {billing && <StatusBadge variant={billing.variant} label={billing.label} />}
+                  </span>
+                </div>
+                <p style={{ margin: "4px 0 2px", fontWeight: 600 }}>{b.client_label}</p>
+                <p className="l360-field-hint" style={{ margin: "0 0 8px" }}>
+                  {b.educator_name} · {b.room_name} · {b.duration_minutes} min
+                </p>
+                {rowActions(b)}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">

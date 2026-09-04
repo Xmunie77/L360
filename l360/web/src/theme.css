@@ -931,6 +931,22 @@ input[type="time"].l360-input {
   white-space: nowrap;
 }
 
+/* Sessions as cards on a phone (the table needs ~870px). */
+.l360-session-card {
+  border: 1px solid var(--l360-lgrey);
+  border-radius: var(--l360-r-md);
+  padding: var(--l360-s3);
+  margin-bottom: var(--l360-s3);
+}
+
+.l360-session-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--l360-s2);
+  flex-wrap: wrap;
+}
+
 .l360-modal-backdrop {
   position: fixed;
   inset: 0;

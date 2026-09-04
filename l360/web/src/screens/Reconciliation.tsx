@@ -87,23 +87,13 @@ export function Reconciliation() {
         ) : unmatched.length === 0 ? (
           <p className="l360-empty">Nothing unmatched.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="l360-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Reference</th>
-                  <th>Counterparty</th>
-                  <th>Match to invoice</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unmatched.map((txn) => (
-                  <UnmatchedRow key={txn.id} txn={txn} openInvoices={openInvoices} onMatched={refresh} />
-                ))}
-              </tbody>
-            </table>
+          /* A work queue, not a reference table — as a 5-column table the
+             invoice picker sat hundreds of pixels off-screen on a phone
+             (04/09/2026 UI audit). One card per transaction instead. */
+          <div>
+            {unmatched.map((txn) => (
+              <UnmatchedRow key={txn.id} txn={txn} openInvoices={openInvoices} onMatched={refresh} />
+            ))}
           </div>
         )}
       </Card>
@@ -197,24 +187,28 @@ function UnmatchedRow({ txn, openInvoices, onMatched }: UnmatchedRowProps) {
   }
 
   return (
-    <tr>
-      <td className="l360-mono">{new Date(txn.txn_date).toLocaleDateString("en-GB")}</td>
-      <td><Money cents={txn.amount_cents} /></td>
-      <td>{txn.reference ?? "—"}</td>
-      <td>{txn.counterparty ?? "—"}</td>
-      <td>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ minWidth: 220 }}>
-            <Select
-              id={`match-invoice-${txn.id}`}
-              label="Invoice"
-              error={error ?? undefined}
-              placeholder="Choose an invoice…"
-              value={invoiceId}
-              onChange={(e) => setInvoiceId(e.target.value)}
-              options={openInvoices.map((inv) => ({ value: String(inv.id), label: invoiceLabel(inv) }))}
-            />
-          </div>
+    <div className="l360-session-card">
+      <div className="l360-session-card-top">
+        <span style={{ fontWeight: 600 }}>
+          <Money cents={txn.amount_cents} /> · {new Date(txn.txn_date).toLocaleDateString("en-GB")}
+        </span>
+      </div>
+      <p className="l360-field-hint" style={{ margin: "2px 0 8px" }}>
+        {txn.reference ?? "No reference"} · {txn.counterparty ?? "Unknown counterparty"}
+      </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <Select
+            id={`match-invoice-${txn.id}`}
+            label="Match to invoice"
+            error={error ?? undefined}
+            placeholder="Choose an invoice…"
+            value={invoiceId}
+            onChange={(e) => setInvoiceId(e.target.value)}
+            options={openInvoices.map((inv) => ({ value: String(inv.id), label: invoiceLabel(inv) }))}
+          />
+        </div>
+        <div style={{ marginBottom: 16 }}>
           <Button
             type="button"
             variant="secondary"
@@ -226,8 +220,8 @@ function UnmatchedRow({ txn, openInvoices, onMatched }: UnmatchedRowProps) {
             Match
           </Button>
         </div>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 

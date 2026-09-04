@@ -55,7 +55,7 @@ describe("Reconciliation", () => {
     render(<Reconciliation />);
 
     expect(screen.getByRole("button", { name: "Sync payments" })).toBeTruthy();
-    await waitFor(() => expect(screen.getByText("J. Borg")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/J\. Borg/)).toBeTruthy());
     expect(screen.getByRole("button", { name: "Record payment" })).toBeTruthy();
   });
 
@@ -74,11 +74,9 @@ describe("Reconciliation", () => {
 
     render(<Reconciliation />);
 
-    await waitFor(() => expect(screen.getByText("J. Borg")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/J\. Borg/)).toBeTruthy());
 
-    // The unmatched row's invoice picker renders before the Record payment
-    // panel's, which shares the same "Invoice" label.
-    const [rowSelect] = screen.getAllByLabelText("Invoice");
+    const rowSelect = screen.getByLabelText("Match to invoice");
     fireEvent.change(rowSelect, { target: { value: "42" } });
     fireEvent.click(screen.getByRole("button", { name: "Match" }));
 
