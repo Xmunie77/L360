@@ -62,6 +62,11 @@ export function Bookings({ me }: { me: Me | null }) {
     refresh();
   }, [isAdmin]);
 
+  // Cancelling is irreversible and the button sits next to Confirm, so it
+  // asks first — the same two-step the Calendar's detail modal uses
+  // (a mis-tap here used to cancel a family's session outright).
+  const [confirmingCancelId, setConfirmingCancelId] = useState<number | null>(null);
+
   function setPreview(id: number, p: OutcomePreview) {
     setPreviews((prev) => ({ ...prev, [id]: p }));
   }
@@ -97,14 +102,31 @@ export function Bookings({ me }: { me: Me | null }) {
           />
         );
       }
+      if (confirmingCancelId === b.id) {
+        return (
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span>Cancel this session?</span>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() =>
+                void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.").then(() =>
+                  setConfirmingCancelId(null),
+                )
+              }
+              loading={busy}
+              loadingLabel="Cancelling…"
+            >
+              Yes, cancel
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmingCancelId(null)}>
+              Keep it
+            </Button>
+          </span>
+        );
+      }
       return (
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={() => void run(b.id, () => cancelBooking(b.id), "Couldn't cancel this booking.")}
-          loading={busy}
-          loadingLabel="Cancelling…"
-        >
+        <Button type="button" variant="destructive" onClick={() => setConfirmingCancelId(b.id)}>
           Cancel
         </Button>
       );

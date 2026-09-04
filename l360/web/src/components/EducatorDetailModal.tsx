@@ -209,13 +209,19 @@ const HR_FIELDS: { key: keyof UserHr; label: string; hint?: string }[] = [
 
 function HrDetailsSection({ userId }: { userId: number }) {
   const [hr, setHr] = useState<UserHr | null>(null);
+  // What the server last confirmed — Cancel restores this, so discarded
+  // edits can't sit in the read-only view looking saved.
+  const [savedHr, setSavedHr] = useState<UserHr | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     adminGetUserHr(userId)
-      .then(setHr)
+      .then((loaded) => {
+        setHr(loaded);
+        setSavedHr(loaded);
+      })
       .catch((err) => setError(err instanceof ApiError ? err.detail : "Couldn't load the HR details."));
   }, [userId]);
 
@@ -224,7 +230,9 @@ function HrDetailsSection({ userId }: { userId: number }) {
     setBusy(true);
     setError(null);
     try {
-      setHr(await adminSaveUserHr(userId, hr));
+      const saved = await adminSaveUserHr(userId, hr);
+      setHr(saved);
+      setSavedHr(saved);
       setEditing(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Couldn't save the HR details.");
@@ -279,7 +287,16 @@ function HrDetailsSection({ userId }: { userId: number }) {
             <Button type="button" onClick={() => void save()} loading={busy} loadingLabel="Saving…">
               Save HR details
             </Button>
-            <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditing(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => {
+                setHr(savedHr);
+                setError(null);
+                setEditing(false);
+              }}
+            >
               Cancel
             </Button>
           </div>
