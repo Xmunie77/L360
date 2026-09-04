@@ -1,3 +1,4 @@
+import { AgeBadge } from "../components/AgeBadge";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Input, StatusBadge, Textarea } from "../ui/ui";
 import {
@@ -334,6 +335,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                     value={childDob}
                     onChange={(e) => setChildDob(e.target.value)}
                   />
+                  <AgeBadge dob={childDob} />
                 </div>
                 <Input id="cd-school" label="School the learner attends" value={school} onChange={(e) => setSchool(e.target.value)} />
                 <Textarea id="cd-address" label="Home address" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />

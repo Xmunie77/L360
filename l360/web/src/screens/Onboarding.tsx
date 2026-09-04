@@ -1,3 +1,4 @@
+import { AgeBadge } from "../components/AgeBadge";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Button, Input, Textarea, Wordmark } from "../ui/ui";
 import {
@@ -313,7 +314,10 @@ export function Onboarding({ token }: { token: string }) {
         <Section title="The learner">
           <div className="l360-ob-grid">
             <Input id="ob-child-name" label="Name and surname" required value={childName} onChange={(e) => setChildName(e.target.value)} />
-            <Input id="ob-child-dob" label="Date of birth" type="date" required value={childDob} onChange={(e) => setChildDob(e.target.value)} />
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <Input id="ob-child-dob" label="Date of birth" type="date" required value={childDob} onChange={(e) => setChildDob(e.target.value)} />
+              <AgeBadge dob={childDob} />
+            </div>
           </div>
           <Input id="ob-school" label="School the learner attends" value={school} onChange={(e) => setSchool(e.target.value)} />
           <Textarea id="ob-address" label="Home address" required rows={2} value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" />

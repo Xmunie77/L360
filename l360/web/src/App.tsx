@@ -54,6 +54,8 @@ type AuthState = "loading" | "anon" | "authed";
 // deep-linking (e.g. a booking permalink) is needed.
 export function App() {
   const [active, setActive] = useState<string>(NAV_ITEMS[0].key);
+  // Mobile-only left drawer for the tabs (Simon, 04/09/2026).
+  const [navOpen, setNavOpen] = useState(false);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [me, setMe] = useState<Me | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(
@@ -170,7 +172,15 @@ export function App() {
   return (
     <div className="l360-app">
       <a className="skip-link" href="#l360-main-content">Skip to main content</a>
-      <nav className="l360-sidenav" aria-label="Primary">
+      {navOpen && (
+        <button
+          type="button"
+          className="l360-drawer-backdrop"
+          aria-label="Close menu"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+      <nav className={navOpen ? "l360-sidenav open" : "l360-sidenav"} aria-label="Primary">
         <Wordmark />
         <div className="l360-nav">
           {navItemsFor(me).map((item) => (
@@ -179,7 +189,10 @@ export function App() {
               type="button"
               className="l360-nav-item"
               aria-current={item.key === active ? "page" : undefined}
-              onClick={() => setActive(item.key)}
+              onClick={() => {
+                setActive(item.key);
+                setNavOpen(false);
+              }}
             >
               {item.label}
             </button>
@@ -190,6 +203,15 @@ export function App() {
 
       <div className="l360-main">
         <header className="l360-topbar">
+          <button
+            type="button"
+            className="l360-menu-btn"
+            aria-label="Open menu"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            ☰
+          </button>
           <h1>{activeLabel}</h1>
           <span className="l360-topbar-meta">Internal staff tool</span>
         </header>

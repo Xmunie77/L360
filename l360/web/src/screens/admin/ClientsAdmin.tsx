@@ -1,3 +1,4 @@
+import { AgeBadge } from "../../components/AgeBadge";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Input, StatusBadge, Textarea } from "../../ui/ui";
 import {
@@ -195,6 +196,7 @@ export function ClientsAdmin() {
                   value={childDob}
                   onChange={(e) => setChildDob(e.target.value)}
                 />
+                <AgeBadge dob={childDob} />
               </div>
               <Textarea
                 id="new-client-observations"
