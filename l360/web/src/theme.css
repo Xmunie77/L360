@@ -694,7 +694,21 @@ input[type="time"].l360-input {
     padding: 0 var(--l360-s4);
   }
 
+  .l360-cal-stepper {
+    flex: 1 1 100%;
+  }
+
   .l360-cal-stepper .l360-btn {
+    flex: 1 1 0;
+  }
+
+  /* Each toggle group takes its own full row, buttons split 50:50
+     (Simon, 05/09/2026). */
+  .l360-cal-switch {
+    flex: 1 1 100%;
+  }
+
+  .l360-cal-switch .l360-btn {
     flex: 1 1 0;
   }
 }
