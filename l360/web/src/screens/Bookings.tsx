@@ -10,7 +10,7 @@ import {
 } from "../api/client";
 import { ConfirmSessionFlow, LateCancelModal, VoidInvoiceModal, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { billingBadgeProps, statusBadgeProps } from "../domain/status";
-import { dayBoundsISO, formatBookingWhen, todayStr } from "../domain/datetime";
+import { dayBoundsISO, formatBookingWhenShort, todayStr } from "../domain/datetime";
 
 const WINDOW_DAYS = 14;
 
@@ -204,7 +204,7 @@ export function Bookings({ me }: { me: Me | null }) {
                 );
                 return (
                   <tr key={b.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>{formatBookingWhen(b.start_utc)}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{formatBookingWhenShort(b.start_utc)}</td>
                     <td style={{ textAlign: "center" }}>{roomShort(b.room_name)}</td>
                     <td>{b.educator_name}</td>
                     <td>{b.client_label}</td>

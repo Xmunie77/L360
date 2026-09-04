@@ -64,3 +64,20 @@ const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 export function formatBookingWhen(iso: string): string {
   return DAY_LABEL_FORMATTER.format(new Date(iso));
 }
+
+const SHORT_WHEN_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** "04/09/26 08:00" — Malta day-first, for tables and modal summary lines
+ * where the long "Fri 4 Sep at 08:00" wraps on a phone (Simon, 04/09/2026). */
+export function formatBookingWhenShort(iso: string): string {
+  // en-GB renders this as "04/09/26, 08:00"; drop the comma so date and
+  // time read as one compact stamp.
+  return SHORT_WHEN_FORMATTER.format(new Date(iso)).replace(", ", " ");
+}

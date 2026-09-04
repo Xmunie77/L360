@@ -7,7 +7,7 @@ import {
   type Booking,
   type BookingStatus,
 } from "../api/client";
-import { formatBookingWhen } from "../domain/datetime";
+import { formatBookingWhen, formatBookingWhenShort } from "../domain/datetime";
 
 // The Confirm-session flow (Simon's design, 03/09/2026): tapping Confirm
 // opens a MODAL — on a phone it reads like its own page — with the session's
@@ -102,7 +102,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
         <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
           <Card eyebrow="Confirm session" title={booking.client_label}>
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 4 }}>
-              {formatBookingWhen(booking.start_utc)} · {booking.duration_minutes} min · {booking.room_name}
+              {formatBookingWhenShort(booking.start_utc)} · {booking.duration_minutes} min · {booking.room_name}
             </p>
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
               {booking.service_type_name ?? "Session"}
@@ -346,7 +346,7 @@ export function LateCancelModal({
         <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
           <Card eyebrow="Cancel session" title={booking.client_label}>
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
-              {formatBookingWhen(booking.start_utc)} · {booking.duration_minutes} min ·{" "}
+              {formatBookingWhenShort(booking.start_utc)} · {booking.duration_minutes} min ·{" "}
               {booking.room_name} · {booking.educator_name}
             </p>
             {!askReason ? (
