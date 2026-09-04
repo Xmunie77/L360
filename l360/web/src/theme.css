@@ -861,8 +861,13 @@ input[type="time"].l360-input {
   cursor: pointer;
 }
 
-.l360-cal-room-col:hover {
-  background-color: var(--l360-orange-tint);
+/* Mouse only: on iOS a :hover rule here makes the FIRST tap apply the
+   hover (the whole column lights orange, no click) and only a second tap
+   book — Simon hit exactly that (05/09/2026). */
+@media (hover: hover) and (pointer: fine) {
+  .l360-cal-room-col:hover {
+    background-color: var(--l360-orange-tint);
+  }
 }
 
 .l360-cal-block {
