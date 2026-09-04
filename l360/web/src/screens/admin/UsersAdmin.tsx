@@ -21,7 +21,7 @@ function UserOnboardingCell({ user }: { user: AdminUser }) {
   if (user.role !== "educator") return <>—</>;
   const status = user.onboarding_status;
   return (
-    <a href={`?educator-form=${user.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
+    <a href={`?educator-form=${user.id}`} className="l360-link-btn">
       <StatusBadge
         variant={status === "submitted" ? "success" : status === "pending" ? "info" : "pending"}
         label={status === "submitted" ? "Submitted" : status === "pending" ? "Awaiting form" : "Not sent"}

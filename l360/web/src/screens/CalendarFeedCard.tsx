@@ -88,7 +88,14 @@ export function CalendarFeedCard() {
             value={feedUrl}
             onFocus={(e) => e.currentTarget.select()}
           />
-          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+            {/* webcal:// hands the feed straight to Apple Calendar / Outlook —
+                one tap instead of copy-paste. Google Calendar ignores the
+                scheme, so the URL field above stays for Android/Google.
+                (Simon, 04/09/2026.) */}
+            <a className="l360-btn l360-btn-primary" href={feedUrl.replace(/^https?:/, "webcal:")}>
+              Add to my calendar
+            </a>
             <Button variant="secondary" onClick={handleCreate} loading={busy} loadingLabel="Rotating…">
               Get a new link
             </Button>

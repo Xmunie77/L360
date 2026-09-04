@@ -245,7 +245,12 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
   return (
     <div className="l360-app">
       <header className="l360-topbar">
-        <h1>Learner details</h1>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            ‹ Back
+          </Button>
+          <h1>Learner details</h1>
+        </span>
         <span className="l360-topbar-meta">Learning 360°</span>
       </header>
       <main className="l360-content" style={{ maxWidth: 640 }}>

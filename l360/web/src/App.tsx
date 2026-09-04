@@ -155,12 +155,20 @@ export function App() {
     return <Login onSignedIn={() => setAuthState("authed")} />;
   }
 
+  // In a standalone PWA there is no browser chrome, so a detail page needs
+  // its own way back — history if we have it, otherwise the app root with
+  // the ?client=/?educator-form= param dropped (Simon, 04/09/2026).
+  function goBackToApp() {
+    if (window.history.length > 1) window.history.back();
+    else window.location.assign("/");
+  }
+
   if (clientDetailId) {
-    return <ClientDetail id={Number(clientDetailId)} me={me} onClose={() => window.close()} />;
+    return <ClientDetail id={Number(clientDetailId)} me={me} onClose={goBackToApp} />;
   }
 
   if (educatorFormId) {
-    return <EducatorFormView userId={Number(educatorFormId)} onClose={() => window.close()} />;
+    return <EducatorFormView userId={Number(educatorFormId)} onClose={goBackToApp} />;
   }
 
   return (

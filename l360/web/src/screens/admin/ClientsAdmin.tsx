@@ -255,7 +255,7 @@ export function ClientsAdmin() {
               {visible.map((c) => (
                 <tr key={c.id}>
                   <td>
-                    <a href={`?client=${c.id}`} target="_blank" rel="noopener noreferrer" className="l360-link-btn">
+                    <a href={`?client=${c.id}`} className="l360-link-btn">
                       {c.child_name ?? "—"}
                     </a>
                   </td>
