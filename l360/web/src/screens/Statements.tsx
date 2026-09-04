@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
+import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
+import { Billing } from "./Billing";
+import { Reconciliation } from "./Reconciliation";
 import {
   ApiError,
   getClientStatement,
@@ -30,11 +32,54 @@ interface StatementsProps {
   me: Me | null;
 }
 
+// Finance is the single home for money (Simon, 04/09/2026): Billing and
+// Payments were separate top-level tabs and are now pills here, using the
+// same sub-nav pattern as the Admin screen. Educators see no pill bar —
+// only their own pay summary, exactly as before; the other two screens are
+// admin-only server-side anyway.
+type FinanceTab = "statements" | "invoices" | "payments";
+
+const FINANCE_TABS: { key: FinanceTab; label: string; hint: string }[] = [
+  { key: "statements", label: "Statements", hint: "Educator monthly pay summaries and per-learner statements" },
+  { key: "invoices", label: "Invoices", hint: "Run monthly billing, then review and issue invoices" },
+  { key: "payments", label: "Payments", hint: "Match incoming bank payments to invoices and record payments taken" },
+];
+
 export function Statements({ me }: StatementsProps) {
+  const isAdmin = me?.role === "admin";
+  const [tab, setTab] = useState<FinanceTab>("statements");
+
+  if (!isAdmin) {
+    // Educator view is unchanged: just their own monthly summary.
+    return <EducatorSummaryCard me={me} />;
+  }
+
   return (
     <>
-      <EducatorSummaryCard me={me} />
-      {me?.role === "admin" && <ClientStatementCard />}
+      <Card eyebrow="Money" title="Finance">
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {FINANCE_TABS.map((t) => (
+            <Button
+              key={t.key}
+              type="button"
+              variant={tab === t.key ? "primary" : "secondary"}
+              title={t.hint}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {tab === "statements" && (
+        <>
+          <EducatorSummaryCard me={me} />
+          <ClientStatementCard />
+        </>
+      )}
+      {tab === "invoices" && <Billing />}
+      {tab === "payments" && <Reconciliation />}
     </>
   );
 }

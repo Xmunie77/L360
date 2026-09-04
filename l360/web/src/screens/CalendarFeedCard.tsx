@@ -83,7 +83,7 @@ export function CalendarFeedCard() {
           <Input
             id="calendar-feed-url"
             label="Feed URL"
-            hint="Paste this into your calendar app's “subscribe by URL” option."
+            hint="Tap “Add to my calendar” on iPhone/Mac or Outlook. On Android/Google Calendar, tap this field to select the link, then paste it into “From URL”."
             readOnly
             value={feedUrl}
             onFocus={(e) => e.currentTarget.select()}

@@ -52,7 +52,7 @@ export function Bookings({ me }: { me: Me | null }) {
       });
       setBookings(rows);
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Couldn't load bookings.");
+      setError(err instanceof ApiError ? err.detail : "Couldn't load sessions.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export function Bookings({ me }: { me: Me | null }) {
   }
 
   return (
-    <Card eyebrow="Scheduling" title="Bookings">
+    <Card eyebrow="Scheduling" title="Sessions">
       <p style={{ marginBottom: 4 }}>
         {isAdmin ? "Every session" : "Your sessions"} from the last {WINDOW_DAYS} days to the next{" "}
         {WINDOW_DAYS}, with status at a glance.
@@ -175,7 +175,7 @@ export function Bookings({ me }: { me: Me | null }) {
       {loading ? (
         <p className="l360-empty">Loading…</p>
       ) : bookings.length === 0 ? (
-        <p className="l360-empty">No bookings in this window.</p>
+        <p className="l360-empty">No sessions in this window.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">

@@ -4,8 +4,6 @@ import { Calendar } from "./screens/Calendar";
 import { Bookings } from "./screens/Bookings";
 import { ClientsAdmin } from "./screens/admin/ClientsAdmin";
 import { UsersAdmin } from "./screens/admin/UsersAdmin";
-import { Billing } from "./screens/Billing";
-import { Reconciliation } from "./screens/Reconciliation";
 import { Statements } from "./screens/Statements";
 import { Admin } from "./screens/Admin";
 import { ClientDetail } from "./screens/ClientDetail";
@@ -24,11 +22,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: "calendar", label: "Calendar" },
-  { key: "bookings", label: "Bookings" },
+  { key: "bookings", label: "Sessions" },
   { key: "clients", label: "Learners" },
   { key: "educators", label: "Educators" },
-  { key: "billing", label: "Billing" },
-  { key: "payments", label: "Payments" },
   { key: "statements", label: "Finance" },
   { key: "admin", label: "Admin" },
   { key: "profile", label: "Profile" },
@@ -203,8 +199,6 @@ export function App() {
           {active === "bookings" && <Bookings me={me} />}
           {active === "clients" && <ClientsAdmin />}
           {active === "educators" && <UsersAdmin />}
-          {active === "billing" && <Billing />}
-          {active === "payments" && <Reconciliation />}
           {active === "statements" && <Statements me={me} />}
           {active === "admin" && <Admin />}
           {active === "profile" && <Profile me={me} onSignOut={handleSignOut} />}

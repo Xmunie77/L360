@@ -75,6 +75,30 @@ describe("Statements", () => {
     await waitFor(() => expect(screen.getByText("Learner statement")).toBeTruthy());
   });
 
+  it("Finance carries the Invoices/Payments sub-nav for admins only", async () => {
+    // Billing and Payments stopped being top-level tabs on 04/09/2026 — they
+    // are pills inside Finance now. Educators must still see just their own
+    // summary, with no pill bar at all.
+    mockGetMyCalendarToken.mockResolvedValue(null);
+    mockListEducators.mockResolvedValue([]);
+    mockListClients.mockResolvedValue([]);
+
+    const admin = render(<Statements me={ADMIN_ME} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Statements" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Invoices" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Payments" })).toBeTruthy();
+    admin.unmount();
+
+    mockGetEducatorSummary.mockResolvedValue({
+      educator_id: 7, educator_name: "E. Ducator", period_start: "2026-08-01", period_end: "2026-08-28",
+      sessions: [], total_payable_cents: 0,
+    });
+    render(<Statements me={EDUCATOR_ME} />);
+    await waitFor(() => expect(mockGetEducatorSummary).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Invoices" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Payments" })).toBeNull();
+  });
+
   it("the utilisation report renders on its own (now an Admin sub-tab)", async () => {
     mockGetUtilisationReport.mockResolvedValue([{ room_id: 1, room_name: "Room 1", session_count: 2, booked_minutes: 120 }]);
 
