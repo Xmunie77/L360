@@ -268,13 +268,19 @@ export function ClientsAdmin() {
                 <tr key={c.id}>
                   <td>
                     <a href={`?client=${c.id}`} className="l360-link-btn">
-                      {c.child_name ?? "—"}
+                      {c.child_name ?? "Unnamed learner"}
                     </a>
                   </td>
                   <td>{c.guardian_first_name} {c.guardian_surname}</td>
                   <td>{c.email}</td>
                   <td>{c.phone ?? "—"}</td>
-                  <td>{c.educators.length ? c.educators.join(", ") : "—"}</td>
+                  <td>
+                    {c.educators.length === 0
+                      ? "–"
+                      : c.educators.length <= 2
+                        ? c.educators.join(", ")
+                        : `${c.educators.slice(0, 2).join(", ")} +${c.educators.length - 2}`}
+                  </td>
                   <td>
                     {/* Links to the detail page, where send/re-send lives —
                         Educators' badge is clickable, so this one is too. */}

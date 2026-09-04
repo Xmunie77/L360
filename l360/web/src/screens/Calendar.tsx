@@ -468,6 +468,8 @@ export function Calendar({ me }: { me: Me | null }) {
 
         {/* A 7-column week needs ~1200px; on a phone it becomes an agenda
             list instead, which is what every mature calendar app does. */}
+        {loading && <p className="l360-empty">Loading…</p>}
+
         {columns.length > 0 && isMobile && range === "week" ? (
           <CalendarAgenda
             columns={columns}
@@ -476,7 +478,7 @@ export function Calendar({ me }: { me: Me | null }) {
             onSelect={setSelectedBooking}
           />
         ) : columns.length > 0 ? (
-          <div className="l360-cal-grid-wrap">
+          <div className="l360-cal-grid-wrap" style={loading ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
             <div
               className="l360-cal-grid"
               style={{
@@ -490,8 +492,20 @@ export function Calendar({ me }: { me: Me | null }) {
                   key={col.key}
                   className={col.isToday ? "l360-cal-room-head l360-cal-head-today" : "l360-cal-room-head"}
                 >
-                  {col.label}
-                  {col.sub && <span className="l360-cal-head-sub">{col.sub}</span>}
+                  <span>
+                    {col.label}
+                    {col.sub && <span className="l360-cal-head-sub">{col.sub}</span>}
+                  </span>
+                  {/* The keyboard/discoverable way to book here — the column
+                      itself was an (invalid) role=button with buttons inside. */}
+                  <button
+                    type="button"
+                    className="l360-cal-head-add"
+                    aria-label={`New booking — ${col.label}${col.sub ? ` ${col.sub}` : ""}`}
+                    onClick={() => setNewBookingDraft(draftFor(col, formatHourLabel(Math.max(startHour, DEFAULT_START_HOUR))))}
+                  >
+                    +
+                  </button>
                 </div>
               ))}
 
@@ -524,15 +538,6 @@ export function Calendar({ me }: { me: Me | null }) {
                     className="l360-cal-room-col"
                     style={{ height: gridHeight, "--l360-cal-hour-h": `${HOUR_PX}px` } as CSSProperties}
                     onClick={(e) => handleColumnClick(e, col)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`New booking — ${col.label}${col.sub ? ` ${col.sub}` : ""}`}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setNewBookingDraft(draftFor(col, formatHourLabel(startHour)));
-                      }
-                    }}
                   >
                     {showNow && (
                       <div

@@ -41,7 +41,10 @@ export function UtilisationCard() {
       </div>
       {error && <p className="l360-alert l360-alert-danger">{error}</p>}
       {loading && <p className="l360-empty">Loading…</p>}
-      {!loading && (
+      {!loading && rows.length === 0 && !error && (
+        <p className="l360-empty">No sessions in this period.</p>
+      )}
+      {!loading && rows.length > 0 && (
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">
             <thead><tr><th>Room</th><th>Sessions</th><th>Booked time</th></tr></thead>

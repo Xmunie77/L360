@@ -278,17 +278,19 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                     ⚠ {saveError}
                   </div>
                 )}
-                {saved && (
-                  <div className="l360-alert l360-alert-info" role="status">
-                    Saved.
-                  </div>
-                )}
                 {!editing && (
-                  <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
-                    {isAdmin
-                      ? "These details are locked. Unlock to edit them."
-                      : "These details are read-only — an admin can change them."}
-                  </p>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+                    <p className="l360-field-hint" style={{ margin: 0, flex: "1 1 auto" }}>
+                      {isAdmin
+                        ? "These details are locked."
+                        : "These details are read-only — an admin can change them."}
+                    </p>
+                    {isAdmin && (
+                      <Button type="button" variant="secondary" onClick={() => { setSaved(false); setEditing(true); }}>
+                        Unlock to edit
+                      </Button>
+                    )}
+                  </div>
                 )}
                 <fieldset disabled={!editing} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -385,6 +387,11 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                 />
                 <Textarea id="cd-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </fieldset>
+                {saved && (
+                  <div className="l360-alert l360-alert-info" role="status">
+                    Saved.
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {editing ? (
                     <>
@@ -404,13 +411,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                         Cancel
                       </Button>
                     </>
-                  ) : (
-                    isAdmin && (
-                      <Button type="button" variant="secondary" onClick={() => { setSaved(false); setEditing(true); }}>
-                        Unlock to edit
-                      </Button>
-                    )
-                  )}
+                  ) : null}
                   <Button type="button" variant="secondary" onClick={onClose}>
                     Close
                   </Button>

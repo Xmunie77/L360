@@ -18,6 +18,8 @@ export function EmailSettingsAdmin() {
   const [emailFrom, setEmailFrom] = useState("");
   const [password, setPassword] = useState("");
   const [passwordSet, setPasswordSet] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const dirty = savedSnapshot !== JSON.stringify([host, port, user, emailFrom]) || password !== "";
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export function EmailSettingsAdmin() {
         setUser(s.user);
         setEmailFrom(s.email_from);
         setPasswordSet(s.password_set);
+        setSavedSnapshot(JSON.stringify([s.host, String(s.port), s.user, s.email_from]));
       })
       .catch((err) => setError(errorMessage(err, "Couldn't load the email settings.")))
       .finally(() => setLoading(false));
@@ -55,6 +58,7 @@ export function EmailSettingsAdmin() {
       });
       setPasswordSet(saved.password_set);
       setPassword("");
+      setSavedSnapshot(JSON.stringify([saved.host, String(saved.port), saved.user, saved.email_from]));
       setMessage("Saved. Use “Send test email” to confirm sending works.");
     } catch (err) {
       setError(errorMessage(err, "Couldn't save the email settings."));
@@ -64,6 +68,14 @@ export function EmailSettingsAdmin() {
   }
 
   async function handleTest() {
+    // The server tests the SAVED settings — typing a new host and pressing
+    // test would otherwise silently validate the old ones.
+    if (
+      dirty &&
+      !window.confirm("You have unsaved changes here — the test uses the last SAVED settings. Send anyway?")
+    ) {
+      return;
+    }
     setError(null);
     setMessage(null);
     setTesting(true);
@@ -85,9 +97,11 @@ export function EmailSettingsAdmin() {
     <Card eyebrow="System" title="Email sending">
       <p style={{ color: "var(--l360-bgrey)", marginBottom: 16 }}>
         Used for onboarding invites, booking confirmations, reminders and invoices.
-        For a Gmail / Google Workspace mailbox use host smtp.gmail.com, port 587, and a
-        Google App Password (not the mailbox password — create one at
-        myaccount.google.com/apppasswords with 2-Step Verification switched on).
+        For a Gmail / Google Workspace mailbox use host smtp.gmail.com, port 587, and a{" "}
+        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">
+          Google App Password
+        </a>{" "}
+        (not the mailbox password; needs 2-Step Verification switched on).
       </p>
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">

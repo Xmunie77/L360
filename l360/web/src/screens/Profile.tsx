@@ -44,6 +44,13 @@ export function Profile({ me, onSignOut }: { me: Me | null; onSignOut: () => voi
   return (
     <>
       <Card eyebrow="Account" title={me?.full_name ?? "Profile"}>
+        {/* The screen's most common action shouldn't be a full scroll away
+            (04/09/2026 UI audit). */}
+        <div style={{ marginBottom: 16 }}>
+          <Button type="button" variant="secondary" onClick={onSignOut}>
+            Sign out
+          </Button>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">
             <tbody>
@@ -110,17 +117,9 @@ export function Profile({ me, onSignOut }: { me: Me | null; onSignOut: () => voi
         </form>
       </Card>
 
-      <Card eyebrow="Session" title="Sign out">
-        <p style={{ color: "var(--l360-bgrey)", marginBottom: 12 }}>
-          Signed in as {me?.email ?? "—"}.
-        </p>
-        <Button type="button" variant="secondary" onClick={onSignOut}>
-          Sign out
-        </Button>
-        <p style={{ color: "var(--l360-bgrey)", marginTop: 16, fontSize: "0.85rem" }}>
-          Learning 360° Foundation · Swatar, Malta
-        </p>
-      </Card>
+      <p style={{ color: "var(--l360-bgrey)", fontSize: "0.85rem" }}>
+        Learning 360° Foundation · Swatar, Malta
+      </p>
     </>
   );
 }

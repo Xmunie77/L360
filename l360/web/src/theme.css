@@ -861,6 +861,29 @@ input[type="time"].l360-input {
   text-overflow: ellipsis;
 }
 
+.l360-cal-room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--l360-s1);
+}
+
+.l360-cal-head-add {
+  border: 1px solid var(--l360-lgrey);
+  border-radius: var(--l360-r-sm);
+  background: transparent;
+  color: var(--l360-mute);
+  font-size: var(--l360-t7);
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.l360-cal-head-add:hover {
+  background: var(--l360-orange-tint);
+  color: var(--l360-ink);
+}
+
 .l360-cal-head-sub {
   display: block;
   font-weight: var(--l360-w-regular);
