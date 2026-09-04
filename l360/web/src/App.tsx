@@ -213,7 +213,6 @@ export function App() {
             ☰
           </button>
           <h1>{activeLabel}</h1>
-          <span className="l360-topbar-meta">Internal staff tool</span>
         </header>
 
         <main id="l360-main-content" className="l360-content">
