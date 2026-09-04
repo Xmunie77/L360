@@ -14,11 +14,12 @@ vi.mock("../api/client", async () => {
   };
 });
 
-import { listInvoices, listUnmatchedTxns, manualMatchPayment } from "../api/client";
+import { listInvoices, listUnmatchedTxns, manualMatchPayment, recordPayment } from "../api/client";
 
 const mockListUnmatchedTxns = vi.mocked(listUnmatchedTxns);
 const mockListInvoices = vi.mocked(listInvoices);
 const mockManualMatchPayment = vi.mocked(manualMatchPayment);
+const mockRecordPayment = vi.mocked(recordPayment);
 
 const SAMPLE_TXN = {
   id: 1,
@@ -81,5 +82,21 @@ describe("Reconciliation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Match" }));
 
     await waitFor(() => expect(mockManualMatchPayment).toHaveBeenCalledWith(1, 42));
+  });
+
+
+  it("refuses to record more than the invoice's outstanding balance", async () => {
+    mockListUnmatchedTxns.mockResolvedValue([]);
+    mockListInvoices.mockResolvedValue([SAMPLE_INVOICE]);
+    render(<Reconciliation />);
+    await waitFor(() => expect(screen.getByLabelText(/^Invoice/)).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/^Invoice/), { target: { value: "42" } });
+    fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: "300" } });
+    fireEvent.change(screen.getByLabelText(/^Date received/), { target: { value: "2026-09-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+
+    expect(mockRecordPayment).not.toHaveBeenCalled();
+    expect(screen.getByText(/more than this invoice's outstanding/)).toBeTruthy();
   });
 });

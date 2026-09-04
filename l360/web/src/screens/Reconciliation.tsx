@@ -25,8 +25,11 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function invoiceLabel(inv: Invoice): string {
-  const period = `${inv.period_start} – ${inv.period_end}`;
-  return inv.number ? `${inv.number} · ${inv.client_label} (${period})` : `${inv.client_label} (${period})`;
+  // The outstanding balance is the number the person matching a payment is
+  // actually reconciling against — it was the one thing the label omitted
+  // (04/09/2026 UI audit).
+  const owed = `€${(inv.outstanding_cents / 100).toFixed(2)} due`;
+  return inv.number ? `${inv.number} · ${inv.client_label} · ${owed}` : `${inv.client_label} · ${owed}`;
 }
 
 // Bank reconciliation: pull Revolut Business transactions, auto-match what
@@ -254,11 +257,24 @@ function RecordPaymentPanel({ openInvoices, onRecorded }: { openInvoices: Invoic
       setError("Please record who received the cash.");
       return;
     }
+    // Guard the classic slip: €300 typed against a €30 invoice. The chosen
+    // invoice's outstanding balance is the ceiling.
+    const chosen = openInvoices.find((inv) => String(inv.id) === invoiceId);
+    const cents = Math.round(Number(amount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) {
+      setError("Enter an amount above zero.");
+      return;
+    }
+    if (chosen && cents > chosen.outstanding_cents) {
+      setError(
+        `That's more than this invoice's outstanding €${(chosen.outstanding_cents / 100).toFixed(2)} — check the amount or the invoice.`,
+      );
+      return;
+    }
     setError(null);
     setSuccess(false);
     setSubmitting(true);
     try {
-      const cents = Math.round(Number(amount) * 100);
       await recordPayment({
         invoice_id: Number(invoiceId),
         amount_cents: cents,
