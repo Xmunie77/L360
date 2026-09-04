@@ -75,7 +75,7 @@ describe("Statements", () => {
     await waitFor(() => expect(screen.getByText("Learner statement")).toBeTruthy());
   });
 
-  it("Finance carries the Invoices/Payments sub-nav for admins only", async () => {
+  it("Finance carries the Invoices/Bank sub-nav for admins only", async () => {
     // Billing and Payments stopped being top-level tabs on 04/09/2026 — they
     // are pills inside Finance now. Educators must still see just their own
     // summary, with no pill bar at all.
@@ -86,7 +86,7 @@ describe("Statements", () => {
     const admin = render(<Statements me={ADMIN_ME} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Statements" })).toBeTruthy());
     expect(screen.getByRole("button", { name: "Invoices" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Payments" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Bank" })).toBeTruthy();
     admin.unmount();
 
     mockGetEducatorSummary.mockResolvedValue({
@@ -96,7 +96,7 @@ describe("Statements", () => {
     render(<Statements me={EDUCATOR_ME} />);
     await waitFor(() => expect(mockGetEducatorSummary).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Invoices" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Payments" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bank" })).toBeNull();
   });
 
   it("the utilisation report renders on its own (now an Admin sub-tab)", async () => {
