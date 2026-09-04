@@ -316,6 +316,28 @@ input[type="time"].l360-input {
     position: sticky;
     top: 0;
     z-index: 40;
+    /* Hamburger | centred title | logo, all on one optical line and ~20%
+       larger (Simon, 05/09/2026). Grid so the title centres on the SCREEN,
+       not just in the leftover space. */
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+
+  .l360-topbar h1 {
+    margin-right: 0;
+    text-align: center;
+    line-height: 1;
+  }
+
+  .l360-menu-btn {
+    justify-self: start;
+    font-size: 29px;
+  }
+
+  .l360-topbar-logo {
+    justify-self: end;
+    height: 34px;
   }
 
   .l360-wordmark {
