@@ -215,6 +215,12 @@ a {
   margin-right: auto;
 }
 
+.l360-topbar-logo {
+  height: 28px;
+  width: auto;
+  flex-shrink: 0;
+}
+
 .l360-topbar-meta {
   font-size: var(--l360-t8);
   color: var(--l360-mute);

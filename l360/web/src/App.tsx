@@ -213,6 +213,7 @@ export function App() {
             ☰
           </button>
           <h1>{activeLabel}</h1>
+          <img src="/learning360-mark-orange.png" alt="" aria-hidden="true" className="l360-topbar-logo" />
         </header>
 
         <main id="l360-main-content" className="l360-content">
