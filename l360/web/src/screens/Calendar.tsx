@@ -435,8 +435,11 @@ export function Calendar({ me }: { me: Me | null }) {
           <div className="l360-cal-next-available">
             {nextAvailable.room_id && nextAvailable.room_name && nextAvailable.start_utc ? (
               <>
-                <span>
-                  Next available: <strong>{nextAvailable.room_name}</strong> — {formatBookingWhen(nextAvailable.start_utc)}
+                <span className="l360-cal-next-text">
+                  <span>
+                    Next available: <strong>{nextAvailable.room_name}</strong>
+                  </span>
+                  <span className="l360-cal-next-when">{formatBookingWhen(nextAvailable.start_utc)}</span>
                 </span>
                 <Button type="button" onClick={bookNextAvailable}>
                   Book

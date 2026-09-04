@@ -702,15 +702,31 @@ input[type="time"].l360-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--l360-s4);
-  padding: var(--l360-s3) var(--l360-s4);
+  gap: var(--l360-s3);
+  padding: var(--l360-s2) var(--l360-s3);
   margin-bottom: var(--l360-s4);
   border-radius: var(--l360-r-sm);
   background: var(--l360-info-bg);
   color: var(--l360-info);
   font-size: var(--l360-t8);
   font-weight: var(--l360-w-medium);
-  flex-wrap: wrap;
+  /* The room and the date stack on two lines so the button stays on the
+     right instead of wrapping below on a phone (Simon, 04/09/2026). */
+  flex-wrap: nowrap;
+}
+
+.l360-cal-next-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.l360-cal-next-when {
+  white-space: nowrap;
+}
+
+.l360-cal-next-available .l360-btn {
+  flex-shrink: 0;
 }
 
 .l360-cal-stepper,
