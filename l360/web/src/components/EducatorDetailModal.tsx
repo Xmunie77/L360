@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Modal } from "./Modal";
 import { Button, Card, Input, StatusBadge, Textarea } from "../ui/ui";
 import {
   ApiError,
@@ -84,8 +85,7 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
   }
 
   return (
-    <div className="l360-modal-backdrop" onClick={onClose}>
-      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} dirty={bio !== (user.bio ?? "")}>
         <Card eyebrow="Staffing" title={user.full_name}>
           <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
             <EducatorAvatar user={user} size={72} />
@@ -188,8 +188,7 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
             Close
           </Button>
         </Card>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

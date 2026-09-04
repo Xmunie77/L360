@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type MouseEvent } from "react";
+import { Modal } from "../components/Modal";
 import { Button, Card, Input, Money, Select, StatusBadge, Textarea } from "../ui/ui";
 import {
   ApiError,
@@ -778,8 +779,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
 
   if (skipped) {
     return (
-      <div className="l360-modal-backdrop" onClick={onClose}>
-        <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+      <Modal onClose={onClose}>
           <Card eyebrow="Scheduling" title="Repeating booking created">
             <p style={{ marginBottom: 12 }}>
               {skipped.length} of the occurrences couldn't be booked — the room or educator was already busy:
@@ -795,14 +795,12 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
               Done
             </Button>
           </Card>
-        </div>
-      </div>
+      </Modal>
     );
   }
 
   return (
-    <div className="l360-modal-backdrop" onClick={onClose}>
-      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} dirty={clientId !== "" || sessionTypeId !== "" || notes !== ""}>
         <Card eyebrow="Scheduling" title="New booking">
           <form onSubmit={handleSubmit} noValidate>
             {error && (
@@ -905,8 +903,7 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
             </div>
           </form>
         </Card>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -975,8 +972,7 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
   }
 
   return (
-    <div className="l360-modal-backdrop" onClick={onClose}>
-      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose}>
         <Card eyebrow={booking.room_name} title={booking.educator_name}>
           <p style={{ marginBottom: 8 }}>{booking.client_label}</p>
           {booking.service_type_name && (
@@ -1091,7 +1087,6 @@ function BookingDetailModal({ booking, me, onClose, onChanged }: BookingDetailMo
             Close
           </Button>
         </Card>
-      </div>
-    </div>
+    </Modal>
   );
 }

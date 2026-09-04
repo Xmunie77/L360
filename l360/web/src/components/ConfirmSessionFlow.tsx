@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Modal } from "./Modal";
 import { Button, Card } from "../ui/ui";
 import {
   ApiError,
@@ -98,8 +99,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
   return (
     <>
       {trigger}
-      <div className="l360-modal-backdrop" onClick={close}>
-        <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+      <Modal onClose={close}>
           <Card eyebrow="Confirm session" title={booking.client_label}>
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 4 }}>
               {formatBookingWhenShort(booking.start_utc)} · {booking.duration_minutes} min · {booking.room_name}
@@ -218,8 +218,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
               Close
             </Button>
           </Card>
-        </div>
-      </div>
+      </Modal>
     </>
   );
 }
@@ -265,8 +264,7 @@ export function VoidInvoiceModal({
   return (
     <>
       {trigger}
-      <div className="l360-modal-backdrop" onClick={() => setOpen(false)}>
-        <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+      <Modal onClose={() => setOpen(false)}>
           <Card eyebrow="Void invoice" title={booking.invoice_number ?? "Invoice"}>
             <p style={{ marginBottom: 8 }}>
               This voids the invoice for {booking.client_label}'s session on{" "}
@@ -290,8 +288,7 @@ export function VoidInvoiceModal({
               Close
             </Button>
           </Card>
-        </div>
-      </div>
+      </Modal>
     </>
   );
 }
@@ -342,8 +339,7 @@ export function LateCancelModal({
   return (
     <>
       {trigger}
-      <div className="l360-modal-backdrop" onClick={close}>
-        <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+      <Modal onClose={close}>
           <Card eyebrow="Cancel session" title={booking.client_label}>
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
               {formatBookingWhenShort(booking.start_utc)} · {booking.duration_minutes} min ·{" "}
@@ -393,8 +389,7 @@ export function LateCancelModal({
               Close
             </Button>
           </Card>
-        </div>
-      </div>
+      </Modal>
     </>
   );
 }

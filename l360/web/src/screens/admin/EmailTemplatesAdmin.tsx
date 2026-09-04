@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Modal } from "../../components/Modal";
 import { Button, Card, Input, StatusBadge, Textarea } from "../../ui/ui";
 import {
   adminListEmailTemplates,
@@ -43,8 +44,7 @@ function TemplateEditorModal({
   }
 
   return (
-    <div className="l360-modal-backdrop" onClick={onClose}>
-      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} dirty={dirty}>
         <Card eyebrow="Automated email" title={tpl.label}>
           <p style={{ color: "var(--l360-bgrey)", marginTop: 0 }}>{tpl.description}</p>
           {error && (
@@ -108,8 +108,7 @@ function TemplateEditorModal({
             </Button>
           </div>
         </Card>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

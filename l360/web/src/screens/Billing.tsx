@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Modal } from "../components/Modal";
 import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
 import {
   ApiError,
@@ -290,8 +291,7 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
   }
 
   return (
-    <div className="l360-modal-backdrop" onClick={onClose}>
-      <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose}>
         <Card eyebrow="Invoice" title={invoice?.number ?? "Draft invoice"}>
           {loading && <p className="l360-empty">Loading…</p>}
           {loadError && (
@@ -371,7 +371,6 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
             </Button>
           )}
         </Card>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,4 +1,5 @@
 import { AgeBadge } from "../../components/AgeBadge";
+import { Modal } from "../../components/Modal";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Input, StatusBadge, Textarea } from "../../ui/ui";
 import {
@@ -142,8 +143,7 @@ export function ClientsAdmin() {
       </div>
 
       {showAdd && (
-        <div className="l360-modal-backdrop" onClick={() => setShowAdd(false)}>
-          <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setShowAdd(false)} dirty={guardianFirstName !== "" || guardianSurname !== "" || email !== "" || childName !== ""}>
             <Card eyebrow="Directory" title="Add a learner">
             <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
               Just the basics — as soon as the learner is added, the full onboarding
@@ -217,8 +217,7 @@ export function ClientsAdmin() {
                 </Button>
               </div>
             </Card>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <h4 style={{ margin: "28px 0 12px" }}>All learners</h4>

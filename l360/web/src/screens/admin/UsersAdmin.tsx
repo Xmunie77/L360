@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Modal } from "../../components/Modal";
 import { Button, Card, Input, Select, StatusBadge } from "../../ui/ui";
 import {
   adminCreateUser,
@@ -158,8 +159,7 @@ export function UsersAdmin() {
       </div>
 
       {showAdd && (
-        <div className="l360-modal-backdrop" onClick={() => setShowAdd(false)}>
-          <div className="l360-modal-card" onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setShowAdd(false)} dirty={email !== "" || fullName !== ""}>
             <Card eyebrow="Staffing" title="Add educator">
               <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
                 New educators are automatically emailed the educator onboarding form
@@ -214,8 +214,7 @@ export function UsersAdmin() {
                 </Button>
               </div>
             </Card>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <h4 style={{ margin: "8px 0 12px" }}>All educators &amp; admins</h4>
