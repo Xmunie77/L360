@@ -118,7 +118,7 @@ a {
 }
 
 .l360-wordmark-img {
-  height: 32px;
+  height: 48px; /* 32px +50% (Simon, 05/09/2026) */
   width: auto;
 }
 
