@@ -32,7 +32,7 @@ export function Admin() {
 
   return (
     <>
-      <Card eyebrow="System" title="Admin">
+      <Card>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {TABS.map((t) => (
             <Button

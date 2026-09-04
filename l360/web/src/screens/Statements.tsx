@@ -56,7 +56,7 @@ export function Statements({ me }: StatementsProps) {
 
   return (
     <>
-      <Card eyebrow="Money" title="Finance">
+      <Card>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FINANCE_TABS.map((t) => (
             <Button
