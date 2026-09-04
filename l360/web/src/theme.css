@@ -675,9 +675,26 @@ input[type="time"].l360-input {
      come after the base .l360-cal-toolbar rule above: an earlier media
      query at the same specificity would otherwise lose to it in the
      cascade and silently no-op. */
+  /* Five control groups stacked full-width pushed the first session off the
+     screen — keep the pickers full-width but let the pill groups share rows
+     (Simon's phone, 04/09/2026). */
   .l360-cal-toolbar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--l360-s2);
+  }
+
+  .l360-cal-toolbar > .l360-field {
+    flex: 1 1 100%;
+  }
+
+  .l360-cal-toolbar .l360-btn {
+    padding: 0 var(--l360-s4);
+  }
+
+  .l360-cal-stepper .l360-btn {
+    flex: 1 1 0;
   }
 }
 
@@ -696,7 +713,19 @@ input[type="time"].l360-input {
   flex-wrap: wrap;
 }
 
+.l360-cal-stepper,
+.l360-cal-switch {
+  display: flex;
+  gap: var(--l360-s2);
+  align-items: flex-end;
+}
+
 .l360-cal-grid-wrap {
+  /* A max-height is what makes the sticky column heads actually pin — before
+     04/09/2026 nothing constrained the height, so `position: sticky` never
+     fired and the heads scrolled away with the grid. */
+  max-height: 70vh;
+  overflow: auto;
   overflow-x: auto;
   border: 1px solid var(--l360-lgrey);
   border-radius: var(--l360-r-md);
@@ -704,6 +733,8 @@ input[type="time"].l360-input {
 
 .l360-cal-grid {
   display: grid;
+  /* min-width is set inline from the column count (a week needs far more
+     than a day) — this is only the floor. */
   min-width: 640px;
 }
 
@@ -811,6 +842,76 @@ input[type="time"].l360-input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.l360-cal-head-sub {
+  display: block;
+  font-weight: var(--l360-w-regular);
+  color: var(--l360-mute);
+}
+
+.l360-cal-head-today {
+  color: var(--l360-orange);
+}
+
+/* Current time, drawn only on a column that is actually today. */
+.l360-cal-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--l360-negative, #A4161A);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* --- mobile agenda (week view under 820px) --- */
+
+.l360-cal-agenda-day {
+  margin-bottom: var(--l360-s4);
+}
+
+.l360-cal-agenda-head {
+  font-size: var(--l360-t7);
+  margin-bottom: var(--l360-s2);
+  padding-bottom: var(--l360-s1);
+  border-bottom: 1px solid var(--l360-lgrey);
+}
+
+.l360-cal-agenda-empty {
+  color: var(--l360-mute);
+  margin: 0 0 var(--l360-s2);
+}
+
+.l360-cal-agenda-row {
+  display: flex;
+  align-items: center;
+  gap: var(--l360-s3);
+  width: 100%;
+  min-height: var(--l360-tap-min);
+  padding: var(--l360-s2) var(--l360-s3);
+  margin-bottom: var(--l360-s2);
+  border: 1px solid transparent;
+  border-radius: var(--l360-r-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.l360-cal-agenda-time {
+  font-weight: var(--l360-w-semibold);
+  white-space: nowrap;
+}
+
+.l360-cal-agenda-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.l360-cal-agenda-status {
+  font-size: var(--l360-t8);
+  white-space: nowrap;
 }
 
 .l360-modal-backdrop {

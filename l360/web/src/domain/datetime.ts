@@ -22,6 +22,38 @@ export function dayBoundsISO(dateStr: string): { startISO: string; endISO: strin
   return { startISO: start.toISOString(), endISO: end.toISOString() };
 }
 
+/** "YYYY-MM-DD" n days after (or before, if negative) the given day. */
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return toDateInputValue(d);
+}
+
+/** The Monday of the week containing dateStr (Malta weeks run Mon-Sun). */
+export function startOfWeek(dateStr: string): string {
+  return addDays(dateStr, -mondayBasedWeekday(dateStr));
+}
+
+/** The seven "YYYY-MM-DD" days, Monday first, of the week containing dateStr. */
+export function weekDates(dateStr: string): string[] {
+  const monday = startOfWeek(dateStr);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+/** Local midnight..+days-midnight as ISO strings, for /api/bookings start/end. */
+export function rangeBoundsISO(dateStr: string, days: number): { startISO: string; endISO: string } {
+  const start = new Date(`${dateStr}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + days);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+/** Which local day an instant falls in, as "YYYY-MM-DD" — the bucket key for a
+ * week grid's day columns. (localHourFraction deliberately drops the date.) */
+export function localDateStr(iso: string): string {
+  return toDateInputValue(new Date(iso));
+}
+
 /** 0=Monday .. 6=Sunday for a "YYYY-MM-DD" date, in local time (matches the API's `weekday`). */
 export function mondayBasedWeekday(dateStr: string): number {
   return (new Date(`${dateStr}T00:00:00`).getDay() + 6) % 7;

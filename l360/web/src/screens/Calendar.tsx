@@ -26,16 +26,23 @@ import {
 import { ConfirmSessionFlow, LateCancelModal, VoidInvoiceModal, type OutcomePreview } from "../components/ConfirmSessionFlow";
 import { billingBadgeProps, statusBadgeProps } from "../domain/status";
 import {
+  addDays,
   combineDateTime,
   dayBoundsISO,
   formatBookingWhen,
   formatHourLabel,
+  localDateStr,
   localHourFraction,
   mondayBasedWeekday,
+  rangeBoundsISO,
+  startOfWeek,
   toDateInputValue,
   todayStr,
   toTimeInputValue,
+  weekDates,
 } from "../domain/datetime";
+import { layoutLanes } from "../domain/lanes";
+import { MOBILE_QUERY, useMediaQuery } from "../hooks/useMediaQuery";
 
 const REPEAT_OPTIONS = [
   { value: "none", label: "Doesn't repeat" },
@@ -55,6 +62,60 @@ const DURATION_OPTIONS: { value: string; label: string }[] = [
 interface NewBookingDraft {
   roomId: number;
   time: string;
+  /** The clicked column's OWN day — in week view this isn't the toolbar date. */
+  date: string;
+  /** Pre-selected educator, when the column represents one. */
+  educatorId?: number;
+}
+
+// A scheduler is time x room x person squeezed into a 2-D grid: time is always
+// the vertical axis and the user picks what the columns are (04/09/2026).
+//   day + rooms      -> a column per room (the original view)
+//   day + educators  -> a column per educator: who's free today
+//   week + rooms     -> Mon-Sun for one room, or all rooms packed into lanes
+//   week + educators -> Mon-Sun for one educator
+type CalRange = "day" | "week";
+type CalGroupBy = "rooms" | "educators";
+
+/** One grid column. `date` is the day it represents — in day view every
+ * column shares the toolbar's date; in week view each column is its own. */
+interface CalColumn {
+  key: string;
+  label: string;
+  sub?: string;
+  date: string;
+  roomId?: number;
+  educatorId?: number;
+  isToday?: boolean;
+}
+
+const ALL_ROOMS = "all";
+const VIEW_STORAGE_KEY = "l360-calendar-view";
+
+interface StoredView {
+  range: CalRange;
+  groupBy: CalGroupBy;
+  roomChoice: string;
+  educatorChoice: string;
+}
+
+function loadStoredView(): Partial<StoredView> {
+  // Private-mode Safari throws on access, and a stale/garbled value must
+  // never stop the calendar rendering — fall back to the defaults.
+  try {
+    const raw = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<StoredView>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredView(view: StoredView) {
+  try {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(view));
+  } catch {
+    /* not worth surfacing — the view just won't be remembered */
+  }
 }
 
 // Day view: one column per active room, a time axis down the left, sessions
@@ -62,7 +123,15 @@ interface NewBookingDraft {
 // block to see/cancel/move it. Plain CSS grid + absolute positioning — no
 // calendar library.
 export function Calendar({ me }: { me: Me | null }) {
+  const stored = useMemo(loadStoredView, []);
   const [date, setDate] = useState<string>(todayStr());
+  const [range, setRange] = useState<CalRange>(stored.range === "week" ? "week" : "day");
+  const [groupBy, setGroupBy] = useState<CalGroupBy>(stored.groupBy === "educators" ? "educators" : "rooms");
+  // Which room/educator the week view is showing. "" = not chosen yet, filled
+  // in from the reference data once it loads.
+  const [roomChoice, setRoomChoice] = useState<string>(stored.roomChoice ?? ALL_ROOMS);
+  const [educatorChoice, setEducatorChoice] = useState<string>(stored.educatorChoice ?? "");
+  const isMobile = useMediaQuery(MOBILE_QUERY);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [educators, setEducators] = useState<Educator[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -104,19 +173,27 @@ export function Calendar({ me }: { me: Me | null }) {
   function bookNextAvailable() {
     if (!nextAvailable?.room_id || !nextAvailable.start_utc) return;
     const start = new Date(nextAvailable.start_utc);
-    setDate(toDateInputValue(start));
-    setNewBookingDraft({ roomId: nextAvailable.room_id, time: toTimeInputValue(nextAvailable.start_utc) });
+    const day = toDateInputValue(start);
+    setDate(day);
+    setNewBookingDraft({
+      roomId: nextAvailable.room_id,
+      time: toTimeInputValue(nextAvailable.start_utc),
+      date: day,
+    });
   }
 
   async function refreshBookings() {
     setLoading(true);
     setLoadError(null);
     try {
-      const { startISO, endISO } = dayBoundsISO(date);
+      // One fetch for the whole visible range; the room/educator picker then
+      // filters in memory, so switching resource within a week is instant.
+      const { startISO, endISO } =
+        range === "week" ? rangeBoundsISO(startOfWeek(date), 7) : dayBoundsISO(date);
       const rows = await listBookings({ start: startISO, end: endISO });
       setBookings(rows);
     } catch (err) {
-      setLoadError(err instanceof ApiError ? err.detail : "Couldn't load bookings for this day.");
+      setLoadError(err instanceof ApiError ? err.detail : "Couldn't load bookings for this period.");
     } finally {
       setLoading(false);
     }
@@ -125,21 +202,111 @@ export function Calendar({ me }: { me: Me | null }) {
   useEffect(() => {
     refreshBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }, [date, range]);
 
   const activeRooms = useMemo(() => rooms.filter((r) => r.active), [rooms]);
+
+  // Default the educator picker to the viewer once educators have loaded —
+  // an educator opening a week almost always wants their own.
+  useEffect(() => {
+    if (educatorChoice || educators.length === 0) return;
+    const self = me && educators.some((e) => e.id === me.id) ? me.id : educators[0].id;
+    setEducatorChoice(String(self));
+  }, [educators, me, educatorChoice]);
+
+  // A stored room/educator that has since been deactivated must not leave the
+  // grid mysteriously empty.
+  useEffect(() => {
+    if (roomChoice !== ALL_ROOMS && activeRooms.length > 0 && !activeRooms.some((r) => String(r.id) === roomChoice)) {
+      setRoomChoice(ALL_ROOMS);
+    }
+  }, [activeRooms, roomChoice]);
+  useEffect(() => {
+    if (educatorChoice && educators.length > 0 && !educators.some((e) => String(e.id) === educatorChoice)) {
+      setEducatorChoice(String(educators[0].id));
+    }
+  }, [educators, educatorChoice]);
+
+  useEffect(() => {
+    saveStoredView({ range, groupBy, roomChoice, educatorChoice });
+  }, [range, groupBy, roomChoice, educatorChoice]);
+
+  const today = todayStr();
+
+  // In week view the picker narrows the fetched week to one resource (or, for
+  // rooms, optionally all of them).
+  const visibleBookings = useMemo(() => {
+    if (range !== "week") return bookings;
+    if (groupBy === "rooms") {
+      return roomChoice === ALL_ROOMS
+        ? bookings
+        : bookings.filter((b) => String(b.room_id) === roomChoice);
+    }
+    return bookings.filter((b) => String(b.educator_id) === educatorChoice);
+  }, [bookings, range, groupBy, roomChoice, educatorChoice]);
+
+  const columns: CalColumn[] = useMemo(() => {
+    if (range === "week") {
+      return weekDates(date).map((d) => {
+        const [, m, day] = d.split("-");
+        return {
+          key: d,
+          label: new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short" }),
+          sub: `${day}/${m}`,
+          date: d,
+          roomId: groupBy === "rooms" && roomChoice !== ALL_ROOMS ? Number(roomChoice) : undefined,
+          educatorId: groupBy === "educators" ? Number(educatorChoice) : undefined,
+          isToday: d === today,
+        };
+      });
+    }
+    if (groupBy === "educators") {
+      return educators.map((e) => ({
+        key: `e${e.id}`,
+        label: e.full_name,
+        date,
+        educatorId: e.id,
+        isToday: date === today,
+      }));
+    }
+    return activeRooms.map((r) => ({
+      key: `r${r.id}`,
+      label: r.name,
+      date,
+      roomId: r.id,
+      isToday: date === today,
+    }));
+  }, [range, groupBy, date, today, activeRooms, educators, roomChoice, educatorChoice]);
+
+  /** Which column a booking belongs in — the whole point of the generalised grid. */
+  function columnKeyOf(b: Booking): string {
+    if (range === "week") return localDateStr(b.start_utc);
+    return groupBy === "educators" ? `e${b.educator_id}` : `r${b.room_id}`;
+  }
+
+  const byColumn = useMemo(() => {
+    const map = new Map<string, Booking[]>();
+    for (const b of visibleBookings) {
+      const key = columnKeyOf(b);
+      const list = map.get(key);
+      if (list) list.push(b);
+      else map.set(key, [b]);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleBookings, range, groupBy]);
 
   const { startHour, endHour } = useMemo(() => {
     let start = DEFAULT_START_HOUR;
     let end = DEFAULT_END_HOUR;
-    for (const b of bookings) {
+    for (const b of visibleBookings) {
       const s = localHourFraction(b.start_utc);
       const e = s + b.duration_minutes / 60;
       if (s < start) start = Math.floor(s);
       if (e > end) end = Math.ceil(e);
     }
     return { startHour: start, endHour: end };
-  }, [bookings]);
+  }, [visibleBookings]);
 
   const totalHours = endHour - startHour;
   const gridHeight = totalHours * HOUR_PX;
@@ -149,18 +316,43 @@ export function Calendar({ me }: { me: Me | null }) {
     return marks;
   }, [startHour, endHour]);
 
-  function bookingsForRoom(roomId: number): Booking[] {
-    return bookings.filter((b) => b.room_id === roomId);
+  // The current-time line only appears on a column that IS today; ticking
+  // once a minute is enough for a 60px-per-hour grid.
+  const [nowFraction, setNowFraction] = useState(() => {
+    const n = new Date();
+    return n.getHours() + n.getMinutes() / 60;
+  });
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const n = new Date();
+      setNowFraction(n.getHours() + n.getMinutes() / 60);
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  function step(direction: -1 | 1) {
+    setDate((d) => addDays(d, direction * (range === "week" ? 7 : 1)));
   }
 
-  function handleColumnClick(e: MouseEvent<HTMLDivElement>, roomId: number) {
+  /** A column may know its room (day-by-room, or a week pinned to one room);
+   * otherwise the modal's room select decides, pre-filled with the first. */
+  function draftFor(column: CalColumn, time: string): NewBookingDraft {
+    return {
+      roomId: column.roomId ?? activeRooms[0]?.id ?? 0,
+      time,
+      date: column.date,
+      educatorId: column.educatorId,
+    };
+  }
+
+  function handleColumnClick(e: MouseEvent<HTMLDivElement>, column: CalColumn) {
     const rect = e.currentTarget.getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
     let hour = startHour + offsetY / HOUR_PX;
     // Snap to the nearest 15 minutes and keep it inside the visible range.
     hour = Math.round(hour * 4) / 4;
     hour = Math.min(Math.max(hour, startHour), endHour - 0.25);
-    setNewBookingDraft({ roomId, time: formatHourLabel(hour) });
+    setNewBookingDraft(draftFor(column, formatHourLabel(hour)));
   }
 
   return (
@@ -169,14 +361,74 @@ export function Calendar({ me }: { me: Me | null }) {
         <div className="l360-cal-toolbar">
           <Input
             id="cal-date"
-            label="Day"
+            label={range === "week" ? "Week of" : "Day"}
             type="date"
-            value={date}
+            value={range === "week" ? startOfWeek(date) : date}
             onChange={(e) => setDate(e.target.value)}
           />
-          <Button type="button" variant="secondary" onClick={() => setDate(todayStr())}>
-            Today
-          </Button>
+          <div className="l360-cal-stepper">
+            <Button type="button" variant="secondary" aria-label={range === "week" ? "Previous week" : "Previous day"} onClick={() => step(-1)}>
+              ‹
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setDate(todayStr())}>
+              Today
+            </Button>
+            <Button type="button" variant="secondary" aria-label={range === "week" ? "Next week" : "Next day"} onClick={() => step(1)}>
+              ›
+            </Button>
+          </div>
+
+          <div className="l360-cal-switch" role="tablist" aria-label="Range">
+            {(["day", "week"] as CalRange[]).map((r) => (
+              <Button
+                key={r}
+                type="button"
+                role="tab"
+                aria-selected={range === r}
+                variant={range === r ? "primary" : "secondary"}
+                onClick={() => setRange(r)}
+              >
+                {r === "day" ? "Day" : "Week"}
+              </Button>
+            ))}
+          </div>
+
+          <div className="l360-cal-switch" role="tablist" aria-label="Group by">
+            {(["rooms", "educators"] as CalGroupBy[]).map((g) => (
+              <Button
+                key={g}
+                type="button"
+                role="tab"
+                aria-selected={groupBy === g}
+                variant={groupBy === g ? "primary" : "secondary"}
+                onClick={() => setGroupBy(g)}
+              >
+                {g === "rooms" ? "Rooms" : "Educators"}
+              </Button>
+            ))}
+          </div>
+
+          {range === "week" && groupBy === "rooms" && (
+            <Select
+              id="cal-room-choice"
+              label="Showing"
+              value={roomChoice}
+              onChange={(e) => setRoomChoice(e.target.value)}
+              options={[
+                { value: ALL_ROOMS, label: "All rooms" },
+                ...activeRooms.map((r) => ({ value: String(r.id), label: r.name })),
+              ]}
+            />
+          )}
+          {range === "week" && groupBy === "educators" && (
+            <Select
+              id="cal-educator-choice"
+              label="Showing"
+              value={educatorChoice}
+              onChange={(e) => setEducatorChoice(e.target.value)}
+              options={educators.map((e) => ({ value: String(e.id), label: e.full_name }))}
+            />
+          )}
         </div>
 
         {nextAvailable !== undefined && (
@@ -206,15 +458,37 @@ export function Calendar({ me }: { me: Me | null }) {
           <p className="l360-empty">No active rooms configured yet.</p>
         )}
 
-        {activeRooms.length > 0 && (
+        {columns.length === 0 && activeRooms.length > 0 && !loading && (
+          <p className="l360-empty">No educators to show yet.</p>
+        )}
+
+        {/* A 7-column week needs ~1200px; on a phone it becomes an agenda
+            list instead, which is what every mature calendar app does. */}
+        {columns.length > 0 && isMobile && range === "week" ? (
+          <CalendarAgenda
+            columns={columns}
+            byColumn={byColumn}
+            groupBy={groupBy}
+            onSelect={setSelectedBooking}
+          />
+        ) : columns.length > 0 ? (
           <div className="l360-cal-grid-wrap">
             <div
               className="l360-cal-grid"
-              style={{ gridTemplateColumns: `72px repeat(${activeRooms.length}, minmax(160px, 1fr))` }}
+              style={{
+                gridTemplateColumns: `72px repeat(${columns.length}, minmax(140px, 1fr))`,
+                minWidth: 72 + columns.length * 140,
+              }}
             >
               <div className="l360-cal-corner" aria-hidden="true" />
-              {activeRooms.map((room) => (
-                <div key={room.id} className="l360-cal-room-head">{room.name}</div>
+              {columns.map((col) => (
+                <div
+                  key={col.key}
+                  className={col.isToday ? "l360-cal-room-head l360-cal-head-today" : "l360-cal-room-head"}
+                >
+                  {col.label}
+                  {col.sub && <span className="l360-cal-head-sub">{col.sub}</span>}
+                </div>
               ))}
 
               <div className="l360-cal-time-col" style={{ height: gridHeight }}>
@@ -229,54 +503,92 @@ export function Calendar({ me }: { me: Me | null }) {
                 ))}
               </div>
 
-              {activeRooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="l360-cal-room-col"
-                  style={{ height: gridHeight, "--l360-cal-hour-h": `${HOUR_PX}px` } as CSSProperties}
-                  onClick={(e) => handleColumnClick(e, room.id)}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`New booking in ${room.name}`}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setNewBookingDraft({ roomId: room.id, time: formatHourLabel(startHour) });
-                    }
-                  }}
-                >
-                  {bookingsForRoom(room.id).map((b) => {
-                    const top = (localHourFraction(b.start_utc) - startHour) * HOUR_PX;
-                    const height = Math.max((b.duration_minutes / 60) * HOUR_PX, 24);
-                    const { variant, label } = statusBadgeProps(b);
-                    return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className={`l360-cal-block l360-cal-block-${b.status}`}
-                        style={{ top, height }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedBooking(b);
-                        }}
-                      >
-                        <span className="l360-cal-block-title">{b.educator_name}</span>
-                        <span className="l360-cal-block-sub">{b.client_label}</span>
-                        <span className="l360-cal-block-sub">{variant === "success" ? "" : label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+              {columns.map((col) => {
+                const colBookings = byColumn.get(col.key) ?? [];
+                // Overlapping sessions share the column width instead of
+                // hiding each other (the pre-04/09/2026 behaviour).
+                const lanes = layoutLanes(
+                  colBookings.map((b) => {
+                    const s = localHourFraction(b.start_utc);
+                    return { start: s, end: s + b.duration_minutes / 60 };
+                  }),
+                );
+                const showNow = col.isToday && nowFraction >= startHour && nowFraction <= endHour;
+                return (
+                  <div
+                    key={col.key}
+                    className="l360-cal-room-col"
+                    style={{ height: gridHeight, "--l360-cal-hour-h": `${HOUR_PX}px` } as CSSProperties}
+                    onClick={(e) => handleColumnClick(e, col)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`New booking — ${col.label}${col.sub ? ` ${col.sub}` : ""}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setNewBookingDraft(draftFor(col, formatHourLabel(startHour)));
+                      }
+                    }}
+                  >
+                    {showNow && (
+                      <div
+                        className="l360-cal-now-line"
+                        style={{ top: (nowFraction - startHour) * HOUR_PX }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    {colBookings.map((b, i) => {
+                      const top = (localHourFraction(b.start_utc) - startHour) * HOUR_PX;
+                      const height = Math.max((b.duration_minutes / 60) * HOUR_PX, 24);
+                      const { variant, label } = statusBadgeProps(b);
+                      const { lane, laneCount } = lanes[i];
+                      const width = 100 / laneCount;
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          className={`l360-cal-block l360-cal-block-${b.status}`}
+                          style={{
+                            top,
+                            height,
+                            left: `calc(${lane * width}% + 2px)`,
+                            width: `calc(${width}% - 4px)`,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedBooking(b);
+                          }}
+                        >
+                          <span className="l360-cal-block-title">
+                            {groupBy === "educators" && range === "day" ? b.client_label : b.educator_name}
+                          </span>
+                          <span className="l360-cal-block-sub">
+                            {groupBy === "educators" && range === "day" ? b.room_name : b.client_label}
+                          </span>
+                          <span className="l360-cal-block-sub">
+                            {/* In an all-rooms week the room is the one thing
+                                the column can't tell you. */}
+                            {range === "week" && groupBy === "rooms" && roomChoice === ALL_ROOMS
+                              ? b.room_name
+                              : variant === "success"
+                                ? ""
+                                : label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+        ) : null}
       </Card>
 
       {newBookingDraft && (
         <NewBookingModal
           draft={newBookingDraft}
-          date={date}
+          date={newBookingDraft.date}
           rooms={activeRooms}
           educators={educators}
           clients={clients}
@@ -307,6 +619,68 @@ export function Calendar({ me }: { me: Me | null }) {
   );
 }
 
+// --- mobile agenda ---------------------------------------------------------
+
+/** The week view on a phone: a heading per day, then that day's sessions as
+ * tappable rows. A 7-column grid needs ~1200px, so below 820px this replaces
+ * it rather than asking for three screens of sideways scrolling. */
+function CalendarAgenda({
+  columns,
+  byColumn,
+  groupBy,
+  onSelect,
+}: {
+  columns: CalColumn[];
+  byColumn: Map<string, Booking[]>;
+  groupBy: CalGroupBy;
+  onSelect: (b: Booking) => void;
+}) {
+  const hasAny = columns.some((c) => (byColumn.get(c.key) ?? []).length > 0);
+  if (!hasAny) {
+    return <p className="l360-empty">No sessions this week.</p>;
+  }
+  return (
+    <div className="l360-cal-agenda">
+      {columns.map((col) => {
+        const rows = (byColumn.get(col.key) ?? [])
+          .slice()
+          .sort((a, b) => a.start_utc.localeCompare(b.start_utc));
+        return (
+          <section key={col.key} className="l360-cal-agenda-day">
+            <h3 className={col.isToday ? "l360-cal-agenda-head l360-cal-head-today" : "l360-cal-agenda-head"}>
+              {col.label} {col.sub}
+            </h3>
+            {rows.length === 0 ? (
+              <p className="l360-cal-agenda-empty">—</p>
+            ) : (
+              rows.map((b) => {
+                const { variant, label } = statusBadgeProps(b);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className={`l360-cal-agenda-row l360-cal-block-${b.status}`}
+                    onClick={() => onSelect(b)}
+                  >
+                    <span className="l360-cal-agenda-time">{toTimeInputValue(b.start_utc)}</span>
+                    <span className="l360-cal-agenda-main">
+                      <span className="l360-cal-block-title">{b.client_label}</span>
+                      <span className="l360-cal-block-sub">
+                        {groupBy === "educators" ? b.room_name : b.educator_name} · {b.duration_minutes} min
+                      </span>
+                    </span>
+                    {variant !== "success" && <span className="l360-cal-agenda-status">{label}</span>}
+                  </button>
+                );
+              })
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- New booking modal -----------------------------------------------------
 
 interface NewBookingModalProps {
@@ -327,7 +701,13 @@ function NewBookingModal({ draft, date, rooms, educators, clients, sessionTypes,
   // field to them — they're usually booking their own session — but leave
   // it editable (an admin/educator can still book on someone else's behalf).
   const [educatorId, setEducatorId] = useState(
-    me && educators.some((e) => e.id === me.id) ? String(me.id) : "",
+    // A click in an educator's own column means that educator; otherwise
+    // default to the person booking, if they deliver sessions themselves.
+    draft.educatorId
+      ? String(draft.educatorId)
+      : me && educators.some((e) => e.id === me.id)
+        ? String(me.id)
+        : "",
   );
   const [clientId, setClientId] = useState("");
   const [sessionTypeId, setSessionTypeId] = useState("");
