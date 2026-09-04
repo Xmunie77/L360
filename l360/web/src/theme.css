@@ -174,8 +174,8 @@ a {
   min-height: var(--l360-tap-min);
   padding: 0 var(--l360-s3);
   background: transparent;
-  border: 2px solid var(--l360-white);
-  border-radius: var(--l360-r-full);
+  border: 1px solid var(--l360-white);
+  border-radius: var(--l360-r-md);
   color: var(--l360-white);
   font-family: var(--l360-font);
   font-size: var(--l360-t8);
@@ -328,8 +328,8 @@ input[type="time"].l360-input {
 }
 
 /* ---- Button ----------------------------------------------------------
-   Pill, weight 600, t7, min-height 44px, 30px horizontal padding.
-   §5 Button in DESIGN_SYSTEM.md. */
+   Weight 600, t7, min-height 44px, 30px horizontal padding, 3px radius
+   and a 1px line. §5 Button in DESIGN_SYSTEM.md. */
 
 .l360-btn {
   display: inline-flex;
@@ -338,11 +338,12 @@ input[type="time"].l360-input {
   gap: var(--l360-s2);
   min-height: var(--l360-tap-min);
   padding: 0 30px;
-  border-radius: var(--l360-r-full);
+  border-radius: var(--l360-r-md);
   font-family: var(--l360-font);
   font-size: var(--l360-t7);
   font-weight: var(--l360-w-semibold);
-  border: 2px solid transparent;
+  /* 1px, not 2 — a finer line reads sharper against the small radius. */
+  border: 1px solid transparent;
   cursor: pointer;
   transition: background var(--l360-ease), color var(--l360-ease), border-color var(--l360-ease);
 }
@@ -502,7 +503,7 @@ input[type="time"].l360-input {
   align-items: center;
   gap: var(--l360-s1);
   padding: 4px 10px;
-  border-radius: var(--l360-r-full);
+  border-radius: var(--l360-r-sm);
   font-size: var(--l360-eyebrow-size);
   letter-spacing: var(--l360-eyebrow-tracking);
   text-transform: uppercase;

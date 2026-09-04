@@ -73,9 +73,12 @@
   --l360-eyebrow-tracking: 0.14em;
 
   /* ---- Shape (extracted) ----------------------------------- */
-  --l360-r-sm: 0.25rem;   /* inputs, chips, tags */
-  --l360-r-md: 0.5rem;    /* cards, panels */
-  --l360-r-full: 9999px;  /* buttons, pills, badges */
+  /* Tightened 04/09/2026 (Simon): pills lost their full round and every
+     radius came down hard — the app should read sharp and technical, not
+     soft. Two tokens now, not three; nothing is fully round any more
+     except a genuine circle (an avatar), which sets 50% itself. */
+  --l360-r-sm: 2px;       /* inputs, badges, chips, tags */
+  --l360-r-md: 3px;       /* cards, panels, modals, buttons */
 
   /* ---- Space (ADDED — 4pt scale) --------------------------- */
   --l360-s1: 4px;   --l360-s2: 8px;   --l360-s3: 12px;

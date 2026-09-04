@@ -153,9 +153,12 @@ Under 820px, `t1` steps down to `t2` and `t2` to `t3`.
 
 | | Value | Use |
 |---|---|---|
-| `--l360-r-sm` | 4px | Inputs, tags, chips [EXTRACTED] |
-| `--l360-r-md` | 8px | Cards, panels, modals [EXTRACTED] |
-| `--l360-r-full` | pill | Buttons, badges, avatars [EXTRACTED] |
+| `--l360-r-sm` | 2px | Inputs, tags, chips, badges [TIGHTENED 04/09/2026] |
+| `--l360-r-md` | 3px | Cards, panels, modals, buttons [TIGHTENED 04/09/2026] |
+
+`--l360-r-full` is **retired**. Buttons and badges are no longer fully round
+pills — the app reads sharp and technical, and the only circle left is a real
+one (an avatar, which sets `50%` itself). Two radius tokens, not three.
 
 Spacing scale (4pt): 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96. Nothing off-scale. **[ADDED]**
 
@@ -168,7 +171,9 @@ Layout: 1080px max content, 560px max for booking/payment column, 24px gutters,
 
 ### Button
 
-Pill, weight 600, `--l360-t7`, min height 44px, horizontal padding 30px.
+Weight 600, `--l360-t7`, min height 44px, horizontal padding 30px, `--l360-r-md`
+radius and a **1px** border — a finer line reads sharper against the small radius
+(2px looked chunky once the pill shape went).
 
 | Variant | Light ground | Dark ground |
 |---|---|---|
@@ -204,7 +209,8 @@ Eyebrow (orange-deep, uppercase 11px) → title `t5`/600 → body `t8` in `--l36
 
 ### Status badge
 
-Pill, 11px uppercase 600, 4px/10px padding, tinted ground + matching state text.
+11px uppercase 600, 4px/10px padding, `--l360-r-sm` radius, tinted ground +
+matching state text.
 Always carries a word, never colour alone.
 
 ---
