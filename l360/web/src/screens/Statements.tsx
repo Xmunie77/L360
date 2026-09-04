@@ -14,7 +14,7 @@ import {
   type EducatorSummary,
   type Me,
 } from "../api/client";
-import { todayStr } from "../domain/datetime";
+import { formatDateShort, todayStr } from "../domain/datetime";
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
@@ -154,7 +154,7 @@ function EducatorSummaryCard({ me }: { me: Me | null }) {
                   <th>Learner</th>
                   <th>Duration</th>
                   <th>Status</th>
-                  <th>Rate</th>
+                  <th>Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,7 +163,7 @@ function EducatorSummaryCard({ me }: { me: Me | null }) {
                 )}
                 {summary.sessions.map((s) => (
                   <tr key={s.booking_id}>
-                    <td>{s.local_date}</td>
+                    <td>{formatDateShort(s.local_date)}</td>
                     <td>{s.client_label}</td>
                     <td>{s.duration_minutes} min</td>
                     <td>{s.status.replace("_", " ")}</td>
@@ -255,7 +255,7 @@ function ClientStatementCard() {
                 <tr key={i.id}>
                   <td>{i.number ?? "—"}</td>
                   <td><StatusBadge variant={STATEMENT_STATUS_VARIANT[i.status] ?? "pending"} label={i.status.replace("_", " ")} /></td>
-                  <td>{i.issued_at ? i.issued_at.slice(0, 10) : "—"}</td>
+                  <td>{i.issued_at ? formatDateShort(i.issued_at.slice(0, 10)) : "–"}</td>
                   <td><Money cents={i.total_cents} /></td>
                 </tr>
               ))}
@@ -271,7 +271,7 @@ function ClientStatementCard() {
               )}
               {statement.payments.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.received_at.slice(0, 10)}</td>
+                  <td>{formatDateShort(p.received_at.slice(0, 10))}</td>
                   <td>{p.method.replace("_", " ")}</td>
                   <td><Money cents={p.amount_cents} /></td>
                 </tr>

@@ -106,6 +106,13 @@ const SHORT_WHEN_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
+/** "04/09/26" for a plain "YYYY-MM-DD" — the app's one table-date format
+ * (Finance had three at once before 04/09/2026). */
+export function formatDateShort(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
 /** "04/09/26 08:00" — Malta day-first, for tables and modal summary lines
  * where the long "Fri 4 Sep at 08:00" wraps on a phone (Simon, 04/09/2026). */
 export function formatBookingWhenShort(iso: string): string {

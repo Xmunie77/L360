@@ -161,7 +161,7 @@ export function UsersAdmin() {
 
       {showAdd && (
         <Modal onClose={() => setShowAdd(false)} dirty={email !== "" || fullName !== ""}>
-            <Card eyebrow="Staffing" title="Add educator">
+            <Card eyebrow="Staffing" title="Add staff member">
               <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
                 New educators are automatically emailed the educator onboarding form
                 (qualifications, availability, safeguarding declarations, referees,
@@ -266,14 +266,14 @@ export function UsersAdmin() {
                     <td>
                       <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
                     </td>
-                    <td style={{ display: "flex", gap: 8 }}>
+                    <td><div style={{ display: "flex", gap: 8 }}>
                       <Button type="button" onClick={() => saveLevel(u)} loading={busyId === u.id} loadingLabel="Saving…">
                         Save
                       </Button>
                       <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
                         Cancel
                       </Button>
-                    </td>
+                    </div></td>
                   </tr>
                 ) : (
                   <tr key={u.id}>
@@ -292,7 +292,7 @@ export function UsersAdmin() {
                     <td>
                       <StatusBadge variant={u.active ? "success" : "pending"} label={u.active ? "Active" : "Inactive"} />
                     </td>
-                    <td style={{ display: "flex", gap: 8 }}>
+                    <td><div style={{ display: "flex", gap: 8 }}>
                       <Button type="button" variant="secondary" onClick={() => startEditLevel(u)}>
                         Edit level
                       </Button>
@@ -316,7 +316,7 @@ export function UsersAdmin() {
                           Reactivate
                         </Button>
                       )}
-                    </td>
+                    </div></td>
                   </tr>
                 ),
               )}

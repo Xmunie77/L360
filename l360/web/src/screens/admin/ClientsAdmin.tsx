@@ -186,13 +186,13 @@ export function ClientsAdmin() {
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 <Input
                   id="new-client-child-name"
-                  label="Child's name"
+                  label="Learner's name"
                   value={childName}
                   onChange={(e) => setChildName(e.target.value)}
                 />
                 <Input
                   id="new-client-child-dob"
-                  label="Child's date of birth"
+                  label="Learner's date of birth"
                   type="date"
                   value={childDob}
                   onChange={(e) => setChildDob(e.target.value)}
@@ -266,10 +266,14 @@ export function ClientsAdmin() {
                   <td>{c.phone ?? "—"}</td>
                   <td>{c.educators.length ? c.educators.join(", ") : "—"}</td>
                   <td>
-                    <StatusBadge
-                      variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}
-                      label={c.onboarding_status === "submitted" ? "Submitted" : c.onboarding_status === "pending" ? "Awaiting form" : "Not sent"}
-                    />
+                    {/* Links to the detail page, where send/re-send lives —
+                        Educators' badge is clickable, so this one is too. */}
+                    <a href={`?client=${c.id}`} style={{ textDecoration: "none" }}>
+                      <StatusBadge
+                        variant={c.onboarding_status === "submitted" ? "success" : c.onboarding_status === "pending" ? "info" : "pending"}
+                        label={c.onboarding_status === "submitted" ? "Submitted" : c.onboarding_status === "pending" ? "Awaiting form" : "Not sent"}
+                      />
+                    </a>
                   </td>
                   <td>
                     <StatusBadge variant={c.active ? "success" : "pending"} label={c.active ? "Active" : "Inactive"} />

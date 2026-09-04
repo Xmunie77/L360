@@ -212,14 +212,14 @@ export function ServiceTypesAdmin() {
                   <td>
                     <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
                   </td>
-                  <td style={{ display: "flex", gap: 8 }}>
+                  <td><div style={{ display: "flex", gap: 8 }}>
                     <Button type="button" onClick={() => saveEdit(r)} loading={busyId === r.id} loadingLabel="Saving…">
                       Save
                     </Button>
                     <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
                       Cancel
                     </Button>
-                  </td>
+                  </div></td>
                 </tr>
               ) : (
                 <tr key={r.id}>
@@ -230,7 +230,7 @@ export function ServiceTypesAdmin() {
                   <td>
                     <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
                   </td>
-                  <td style={{ display: "flex", gap: 8 }}>
+                  <td><div style={{ display: "flex", gap: 8 }}>
                     <Button type="button" variant="secondary" onClick={() => startEdit(r)}>
                       Edit
                     </Button>
@@ -254,7 +254,7 @@ export function ServiceTypesAdmin() {
                         Reactivate
                       </Button>
                     )}
-                  </td>
+                  </div></td>
                 </tr>
               ),
             )}
@@ -268,11 +268,9 @@ export function ServiceTypesAdmin() {
   const additionalServices = serviceTypes.filter((s) => s.category === "additional_service");
 
   return (
-    <Card eyebrow="Finance" title="Sessions & services">
+    <Card eyebrow="Finance" title="Services Price List">
       <p className="l360-field-hint" style={{ marginBottom: 16 }}>
-        Named prices from the foundation's price list that don't fit the level+duration model above —
-        meetings, programmes and group sessions, plus one-off additional services like flashcards.
-      </p>
+        The foundation's price list — what each session or service bills the family and pays the tutor. Per-level session pricing lives under Educator levels. </p>
       {error && (
         <div className="l360-alert l360-alert-danger" role="alert">
           ⚠ {error}

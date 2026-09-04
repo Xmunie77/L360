@@ -12,7 +12,7 @@ import {
   type InvoiceDetail,
   type InvoiceStatus,
 } from "../api/client";
-import { todayStr } from "../domain/datetime";
+import { formatDateShort, todayStr } from "../domain/datetime";
 
 const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   draft: "Draft",
@@ -137,7 +137,7 @@ export function Billing({ showRun = true }: { showRun?: boolean } = {}) {
                     <td>{inv.number ?? "draft"}</td>
                     <td>{inv.client_label}</td>
                     <td>
-                      {inv.period_start} – {inv.period_end}
+                      {formatDateShort(inv.period_start)} – {formatDateShort(inv.period_end)}
                     </td>
                     <td>
                       <StatusBadge
@@ -325,7 +325,7 @@ function InvoiceDetailModal({ invoiceId, onClose, onChanged }: InvoiceDetailModa
                   label={INVOICE_STATUS_LABEL[invoice.status]}
                 />
                 <span className="l360-mono">
-                  {invoice.period_start} – {invoice.period_end}
+                  {formatDateShort(invoice.period_start)} – {formatDateShort(invoice.period_end)}
                 </span>
               </p>
 

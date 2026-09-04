@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { formatDateShort } from "../domain/datetime";
 import { Button, Card, Input, Money, Select } from "../ui/ui";
 import {
   ApiError,
@@ -68,7 +69,7 @@ export function Reconciliation() {
 
   if (forbidden) {
     return (
-      <Card eyebrow="Finance" title="Payments">
+      <Card eyebrow="Finance" title="Bank">
         <p className="l360-empty">Admins only — you don't have access to this section.</p>
       </Card>
     );
@@ -193,7 +194,7 @@ function UnmatchedRow({ txn, openInvoices, onMatched }: UnmatchedRowProps) {
     <div className="l360-session-card">
       <div className="l360-session-card-top">
         <span style={{ fontWeight: 600 }}>
-          <Money cents={txn.amount_cents} /> · {new Date(txn.txn_date).toLocaleDateString("en-GB")}
+          <Money cents={txn.amount_cents} /> · {formatDateShort(txn.txn_date.slice(0, 10))}
         </span>
       </div>
       <p className="l360-field-hint" style={{ margin: "2px 0 8px" }}>

@@ -140,7 +140,7 @@ export function RoomsAdmin() {
                     <td>
                       <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
                     </td>
-                    <td style={{ display: "flex", gap: 8 }}>
+                    <td><div style={{ display: "flex", gap: 8 }}>
                       <Button
                         type="button"
                         onClick={() => saveEdit(r)}
@@ -152,7 +152,7 @@ export function RoomsAdmin() {
                       <Button type="button" variant="secondary" onClick={() => setEditingId(null)}>
                         Cancel
                       </Button>
-                    </td>
+                    </div></td>
                   </tr>
                 ) : (
                   <tr key={r.id}>
@@ -160,7 +160,7 @@ export function RoomsAdmin() {
                     <td>
                       <StatusBadge variant={r.active ? "success" : "pending"} label={r.active ? "Active" : "Inactive"} />
                     </td>
-                    <td style={{ display: "flex", gap: 8 }}>
+                    <td><div style={{ display: "flex", gap: 8 }}>
                       <Button type="button" variant="secondary" onClick={() => startEdit(r)}>
                         Edit
                       </Button>
@@ -184,7 +184,7 @@ export function RoomsAdmin() {
                           Reactivate
                         </Button>
                       )}
-                    </td>
+                    </div></td>
                   </tr>
                 ),
               )}

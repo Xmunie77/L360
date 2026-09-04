@@ -194,12 +194,12 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
   );
 }
 
-const HR_FIELDS: { key: keyof UserHr; label: string; hint?: string }[] = [
+const HR_FIELDS: { key: keyof UserHr; label: string; hint?: string; type?: string }[] = [
   { key: "mobile", label: "Mobile" },
   { key: "address", label: "Home address" },
   { key: "id_card_number", label: "ID card number" },
   { key: "nationality", label: "Nationality" },
-  { key: "date_of_birth", label: "Date of birth", hint: "YYYY-MM-DD" },
+  { key: "date_of_birth", label: "Date of birth", type: "date" },
   { key: "iban", label: "IBAN" },
   { key: "bank_account_holder", label: "Bank account holder" },
   { key: "tax_vat_number", label: "Tax / VAT number" },
@@ -274,12 +274,13 @@ function HrDetailsSection({ userId }: { userId: number }) {
       )}
       {hr && editing && (
         <>
-          {HR_FIELDS.map(({ key, label, hint }) => (
+          {HR_FIELDS.map(({ key, label, hint, type }) => (
             <Input
               key={key}
               id={`hr-${key}-${userId}`}
               label={label}
               hint={hint}
+              type={type}
               value={hr[key] ?? ""}
               onChange={(e) => setHr({ ...hr, [key]: e.target.value })}
             />
