@@ -54,8 +54,8 @@ export function Admin() {
       {tab === "service-types" && <ServiceTypesAdmin />}
       {tab === "email" && (
         <>
-          <EmailSettingsAdmin />
           <EmailTemplatesAdmin />
+          <EmailSettingsAdmin />
         </>
       )}
       {tab === "invoicing" && <InvoiceSettingsAdmin />}
