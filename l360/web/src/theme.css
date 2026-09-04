@@ -341,7 +341,9 @@ input[type="time"].l360-input {
   }
 
   .l360-wordmark {
+    /* ~5mm below the notch inset (Simon, 05/09/2026). */
     padding: var(--l360-s3) var(--l360-s4);
+    margin-top: 20px;
   }
 
   .l360-nav-footer {
