@@ -72,6 +72,10 @@ describe("Statements", () => {
 
     render(<Statements me={ADMIN_ME} />);
 
+    // Finance lands on the Billing pill (first) for admins — the statement
+    // sections live behind the Statements pill.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run billing" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Statements" }));
     await waitFor(() => expect(screen.getByText("Learner statement")).toBeTruthy());
   });
 
@@ -85,6 +89,7 @@ describe("Statements", () => {
 
     const admin = render(<Statements me={ADMIN_ME} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Statements" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Billing" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Invoices" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Bank" })).toBeTruthy();
     admin.unmount();
@@ -95,6 +100,7 @@ describe("Statements", () => {
     });
     render(<Statements me={EDUCATOR_ME} />);
     await waitFor(() => expect(mockGetEducatorSummary).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Billing" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Invoices" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Bank" })).toBeNull();
   });

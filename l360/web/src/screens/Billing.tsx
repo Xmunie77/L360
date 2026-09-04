@@ -47,7 +47,12 @@ function errorMessage(err: unknown, fallback: string): string {
 // Monthly billing: run a billing cycle over a period, then list/issue the
 // resulting invoices. Draft invoices are created by the run; issuing sends
 // the client their invoice email and locks the numbering.
-export function Billing() {
+/** The Run-billing card on its own — Finance's first pill (Simon, 04/09/2026). */
+export function RunBilling() {
+  return <RunBillingPanel onRun={() => {}} />;
+}
+
+export function Billing({ showRun = true }: { showRun?: boolean } = {}) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
   const [loading, setLoading] = useState(true);
@@ -85,7 +90,7 @@ export function Billing() {
 
   return (
     <>
-      <RunBillingPanel onRun={refreshInvoices} />
+      {showRun && <RunBillingPanel onRun={refreshInvoices} />}
 
       <Card eyebrow="Finance" title="Invoices">
         <div style={{ marginBottom: 16, maxWidth: 260 }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Input, Money, Select, StatusBadge, type StatusVariant } from "../ui/ui";
-import { Billing } from "./Billing";
+import { Billing, RunBilling } from "./Billing";
 import { Reconciliation } from "./Reconciliation";
 import {
   ApiError,
@@ -37,17 +37,18 @@ interface StatementsProps {
 // same sub-nav pattern as the Admin screen. Educators see no pill bar —
 // only their own pay summary, exactly as before; the other two screens are
 // admin-only server-side anyway.
-type FinanceTab = "statements" | "invoices" | "payments";
+type FinanceTab = "billing" | "statements" | "invoices" | "payments";
 
 const FINANCE_TABS: { key: FinanceTab; label: string; hint: string }[] = [
+  { key: "billing", label: "Billing", hint: "The monthly billing run — sweeps everything still unbilled into draft invoices" },
   { key: "statements", label: "Statements", hint: "Educator monthly pay summaries and per-learner statements" },
-  { key: "invoices", label: "Invoices", hint: "Run monthly billing, then review and issue invoices" },
+  { key: "invoices", label: "Invoices", hint: "Review, issue and void invoices" },
   { key: "payments", label: "Bank", hint: "Match incoming bank payments to invoices and record payments taken" },
 ];
 
 export function Statements({ me }: StatementsProps) {
   const isAdmin = me?.role === "admin";
-  const [tab, setTab] = useState<FinanceTab>("statements");
+  const [tab, setTab] = useState<FinanceTab>("billing");
 
   if (!isAdmin) {
     // Educator view is unchanged: just their own monthly summary.
@@ -78,7 +79,8 @@ export function Statements({ me }: StatementsProps) {
           <ClientStatementCard />
         </>
       )}
-      {tab === "invoices" && <Billing />}
+      {tab === "billing" && <RunBilling />}
+      {tab === "invoices" && <Billing showRun={false} />}
       {tab === "payments" && <Reconciliation />}
     </>
   );
