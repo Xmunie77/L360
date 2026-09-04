@@ -191,8 +191,11 @@ function RunBillingPanel({ onRun }: { onRun: () => void }) {
   return (
     <Card eyebrow="Finance" title="Run billing">
       <p style={{ marginBottom: 16 }}>
-        Drafts one invoice per active client for completed bookings in the period below. Clients with
-        nothing billable are skipped, not invoiced for zero.
+        The monthly safety net. Individual sessions can be invoiced on the spot from Sessions
+        (Delivered? → Send invoice); this run sweeps up everything still unbilled in the period —
+        delivered sessions plus charged no-shows and cancellations — into one draft invoice per
+        client. Sessions already invoiced or with the fee waived are never picked up again, and
+        clients with nothing billable are skipped, not invoiced for zero.
       </p>
       <form onSubmit={handleSubmit} noValidate>
         {error && (
