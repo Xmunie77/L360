@@ -171,8 +171,15 @@ export function Billing({ showRun = true }: { showRun?: boolean } = {}) {
 
 // --- run billing panel -------------------------------------------------
 
+function firstOfMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 function RunBillingPanel({ onRun }: { onRun: () => void }) {
-  const [periodStart, setPeriodStart] = useState(todayStr());
+  // First-of-month -> today, like every other Finance period control. The
+  // old today->today default covered one day and drafted nothing.
+  const [periodStart, setPeriodStart] = useState(firstOfMonth());
   const [periodEnd, setPeriodEnd] = useState(todayStr());
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +187,10 @@ function RunBillingPanel({ onRun }: { onRun: () => void }) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (periodEnd < periodStart) {
+      setError("The period end is before its start.");
+      return;
+    }
     setError(null);
     setResult(null);
     setRunning(true);
@@ -211,9 +222,21 @@ function RunBillingPanel({ onRun }: { onRun: () => void }) {
         )}
         {result && (
           <div className="l360-alert l360-alert-info" role="status">
-            {result.created.length} invoice{result.created.length === 1 ? "" : "s"} drafted,{" "}
-            {result.skipped_clients.length} client{result.skipped_clients.length === 1 ? "" : "s"} had
-            nothing to bill.
+            <p style={{ margin: 0 }}>
+              {result.created.length} invoice{result.created.length === 1 ? "" : "s"} drafted,{" "}
+              {result.skipped_clients.length} client{result.skipped_clients.length === 1 ? "" : "s"} had
+              nothing to bill.
+              {result.created.length > 0 && " Review and issue them under Invoices."}
+            </p>
+            {result.created.length > 0 && (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                {result.created.map((inv) => (
+                  <li key={inv.id}>
+                    {inv.client_label} — <Money cents={inv.total_cents} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
