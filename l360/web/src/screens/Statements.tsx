@@ -42,7 +42,7 @@ type FinanceTab = "statements" | "invoices" | "payments";
 const FINANCE_TABS: { key: FinanceTab; label: string; hint: string }[] = [
   { key: "statements", label: "Statements", hint: "Educator monthly pay summaries and per-learner statements" },
   { key: "invoices", label: "Invoices", hint: "Run monthly billing, then review and issue invoices" },
-  { key: "payments", label: "Payments", hint: "Match incoming bank payments to invoices and record payments taken" },
+  { key: "payments", label: "Bank", hint: "Match incoming bank payments to invoices and record payments taken" },
 ];
 
 export function Statements({ me }: StatementsProps) {
