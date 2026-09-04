@@ -338,6 +338,9 @@ input[type="time"].l360-input {
 
 .l360-btn-block {
   width: 100%;
+  /* Block-level, not inline-flex: two 100%-wide inline buttons shared a
+     line and overflowed the modal card (Simon, 04/09/2026). */
+  display: flex;
 }
 
 /* ---- Form fields ------------------------------------------------------

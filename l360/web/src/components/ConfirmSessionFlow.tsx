@@ -94,7 +94,6 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
 
   if (!open) return trigger;
 
-  const fullWidth = { width: "100%", marginBottom: 8 } as const;
 
   return (
     <>
@@ -114,13 +113,13 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
             {step === "took_place" && (
               <>
                 <p style={{ marginBottom: 12 }}>Did this session take place?</p>
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => choose("completed")}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => choose("completed")}>
                   Delivered
                 </Button>
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => choose("no_show")}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => choose("no_show")}>
                   No show
                 </Button>
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => choose("cancelled_late")}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => choose("cancelled_late")}>
                   Cancelled
                 </Button>
               </>
@@ -129,13 +128,13 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
             {step === "charge" && (
               <>
                 <p style={{ marginBottom: 12 }}>Charge for this session?</p>
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => setStep("invoice")}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => setStep("invoice")}>
                   Charge
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  style={fullWidth}
+                  block style={{ marginBottom: 8 }}
                   disabled={busy}
                   onClick={() => {
                     onPreview({ status: outcome, charge_waived: true });
@@ -145,7 +144,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                   No charge (fee waived)
                 </Button>
                 {entryStep === "took_place" && (
-                  <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => { onPreview(null); setStep("took_place"); }}>
+                  <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => { onPreview(null); setStep("took_place"); }}>
                     Back
                   </Button>
                 )}
@@ -160,7 +159,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                     key={reason}
                     type="button"
                     variant="secondary"
-                    style={fullWidth}
+                    block style={{ marginBottom: 8 }}
                     loading={busy}
                     loadingLabel="Saving…"
                     onClick={() => void commit({ charge: false, sendInvoice: false, reason })}
@@ -168,7 +167,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                     {reason}
                   </Button>
                 ))}
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => setStep("charge")}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => setStep("charge")}>
                   Back
                 </Button>
               </>
@@ -180,7 +179,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                 <Button
                   type="button"
                   variant="secondary"
-                  style={fullWidth}
+                  block style={{ marginBottom: 8 }}
                   loading={busy}
                   loadingLabel="Sending…"
                   onClick={() => void commit({ charge: true, sendInvoice: true })}
@@ -190,7 +189,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                 <Button
                   type="button"
                   variant="secondary"
-                  style={fullWidth}
+                  block style={{ marginBottom: 8 }}
                   disabled={busy}
                   onClick={() => void commit({ charge: true, sendInvoice: false })}
                 >
@@ -199,7 +198,7 @@ export function ConfirmSessionFlow({ booking, onPreview, onDone, onError }: Prop
                 <Button
                   type="button"
                   variant="secondary"
-                  style={fullWidth}
+                  block style={{ marginBottom: 8 }}
                   disabled={busy}
                   onClick={() => {
                     if (outcome === "completed") {
@@ -340,7 +339,6 @@ export function LateCancelModal({
   );
   if (!open) return trigger;
 
-  const fullWidth = { width: "100%", marginBottom: 8 } as const;
   return (
     <>
       {trigger}
@@ -359,14 +357,14 @@ export function LateCancelModal({
                 <Button
                   type="button"
                   variant="secondary"
-                  style={fullWidth}
+                  block style={{ marginBottom: 8 }}
                   loading={busy}
                   loadingLabel="Cancelling…"
                   onClick={() => void commit(true)}
                 >
                   Charge
                 </Button>
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => setAskReason(true)}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => setAskReason(true)}>
                   No charge (fee waived)
                 </Button>
               </>
@@ -378,7 +376,7 @@ export function LateCancelModal({
                     key={reason}
                     type="button"
                     variant="secondary"
-                    style={fullWidth}
+                    block style={{ marginBottom: 8 }}
                     loading={busy}
                     loadingLabel="Cancelling…"
                     onClick={() => void commit(false, reason)}
@@ -386,7 +384,7 @@ export function LateCancelModal({
                     {reason}
                   </Button>
                 ))}
-                <Button type="button" variant="secondary" style={fullWidth} disabled={busy} onClick={() => setAskReason(false)}>
+                <Button type="button" variant="secondary" block style={{ marginBottom: 8 }} disabled={busy} onClick={() => setAskReason(false)}>
                   Back
                 </Button>
               </>

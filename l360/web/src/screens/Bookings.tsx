@@ -14,6 +14,13 @@ import { dayBoundsISO, formatBookingWhen, todayStr } from "../domain/datetime";
 
 const WINDOW_DAYS = 14;
 
+// "Room 1" -> "1": the column header already says Room, so the number
+// alone keeps the column narrow (Simon, 04/09/2026).
+function roomShort(name: string): string {
+  const m = /^room\s+(.+)$/i.exec(name.trim());
+  return m ? m[1] : name;
+}
+
 // Bookings list — the last 14 days and the next 14. The recent past is the
 // working half: sessions deliver (and bill) by default once their time
 // passes; the Confirm flow records what actually happened — and can send
@@ -197,8 +204,8 @@ export function Bookings({ me }: { me: Me | null }) {
                 );
                 return (
                   <tr key={b.id}>
-                    <td>{formatBookingWhen(b.start_utc)}</td>
-                    <td>{b.room_name}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{formatBookingWhen(b.start_utc)}</td>
+                    <td style={{ textAlign: "center" }}>{roomShort(b.room_name)}</td>
                     <td>{b.educator_name}</td>
                     <td>{b.client_label}</td>
                     <td>{b.duration_minutes} min</td>
