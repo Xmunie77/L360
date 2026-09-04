@@ -156,7 +156,7 @@ export function App() {
   }
 
   if (clientDetailId) {
-    return <ClientDetail id={Number(clientDetailId)} onClose={() => window.close()} />;
+    return <ClientDetail id={Number(clientDetailId)} me={me} onClose={() => window.close()} />;
   }
 
   if (educatorFormId) {

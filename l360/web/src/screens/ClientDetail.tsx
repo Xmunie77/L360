@@ -7,6 +7,7 @@ import {
   adminSendOnboarding,
   adminUpdateClient,
   type AdminClient,
+  type Me,
   type OnboardingAdmin,
 } from "../api/client";
 
@@ -139,7 +140,12 @@ function OnboardingCard({ clientId }: { clientId: number }) {
 // hyperlink on the admin Clients list (?client=<id>), rather than as a tab
 // within the main app shell, since it's meant to be a focused, linkable
 // view of one family's record (including sensitive onboarding notes).
-export function ClientDetail({ id, onClose }: { id: number; onClose: () => void }) {
+export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; onClose: () => void }) {
+  // A learner record opens READ-ONLY and must be unlocked before anything
+  // can be changed — and only by an admin (Simon, 04/09/2026). The API is
+  // admin-only already; this stops accidental edits to a live record.
+  const [editing, setEditing] = useState(false);
+  const isAdmin = me?.role === "admin";
   const [client, setClient] = useState<AdminClient | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -165,10 +171,7 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    adminGetClient(id)
-      .then((c) => {
-        setClient(c);
+  function resetFields(c: AdminClient) {
         setGuardianFirstName(c.guardian_first_name);
         setGuardianSurname(c.guardian_surname);
         setEmail(c.email);
@@ -186,9 +189,17 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
         setAllergyDetails(c.allergy_details ?? "");
         setObservations(c.observations ?? "");
         setNotes(c.notes ?? "");
+  }
+
+  useEffect(() => {
+    adminGetClient(id)
+      .then((c) => {
+        setClient(c);
+        resetFields(c);
       })
       .catch((err) => setLoadError(errorMessage(err, "Couldn't load this learner.")))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function handleSave(e: FormEvent) {
@@ -223,6 +234,7 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
       });
       setClient(updated);
       setSaved(true);
+      setEditing(false);
     } catch (err) {
       setSaveError(errorMessage(err, "Couldn't save this learner."));
     } finally {
@@ -257,6 +269,14 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
                     Saved.
                   </div>
                 )}
+                {!editing && (
+                  <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
+                    {isAdmin
+                      ? "These details are locked. Unlock to edit them."
+                      : "These details are read-only — an admin can change them."}
+                  </p>
+                )}
+                <fieldset disabled={!editing} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                   <Input
                     id="cd-first-name"
@@ -346,10 +366,33 @@ export function ClientDetail({ id, onClose }: { id: number; onClose: () => void 
                   onChange={(e) => setObservations(e.target.value)}
                 />
                 <Textarea id="cd-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button type="submit" loading={saving} loadingLabel="Saving…">
-                    Save
-                  </Button>
+                </fieldset>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {editing ? (
+                    <>
+                      <Button type="submit" loading={saving} loadingLabel="Saving…">
+                        Save changes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          resetFields(client!);
+                          setSaveError(null);
+                          setSaved(false);
+                          setEditing(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    isAdmin && (
+                      <Button type="button" variant="secondary" onClick={() => { setSaved(false); setEditing(true); }}>
+                        Unlock to edit
+                      </Button>
+                    )
+                  )}
                   <Button type="button" variant="secondary" onClick={onClose}>
                     Close
                   </Button>
