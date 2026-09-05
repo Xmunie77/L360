@@ -146,6 +146,52 @@ def test_flat_jsonrpc_shape_still_works(booking_env, tmp_path, monkeypatch):
         assert booking.service_type_id == booking_env["service_type_id"]
 
 
+def test_service_alias_and_late_cancellation(booking_env, tmp_path, monkeypatch):
+    from l360.models import ServiceType
+    with session_scope() as db:
+        db.add(ServiceType(name="Consultant Home Visit", category="session",
+                           client_price_cents=4000, tutor_payment_cents=3500,
+                           requires_room=False))
+        db.add(ServiceType(name="Educator II Office Session", category="session",
+                           client_price_cents=3000, tutor_payment_cents=2200))
+
+    dump = _dump(tmp_path, [
+        # Alias: SimplyBook "Session" → L360 "Visit".
+        _nested(1, "2027-03-01 10:00:00", "2027-03-01 11:00:00",
+                service_name="Consultant Home Session"),
+        # Late cancellation service → cancelled_late, charge waived, priced
+        # from the underlying service type.
+        _nested(2, "2027-03-02 10:00:00", "2027-03-02 11:00:00",
+                service_name="Educator II Office Late Cancellation"),
+    ])
+    _run(monkeypatch, dump, "--commit")
+    with session_scope() as db:
+        bookings = sorted(db.scalars(select(Booking)).all(), key=lambda b: b.start_utc)
+        assert bookings[0].client_price_cents == 4000  # Consultant Home Visit
+        assert bookings[0].status == "confirmed"
+        assert bookings[1].status == "cancelled_late"
+        assert bookings[1].charge_waived is True
+        assert bookings[1].client_price_cents == 3000  # Educator II Office Session
+        assert bookings[1].cancelled_at is not None
+
+
+def test_half_session_halves_the_price_snapshot(booking_env, tmp_path, monkeypatch):
+    from l360.models import ServiceType
+    with session_scope() as db:
+        db.add(ServiceType(name="Consultant Office Session", category="session",
+                           client_price_cents=3500, tutor_payment_cents=3000))
+    dump = _dump(tmp_path, [
+        _nested(1, "2027-03-01 10:00:00", "2027-03-01 10:30:00", duration=30,
+                service_name="Consultant office half an hour session"),
+    ])
+    _run(monkeypatch, dump, "--commit")
+    with session_scope() as db:
+        booking = db.scalar(select(Booking))
+        assert booking.duration_minutes == 30
+        assert booking.client_price_cents == 1750
+        assert booking.tutor_payment_cents == 1500
+
+
 def test_past_status_flag(booking_env, tmp_path, monkeypatch):
     dump = _dump(tmp_path, [_nested(4, "2020-01-06 10:00:00", "2020-01-06 11:00:00")])
     _run(monkeypatch, dump, "--past-status", "completed", "--commit")

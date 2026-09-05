@@ -20,9 +20,13 @@ Mapping rules:
     L360 bookings always occupy a room.
   * service type — the service name minus its "Room N" suffix, matched
     case-insensitively against L360 service type names ("Consultant Office
-    Session Room 4" → "Consultant Office Session"); --service-type is the
-    fallback for names with no L360 equivalent. A match snapshots the L360
-    prices onto the booking the way the booking API does.
+    Session Room 4" → "Consultant Office Session"), with SERVICE_ALIASES
+    translating SimplyBook spellings the price list names differently
+    (Session→Visit, half-hour variants) and LATE_CANCELLATIONS turning
+    SimplyBook's late-cancellation "services" into status cancelled_late
+    with the charge waived. --service-type is the fallback for names with
+    no L360 equivalent. A match snapshots the L360 prices onto the booking
+    the way the booking API does.
   * client — the SimplyBook client's email against clients.email
     (case-insensitive). Unknown emails are skipped and counted — import
     those clients first (l360.import_clients), then re-run.
@@ -63,6 +67,55 @@ from l360.models import Booking, Client, Room, ServiceType, User
 START_KEYS = ("start_datetime", "start_date_time", "start_date")
 END_KEYS = ("end_datetime", "end_date_time", "end_date")
 ROOM_RE = re.compile(r"\broom\s*0*(\d+)\s*", re.IGNORECASE)
+
+# SimplyBook service names that don't match the L360 price list verbatim:
+# SimplyBook grew "Session"/"half ... session" variants where L360 says
+# "Visit" and prices half-hours by duration rather than by name. Keyed by
+# the room-stripped, whitespace-normalized, lowercased SimplyBook name
+# (the full 66-service list checked against the live account, 05/09/2026).
+SERVICE_ALIASES = {
+    "consultant home session": "Consultant Home Visit",
+    "consultant home half session": "Consultant Home Visit",
+    "educator ii home session": "Educator II Home Visit",
+    "educator ii home half session": "Educator II Home Visit",
+    "educator i home session": "Educator I Home Visit",
+    "educator i home half session": "Educator I Home Visit",
+    "consultant school session": "Consultant School Visit",
+    "consultant school half session": "Consultant School Visit",
+    "educator ii school half session": "Educator II School Visit",
+    "consultant office half an hour session": "Consultant Office Session",
+    "educator ii office half session": "Educator II Office Session",
+    "educator i office half session": "Educator I Office Session",
+    "initial onboarding meeting": "Onboarding Meeting",
+    "review and written update of indepth programme": "Review or Written Update of Indepth Programme",
+    "consultant school meeting half hour": "Consultant School Meeting",
+    "consultant iep meeting": "IEP",
+    "iep consultant half hour": "IEP",
+    "educator ii iep meeting": "IEP Educator II",
+    "educator ii iep meeting half hour": "IEP Educator II",
+}
+
+# SimplyBook models a charged late cancellation as its own bookable
+# service; L360 models it as a booking with status "cancelled_late". These
+# import with that status and charge_waived=True — whatever was owed was
+# settled (or forgiven) inside SimplyBook, and imported history must never
+# be re-invoiced by L360 on its own. Value = the underlying L360 service
+# type, or None where L360 has no equivalent (partial-fee 24-12h tiers,
+# Educator I school visits).
+LATE_CANCELLATIONS = {
+    "consultant office late cancellation as per policy": "Consultant Office Session",
+    "consultant home late cancellation": "Consultant Home Visit",
+    "consultant school session late cancellation": "Consultant School Visit",
+    "educator ii office late cancellation": "Educator II Office Session",
+    "educator ii home late cancellation": "Educator II Home Visit",
+    "educator ii school late cancellation": "Educator II School Visit",
+    "educator i office late cancellation": "Educator I Office Session",
+    "educator i home late cancellation": "Educator I Home Visit",
+    "educator i school late cancellation": None,
+    "late cancellation 24-12 hours - consultant": None,
+    "late cancellation 24-12 hours educator ii": None,
+    "late cancellation 24-12 hours educator i": None,
+}
 
 
 def _first(record: dict, keys: tuple[str, ...]) -> str | None:
@@ -204,7 +257,12 @@ def cmd_import() -> None:
             room = rooms_by_number.get(room_match.group(1).lstrip("0") or "0") if room_match else None
             if room is None:
                 room = default_room
-            service_type = service_types.get(_norm(ROOM_RE.sub(" ", service_name))) or fallback_st
+
+            base_name = _norm(ROOM_RE.sub(" ", service_name))
+            late_cancel = base_name in LATE_CANCELLATIONS
+            lookup_name = (LATE_CANCELLATIONS.get(base_name)
+                           or SERVICE_ALIASES.get(base_name) or base_name)
+            service_type = service_types.get(_norm(lookup_name)) or fallback_st
             if service_type is None and service_name:
                 unmatched_services.add(service_name.strip())
 
@@ -214,6 +272,8 @@ def cmd_import() -> None:
                        for k in ("is_canceled", "is_cancelled"))
             if cancelled:
                 status = "cancelled"
+            elif late_cancel:
+                status = "cancelled_late"
             elif start_utc < now_utc:
                 status = args.past_status
             else:
@@ -225,9 +285,14 @@ def cmd_import() -> None:
                 skipped_existing += 1
                 continue
 
+            # SimplyBook's "half ..." service variants price at exactly half
+            # the hourly service (checked against the live service list), so
+            # the snapshot halves too instead of charging an hour for 30min.
+            scale = 2 if service_type is not None and re.search(r"\bhalf\b", base_name) else 1
             st_label = service_type.name if service_type else "no service type"
             print(f"  + {start_local:%Y-%m-%d %H:%M} {duration}min  {label} -> "
-                  f"client {client.id}, educator {educator.id}, {room.name}, {st_label} [{status}]")
+                  f"client {client.id}, educator {educator.id}, {room.name}, {st_label}"
+                  f"{' (half rate)' if scale == 2 else ''} [{status}]")
             to_create += 1
             if args.commit:
                 db.add(Booking(
@@ -235,14 +300,15 @@ def cmd_import() -> None:
                     educator_id=educator.id,
                     client_id=client.id,
                     service_type_id=service_type.id if service_type else None,
-                    client_price_cents=service_type.client_price_cents if service_type else None,
-                    tutor_payment_cents=service_type.tutor_payment_cents if service_type else None,
+                    client_price_cents=service_type.client_price_cents // scale if service_type else None,
+                    tutor_payment_cents=service_type.tutor_payment_cents // scale if service_type else None,
                     start_utc=start_utc,
                     duration_minutes=duration,
                     status=status,
+                    charge_waived=status == "cancelled_late",
                     notes=f"Imported from SimplyBook (id {rec.get('id', '?')}, code {rec.get('code', '?')})",
                     created_by=creator.id,
-                    cancelled_at=now_utc if status == "cancelled" else None,
+                    cancelled_at=now_utc if status in ("cancelled", "cancelled_late") else None,
                 ))
 
     verb = "Created" if args.commit else "Would create"
