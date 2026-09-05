@@ -337,6 +337,35 @@ export function Calendar({ me }: { me: Me | null }) {
 
   /** A column may know its room (day-by-room, or a week pinned to one room);
    * otherwise the modal's room select decides, pre-filled with the first. */
+  // Two-step booking (Simon, 05/09/2026): the first tap SELECTS a slot —
+  // a highlighted band appears on the hour — and tapping the band opens
+  // the booking modal. Tapping elsewhere just moves the selection, so a
+  // stray tap can never open a form. On mouse devices a lighter band also
+  // follows the cursor as a preview of what a click would select.
+  const canHover = useMediaQuery("(hover: hover) and (pointer: fine)");
+  const [hoverSlot, setHoverSlot] = useState<{ colKey: string; hour: number } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ colKey: string; hour: number } | null>(null);
+
+  // A selection belongs to the view it was made in.
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [date, range, groupBy, roomChoice, educatorChoice]);
+
+  function snappedHour(e: MouseEvent<HTMLDivElement>): number {
+    const rect = e.currentTarget.getBoundingClientRect();
+    let hour = startHour + (e.clientY - rect.top) / HOUR_PX;
+    hour = Math.round(hour * 4) / 4;
+    return Math.min(Math.max(hour, startHour), endHour - 0.25);
+  }
+
+  function handleColumnHover(e: MouseEvent<HTMLDivElement>, column: CalColumn) {
+    if (!canHover) return;
+    const hour = snappedHour(e);
+    setHoverSlot((prev) =>
+      prev && prev.colKey === column.key && prev.hour === hour ? prev : { colKey: column.key, hour },
+    );
+  }
+
   function draftFor(column: CalColumn, time: string): NewBookingDraft {
     return {
       roomId: column.roomId ?? activeRooms[0]?.id ?? 0,
@@ -347,13 +376,9 @@ export function Calendar({ me }: { me: Me | null }) {
   }
 
   function handleColumnClick(e: MouseEvent<HTMLDivElement>, column: CalColumn) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    let hour = startHour + offsetY / HOUR_PX;
-    // Snap to the nearest 15 minutes and keep it inside the visible range.
-    hour = Math.round(hour * 4) / 4;
-    hour = Math.min(Math.max(hour, startHour), endHour - 0.25);
-    setNewBookingDraft(draftFor(column, formatHourLabel(hour)));
+    // First tap: select the slot (snapped to 15 minutes). The band's own
+    // click handler is what opens the modal.
+    setSelectedSlot({ colKey: column.key, hour: snappedHour(e) });
   }
 
   return (
@@ -538,7 +563,34 @@ export function Calendar({ me }: { me: Me | null }) {
                     className="l360-cal-room-col"
                     style={{ height: gridHeight, "--l360-cal-hour-h": `${HOUR_PX}px` } as CSSProperties}
                     onClick={(e) => handleColumnClick(e, col)}
+                    onMouseMove={(e) => handleColumnHover(e, col)}
+                    onMouseLeave={() => setHoverSlot(null)}
                   >
+                    {canHover &&
+                      hoverSlot?.colKey === col.key &&
+                      hoverSlot.hour !== (selectedSlot?.colKey === col.key ? selectedSlot.hour : null) && (
+                        <div
+                          className="l360-cal-hover-slot"
+                          style={{ top: (hoverSlot.hour - startHour) * HOUR_PX, height: HOUR_PX }}
+                          aria-hidden="true"
+                        >
+                          {formatHourLabel(hoverSlot.hour)}
+                        </div>
+                      )}
+                    {selectedSlot?.colKey === col.key && (
+                      <button
+                        type="button"
+                        className="l360-cal-selected-slot"
+                        style={{ top: (selectedSlot.hour - startHour) * HOUR_PX, height: HOUR_PX }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNewBookingDraft(draftFor(col, formatHourLabel(selectedSlot.hour)));
+                          setSelectedSlot(null);
+                        }}
+                      >
+                        {formatHourLabel(selectedSlot.hour)} — tap to book
+                      </button>
+                    )}
                     {showNow && (
                       <div
                         className="l360-cal-now-line"

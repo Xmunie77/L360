@@ -860,13 +860,35 @@ input[type="time"].l360-input {
   cursor: pointer;
 }
 
-/* Mouse only: on iOS a :hover rule here makes the FIRST tap apply the
-   hover (the whole column lights orange, no click) and only a second tap
-   book — Simon hit exactly that (05/09/2026). */
-@media (hover: hover) and (pointer: fine) {
-  .l360-cal-room-col:hover {
-    background-color: var(--l360-orange-tint);
-  }
+/* The desktop hover affordance is the slot band below, not a whole-column
+   tint (which said nothing about WHERE a click would book — and on iOS a
+   :hover rule made the first tap apply hover instead of clicking). */
+.l360-cal-hover-slot,
+.l360-cal-selected-slot {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: var(--l360-r-sm);
+  color: var(--l360-ink);
+  font-size: var(--l360-t8);
+  padding: 2px var(--l360-s2);
+  z-index: 1;
+  text-align: left;
+}
+
+.l360-cal-hover-slot {
+  background: var(--l360-orange-tint);
+  border: 1px dashed var(--l360-orange);
+  pointer-events: none;
+}
+
+/* The armed slot: tapping it opens the booking form. */
+.l360-cal-selected-slot {
+  background: var(--l360-orange-tint);
+  border: 2px solid var(--l360-orange);
+  font-weight: var(--l360-w-semibold);
+  cursor: pointer;
+  z-index: 2;
 }
 
 .l360-cal-block {
