@@ -216,7 +216,7 @@ a {
 }
 
 .l360-topbar-logo {
-  height: 28px;
+  height: 34px; /* matches the mobile size (Simon, 05/09/2026) */
   width: auto;
   flex-shrink: 0;
 }
@@ -337,7 +337,6 @@ input[type="time"].l360-input {
 
   .l360-topbar-logo {
     justify-self: end;
-    height: 34px;
   }
 
   .l360-wordmark {
