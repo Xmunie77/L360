@@ -7,7 +7,17 @@ import { CalendarFeedCard } from "./CalendarFeedCard";
 // change, and sign out. Replaces the name + Sign out band that used to sit
 // in the nav (which ate a full row of the mobile header — Simon, 30/08/2026).
 
-export function Profile({ me, onSignOut }: { me: Me | null; onSignOut: () => void }) {
+export function Profile({
+  me,
+  viewAs,
+  onSwitchView,
+  onSignOut,
+}: {
+  me: Me | null;
+  viewAs: "admin" | "educator";
+  onSwitchView: (v: "admin" | "educator") => void;
+  onSignOut: () => void;
+}) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -51,6 +61,30 @@ export function Profile({ me, onSignOut }: { me: Me | null; onSignOut: () => voi
             Sign out
           </Button>
         </div>
+
+        {me?.role === "admin" && (
+          <div style={{ marginBottom: 16 }}>
+            <p className="l360-field-label" style={{ marginBottom: 4 }}>Viewing as</p>
+            <div className="l360-cal-switch" role="tablist" aria-label="Viewing as">
+              {(["admin", "educator"] as const).map((v) => (
+                <Button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={viewAs === v}
+                  variant={viewAs === v ? "primary" : "secondary"}
+                  onClick={() => onSwitchView(v)}
+                >
+                  {v === "admin" ? "Admin" : "Educator"}
+                </Button>
+              ))}
+            </div>
+            <p className="l360-field-hint" style={{ marginTop: 4 }}>
+              Educator shows the app exactly as an educator sees it — trimmed menu, own sessions
+              only. It changes what you see, not what your account may do.
+            </p>
+          </div>
+        )}
         <div style={{ overflowX: "auto" }}>
           <table className="l360-table">
             <tbody>

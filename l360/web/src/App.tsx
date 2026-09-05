@@ -58,6 +58,17 @@ export function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [me, setMe] = useState<Me | null>(null);
+  // Admins who also teach (Fran, Sam, Justine) can flip the app into the
+  // educator VIEW from their Profile, for testing (Simon, 05/09/2026).
+  // Purely presentational — every admin API stays admin-authorised; this
+  // only changes which screens render and how they scope.
+  const [viewAs, setViewAs] = useState<"admin" | "educator">(() => {
+    try {
+      return window.localStorage.getItem("l360-view-as") === "educator" ? "educator" : "admin";
+    } catch {
+      return "admin";
+    }
+  });
   const [resetToken, setResetToken] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("reset"),
   );
@@ -99,7 +110,9 @@ export function App() {
       .then((m) => {
         if (cancelled) return;
         setMe(m);
-        setActive(landingTabFor(m));
+        // A remembered educator-view lands on the educator's home, not on
+        // the Admin tab that view doesn't render.
+        setActive(m.role === "admin" && viewAs === "educator" ? "bookings" : landingTabFor(m));
       })
       .catch(() => {
         // Session cookie may have expired between the /session check and
@@ -169,6 +182,21 @@ export function App() {
     return <EducatorFormView userId={Number(educatorFormId)} onClose={goBackToApp} />;
   }
 
+  const effectiveMe: Me | null =
+    me && me.role === "admin" && viewAs === "educator" ? { ...me, role: "educator" } : me;
+
+  function switchView(next: "admin" | "educator") {
+    setViewAs(next);
+    try {
+      window.localStorage.setItem("l360-view-as", next);
+    } catch {
+      /* fine — just won't survive a reload */
+    }
+    // Don't leave the app on a tab the other view doesn't render.
+    if (next === "educator" && !EDUCATOR_NAV_KEYS.has(active)) setActive("bookings");
+    if (next === "admin" && me) setActive(landingTabFor(me));
+  }
+
   return (
     <div className="l360-app">
       <a className="skip-link" href="#l360-main-content">Skip to main content</a>
@@ -183,7 +211,7 @@ export function App() {
       <nav className={navOpen ? "l360-sidenav open" : "l360-sidenav"} aria-label="Primary">
         <Wordmark />
         <div className="l360-nav">
-          {navItemsFor(me).map((item) => (
+          {navItemsFor(effectiveMe).map((item) => (
             <button
               key={item.key}
               type="button"
@@ -217,13 +245,13 @@ export function App() {
         </header>
 
         <main id="l360-main-content" className="l360-content">
-          {active === "calendar" && <Calendar me={me} />}
-          {active === "bookings" && <Bookings me={me} />}
+          {active === "calendar" && <Calendar me={effectiveMe} />}
+          {active === "bookings" && <Bookings me={effectiveMe} />}
           {active === "clients" && <ClientsAdmin />}
           {active === "educators" && <UsersAdmin />}
-          {active === "statements" && <Statements me={me} />}
+          {active === "statements" && <Statements me={effectiveMe} />}
           {active === "admin" && <Admin />}
-          {active === "profile" && <Profile me={me} onSignOut={handleSignOut} />}
+          {active === "profile" && <Profile me={me} viewAs={viewAs} onSwitchView={switchView} onSignOut={handleSignOut} />}
         </main>
       </div>
     </div>
