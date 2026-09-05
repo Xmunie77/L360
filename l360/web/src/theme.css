@@ -1092,6 +1092,10 @@ input[type="time"].l360-input {
   max-width: var(--l360-maxw-form);
 }
 
+.l360-modal-card--wide {
+  max-width: 860px;
+}
+
 /* ---- Public onboarding questionnaire ------------------------------------ */
 /* Same ink ground as the login screen, but a wider, scrollable card — the
    form is long. All copy/labels stay visible above fields per §accessibility. */

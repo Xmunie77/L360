@@ -68,6 +68,9 @@ interface Props {
 
 export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChanged }: Props) {
   const [bio, setBio] = useState(user.bio ?? "");
+  // Read-first: the bio shows as text and only becomes a textarea on
+  // "Edit bio" (Simon, 05/09/2026) — most opens are to look, not to write.
+  const [editingBio, setEditingBio] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -85,8 +88,22 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
     }
   }
 
+  async function saveBio() {
+    setBusy(true);
+    setError(null);
+    try {
+      await adminUpdateUser(user.id, { bio });
+      onChanged();
+      setEditingBio(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Couldn't save the bio.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Modal onClose={onClose} dirty={bio !== (user.bio ?? "")}>
+    <Modal onClose={onClose} wide dirty={editingBio && bio !== (user.bio ?? "")}>
         <Card eyebrow="Staffing" title={user.full_name}>
           <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
             <EducatorAvatar user={user} size={72} />
@@ -111,7 +128,7 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
             </div>
           )}
 
-          {canEdit ? (
+          {canEdit && editingBio ? (
             <>
               <Textarea
                 id={`edu-bio-${user.id}`}
@@ -121,41 +138,58 @@ export function EducatorDetailModal({ user, levelName, canEdit, onClose, onChang
                 onChange={(e) => setBio(e.target.value)}
               />
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                <Button
-                  type="button"
-                  onClick={() => void run(() => adminUpdateUser(user.id, { bio }), "Couldn't save the bio.")}
-                  loading={busy}
-                  loadingLabel="Saving…"
-                >
+                <Button type="button" onClick={() => void saveBio()} loading={busy} loadingLabel="Saving…">
                   Save bio
                 </Button>
-                <Button type="button" variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
-                  {user.has_photo ? "Replace photo" : "Add photo"}
-                </Button>
-                {user.has_photo && (
-                  <ConfirmButton
-                    confirmLabel="Really remove?"
-                    disabled={busy}
-                    onConfirm={() => void run(() => deleteUserPhoto(user.id), "Couldn't remove the photo.")}
-                  >
-                    Remove photo
-                  </ConfirmButton>
-                )}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  style={{ display: "none" }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) void run(() => uploadUserPhoto(user.id, file), "Couldn't upload that photo.");
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setBio(user.bio ?? "");
+                    setEditingBio(false);
                   }}
-                />
+                >
+                  Cancel
+                </Button>
               </div>
             </>
           ) : (
-            <p style={{ marginBottom: 16 }}>{user.bio || <span className="l360-field-hint">No bio yet.</span>}</p>
+            <>
+              <p style={{ marginBottom: 12, maxWidth: "70ch" }}>
+                {user.bio || <span className="l360-field-hint">No bio yet.</span>}
+              </p>
+              {canEdit && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                  <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditingBio(true)}>
+                    Edit bio
+                  </Button>
+                  <Button type="button" variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
+                    {user.has_photo ? "Replace photo" : "Add photo"}
+                  </Button>
+                  {user.has_photo && (
+                    <ConfirmButton
+                      confirmLabel="Really remove?"
+                      disabled={busy}
+                      onConfirm={() => void run(() => deleteUserPhoto(user.id), "Couldn't remove the photo.")}
+                    >
+                      Remove photo
+                    </ConfirmButton>
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void run(() => uploadUserPhoto(user.id, file), "Couldn't upload that photo.");
+                    }}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <p className="l360-field-hint" style={{ marginBottom: 16 }}>

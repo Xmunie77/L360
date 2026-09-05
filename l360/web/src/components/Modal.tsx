@@ -14,13 +14,15 @@ interface ModalProps {
   onClose: () => void;
   /** When true, Escape/backdrop ask before discarding. */
   dirty?: boolean;
+  /** Roomier card for content-heavy dialogs (staff profile). */
+  wide?: boolean;
   children: ReactNode;
 }
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ onClose, dirty = false, children }: ModalProps) {
+export function Modal({ onClose, dirty = false, wide = false, children }: ModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
@@ -80,7 +82,7 @@ export function Modal({ onClose, dirty = false, children }: ModalProps) {
     <div className="l360-modal-backdrop" onClick={onBackdropClick}>
       <div
         ref={cardRef}
-        className="l360-modal-card"
+        className={wide ? "l360-modal-card l360-modal-card--wide" : "l360-modal-card"}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
