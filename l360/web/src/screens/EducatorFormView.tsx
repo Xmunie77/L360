@@ -273,7 +273,7 @@ export function EducatorFormView({ userId, onClose }: { userId: number; onClose:
   const referee = (which: string) => (a[which] ?? {}) as RefereeInput;
 
   return (
-    <div className="l360-app">
+    <div className="l360-app l360-detail">
       <header className="l360-topbar">
         <Button type="button" variant="secondary" onClick={onClose}>
           ‹ Back

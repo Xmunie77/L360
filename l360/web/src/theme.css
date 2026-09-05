@@ -694,6 +694,30 @@ input[type="time"].l360-input {
 
 /* ---- Calendar day grid -------------------------------------------------- */
 
+/* Detail pages (learner, educator form) have no sidebar — the .l360-app
+   row flex left the Back header floating BESIDE the content on desktop
+   (Simon, 05/09/2026). Stack and centre instead. */
+.l360-detail {
+  flex-direction: column;
+}
+
+.l360-detail .l360-content {
+  margin: 0 auto;
+}
+
+/* A paired form row: fields share the width instead of shrinking to the
+   browser's default input width and leaving the card's right third empty. */
+.l360-form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.l360-form-row > .l360-field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
 .l360-cal-toolbar {
   display: flex;
   align-items: flex-end;

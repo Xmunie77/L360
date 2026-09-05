@@ -252,7 +252,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
   }
 
   return (
-    <div className="l360-app">
+    <div className="l360-app l360-detail">
       <header className="l360-topbar">
         {/* Just the Back button — the title and app name squashed into
             three cramped columns on a phone (Simon, 05/09/2026); the card
@@ -293,7 +293,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                   </div>
                 )}
                 <fieldset disabled={!editing} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <Input
                     id="cd-first-name"
                     error={fieldErrors.firstName}
@@ -311,7 +311,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                     onChange={(e) => setGuardianSurname(e.target.value)}
                   />
                 </div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <Input
                     id="cd-email"
                     error={fieldErrors.email}
@@ -325,16 +325,16 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                 </div>
                 <Input id="cd-id-number" label="ID card number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
 
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <Input id="cd-g2-name" label="Parent/guardian 2 — name and surname" value={g2Name} onChange={(e) => setG2Name(e.target.value)} />
                   <Input id="cd-g2-id" label="Parent/guardian 2 — ID number" value={g2Id} onChange={(e) => setG2Id(e.target.value)} />
                 </div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <Input id="cd-g2-email" label="Parent/guardian 2 — email" type="email" value={g2Email} onChange={(e) => setG2Email(e.target.value)} />
                   <Input id="cd-g2-phone" label="Parent/guardian 2 — phone" value={g2Phone} onChange={(e) => setG2Phone(e.target.value)} />
                 </div>
 
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <Input
                     id="cd-child-name"
                     label="Learner's name"
@@ -353,7 +353,7 @@ export function ClientDetail({ id, me, onClose }: { id: number; me: Me | null; o
                 <Input id="cd-school" label="School the learner attends" value={school} onChange={(e) => setSchool(e.target.value)} />
                 <Textarea id="cd-address" label="Home address" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
 
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div className="l360-form-row">
                   <div className="l360-field" style={{ flex: "0 0 160px" }}>
                     <label className="l360-field-label" htmlFor="cd-allergies">Allergies</label>
                     <select
