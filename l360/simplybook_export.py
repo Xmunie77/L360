@@ -45,10 +45,39 @@ import httpx
 
 LOGIN_URL = "https://user-api.simplybook.me/login"
 ADMIN_URL = "https://user-api.simplybook.me/admin"
+# v2 REST — returns bookings in the nested provider/service/client shape
+# the importer prefers (the same shape SimplyBook's own reports and MCP
+# connector return, confirmed live 05/09/2026).
+V2_BOOKINGS_URL = "https://user-api-v2.simplybook.me/admin/bookings"
 
 
 class SimplyBookError(RuntimeError):
     pass
+
+
+def _rest_bookings(client: httpx.Client, headers: dict[str, str],
+                   booking_filter: dict[str, Any]) -> list[Any]:
+    """Fetch all bookings from the v2 REST endpoint, following its
+    metadata paging. Whether the JSON-RPC token is accepted there isn't
+    pinned down by us — any failure makes cmd_export fall back to
+    JSON-RPC getBookings, so a wrong guess costs nothing."""
+    params = {f"filter[{k}]": v for k, v in booking_filter.items()}
+    out: list[Any] = []
+    for page in range(1, 501):  # hard cap, not a real limit
+        resp = client.get(V2_BOOKINGS_URL,
+                          params={**params, "page": page, "on_page": 100},
+                          headers=headers)
+        resp.raise_for_status()
+        body = resp.json()
+        data = body.get("data")
+        if not isinstance(data, list):
+            raise SimplyBookError(
+                f"unexpected /admin/bookings response keys: {sorted(body)[:8]}")
+        out.extend(data)
+        pages = int((body.get("metadata") or {}).get("pages_count") or 1)
+        if page >= pages or not data:
+            return out
+    raise SimplyBookError("more than 500 pages — refusing to loop forever")
 
 
 def _rpc(client: httpx.Client, url: str, method: str, params: list[Any],
@@ -87,7 +116,12 @@ def cmd_export() -> None:
         token = _rpc(client, LOGIN_URL, "getToken", [company, api_key])
         headers = {"X-Company-Login": company, "X-Token": token}
 
-        bookings = _rpc(client, ADMIN_URL, "getBookings", [booking_filter], headers)
+        try:
+            bookings = _rest_bookings(client, headers, booking_filter)
+            print(f"Fetched {len(bookings)} booking(s) via REST v2.")
+        except Exception as exc:  # noqa: BLE001 — any REST failure falls back
+            print(f"REST v2 fetch failed ({exc}); falling back to JSON-RPC getBookings.")
+            bookings = _rpc(client, ADMIN_URL, "getBookings", [booking_filter], headers)
         # Lookup tables so ids in the bookings are resolvable offline.
         services = _rpc(client, ADMIN_URL, "getEventList", [], headers)
         providers = _rpc(client, ADMIN_URL, "getUnitList", [], headers)

@@ -1,0 +1,101 @@
+name: Sync SimplyBook Bookings — Learning 360°
+
+# Copies bookings from the foundation's SimplyBook.me account into L360.
+# The runner (which, unlike the app, can reach *.simplybook.me) exports the
+# bookings via l360.simplybook_export, then l360.import_simplybook_bookings
+# maps them into the database: clients by email, educators by provider
+# name/email, rooms parsed from the service names ("... Room 4"), service
+# types by name. Dry run unless "commit" is checked — the log lists what
+# would be created and everything that can't be mapped, using ids only
+# (this is a public repo; names and emails never reach the log).
+#
+# Idempotent — safe to re-run; existing (client, start time) pairs are
+# skipped. Gated behind workflow_dispatch — never runs automatically.
+#
+# Requires DATABASE_URL_L360 (same secret as the migrate workflow) plus
+# SIMPLYBOOK_COMPANY (the company login, e.g. learning360foundationmalta)
+# and SIMPLYBOOK_API_KEY (SimplyBook admin → Custom Features → API →
+# Settings; the API custom feature must be enabled on the account).
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Actually write (unchecked = dry run)"
+        type: boolean
+        default: false
+      default_room:
+        description: "L360 room for sessions whose service name has no room number (home/school/online)"
+        type: string
+        required: true
+      created_by:
+        description: "Email of the L360 admin recorded as the bookings' creator"
+        type: string
+        required: true
+      service_type:
+        description: "Fallback L360 service type name for unmatched services (optional)"
+        type: string
+        required: false
+        default: ""
+      past_status:
+        description: "Status for sessions already in the past (completed makes them billable by L360)"
+        type: choice
+        options:
+          - confirmed
+          - completed
+        default: confirmed
+      filter:
+        description: "JSON filter for the SimplyBook export (date_from/date_to YYYY-MM-DD, booking_type non_cancelled/cancelled)"
+        type: string
+        default: '{"date_from": "2025-01-01", "date_to": "2027-12-31", "booking_type": "non_cancelled"}'
+
+permissions:
+  contents: read
+
+jobs:
+  sync-simplybook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r l360/requirements.txt
+      - name: Export bookings from SimplyBook
+        env:
+          SIMPLYBOOK_COMPANY: ${{ secrets.SIMPLYBOOK_COMPANY }}
+          SIMPLYBOOK_API_KEY: ${{ secrets.SIMPLYBOOK_API_KEY }}
+          INPUT_FILTER: ${{ inputs.filter }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIMPLYBOOK_COMPANY}" ] || [ -z "${SIMPLYBOOK_API_KEY}" ]; then
+            echo "SIMPLYBOOK_COMPANY / SIMPLYBOOK_API_KEY secrets are not set — refusing to run." >&2
+            exit 1
+          fi
+          python -m l360.simplybook_export --out /tmp/simplybook_dump.json --filter "${INPUT_FILTER}"
+      - name: Import bookings into L360
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_L360 }}
+          INPUT_COMMIT: ${{ inputs.commit }}
+          INPUT_DEFAULT_ROOM: ${{ inputs.default_room }}
+          INPUT_CREATED_BY: ${{ inputs.created_by }}
+          INPUT_SERVICE_TYPE: ${{ inputs.service_type }}
+          INPUT_PAST_STATUS: ${{ inputs.past_status }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_L360 secret is not set — refusing to run." >&2
+            exit 1
+          fi
+          args=( /tmp/simplybook_dump.json
+                 --default-room "${INPUT_DEFAULT_ROOM}"
+                 --created-by "${INPUT_CREATED_BY}"
+                 --past-status "${INPUT_PAST_STATUS}" )
+          if [ -n "${INPUT_SERVICE_TYPE}" ]; then
+            args+=( --service-type "${INPUT_SERVICE_TYPE}" )
+          fi
+          if [ "${INPUT_COMMIT}" = "true" ]; then
+            args+=( --commit )
+          fi
+          python -m l360.import_simplybook_bookings "${args[@]}"
