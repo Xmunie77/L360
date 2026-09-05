@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Wordmark } from "./ui/ui";
+import { TestScript } from "./screens/TestScript";
 import { Calendar } from "./screens/Calendar";
 import { Bookings } from "./screens/Bookings";
 import { ClientsAdmin } from "./screens/admin/ClientsAdmin";
@@ -27,6 +28,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: "educators", label: "Educators" },
   { key: "statements", label: "Finance" },
   { key: "admin", label: "Admin" },
+  // TEMPORARY — the founders' pre-launch walkthrough; delete with
+  // TestScript.tsx + routers/test_script.py when testing wraps.
+  { key: "test-script", label: "Test script" },
   { key: "profile", label: "Profile" },
 ];
 
@@ -34,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
 // room calendar for booking, their pay summary (Finance) and Profile. The
 // hidden tabs are admin-only server-side anyway — this just stops them
 // rendering as 403 dead ends.
-const EDUCATOR_NAV_KEYS = new Set(["calendar", "bookings", "statements", "profile"]);
+const EDUCATOR_NAV_KEYS = new Set(["calendar", "bookings", "statements", "test-script", "profile"]);
 
 function navItemsFor(me: Me | null): NavItem[] {
   if (me && me.role !== "admin") return NAV_ITEMS.filter((n) => EDUCATOR_NAV_KEYS.has(n.key));
@@ -251,6 +255,7 @@ export function App() {
           {active === "educators" && <UsersAdmin />}
           {active === "statements" && <Statements me={effectiveMe} />}
           {active === "admin" && <Admin />}
+          {active === "test-script" && <TestScript me={me} />}
           {active === "profile" && <Profile me={me} viewAs={viewAs} onSwitchView={switchView} onSignOut={handleSignOut} />}
         </main>
       </div>

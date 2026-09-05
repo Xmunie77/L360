@@ -26,6 +26,7 @@ from l360.routers import (
     payments_routes,
     public,
     settings,
+    test_script,
 )
 
 assert_secure_config()
@@ -65,7 +66,7 @@ def health():
     return {"status": "ok"}
 
 
-for _r in (auth_routes, directory, clients, educators, settings, billing_routes, bookings, payments_routes, finance, public):
+for _r in (auth_routes, directory, clients, educators, settings, billing_routes, bookings, payments_routes, finance, test_script, public):
     app.include_router(_r.router)
 
 

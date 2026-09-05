@@ -135,6 +135,27 @@ class User(Base):
     )
 
 
+class TestCheckMark(Base):
+    """Founder test-script progress — one row per (tester, checklist item).
+    TEMPORARY by design (Simon, 05/09/2026): built for the pre-launch
+    founder walkthrough so ticks and problem notes record centrally
+    instead of living on each tester's device; drop the table + /api/test-
+    script routes + the Test script tab together when testing is done."""
+
+    __tablename__ = "test_check_marks"
+    __table_args__ = _table_args(
+        UniqueConstraint("user_id", "item_id", name="uq_test_mark_user_item"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey(_fk("users.id")), nullable=False)
+    item_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "pass" | "flag"
+    state: Mapped[str] = mapped_column(String(10), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False, default=_utcnow)
+
+
 class Client(Base):
     __tablename__ = "clients"
     __table_args__ = _table_args()

@@ -1004,6 +1004,20 @@ export function adminResetEmailTemplate(kind: string): Promise<EmailTemplate> {
   return del<EmailTemplate>(`/api/admin/email-templates/${kind}`);
 }
 
+/** Founder test-script (temporary — removed after pre-launch testing). */
+export interface TestScriptData {
+  my_user_id: number;
+  testers: { user_id: number; name: string; marks: { item_id: string; state: string; note: string | null }[] }[];
+}
+
+export function getTestScript(): Promise<TestScriptData> {
+  return get<TestScriptData>("/api/test-script");
+}
+
+export function setTestMark(itemId: string, state: "pass" | "flag" | null, note: string | null): Promise<{ ok: boolean }> {
+  return put<{ ok: boolean }>(`/api/test-script/${itemId}`, { state, note });
+}
+
 /** Admin-only HR details — served only by /api/admin/users/{id}/hr. */
 export interface UserHr {
   mobile: string | null;
