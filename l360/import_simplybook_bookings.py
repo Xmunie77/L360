@@ -38,6 +38,13 @@ Mapping rules:
     settled outside L360) unless --past-status completed says so.
   * times — Europe/Malta wall clock (same as TIMEZONE) → UTC.
 
+  * 1.5-hour sessions — SimplyBook can't book 90 minutes, so those are
+    entered as a full session plus a contiguous "half ..." booking for the
+    same child and educator. Such pairs merge into ONE L360 booking (90
+    minutes, hourly price plus half). Half-session bookings with no
+    adjacent full session are genuine 30-minute sessions and import as
+    such at half the hourly price.
+
 Idempotent — a booking whose (client, start time) pair already exists is
 skipped, so re-runs only insert what's missing. Dry run by default;
 --commit writes.
@@ -135,6 +142,31 @@ def _norm(name: str) -> str:
     return re.sub(r"\s+", " ", name).strip().lower()
 
 
+def _service_name(rec: dict) -> str:
+    service = rec.get("service") if isinstance(rec.get("service"), dict) else {}
+    return _first(service, ("name",)) or _first(rec, ("event", "event_name", "service_name")) or ""
+
+
+def _client_email(rec: dict) -> str | None:
+    client_obj = rec.get("client") if isinstance(rec.get("client"), dict) else {}
+    return _first(client_obj, ("email",)) or _first(rec, ("client_email",))
+
+
+def _provider_key(rec: dict, providers: dict) -> str:
+    provider = rec.get("provider") if isinstance(rec.get("provider"), dict) else None
+    if provider is None:
+        unit_id = _first(rec, ("provider_id", "unit_id", "unit_group_id"))
+        provider = providers.get(unit_id or "", {})
+    return str(provider.get("id") or _first(rec, ("provider_id", "unit_id"))
+               or provider.get("name") or "")
+
+
+def _is_cancelled(rec: dict) -> bool:
+    return str(rec.get("status", "")).lower() in ("canceled", "cancelled") \
+        or any(str(rec.get(k)) in ("1", "True", "true")
+               for k in ("is_canceled", "is_cancelled"))
+
+
 def cmd_import() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("dump", help="JSON dump with a 'bookings' array (see module docstring)")
@@ -196,9 +228,65 @@ def cmd_import() -> None:
         users_by_email = {u.email.lower(): u for u in users}
         users_by_name = {_norm(u.full_name): u for u in users}
 
+        # SimplyBook can't book 90 minutes, so a 1.5-hour session is entered
+        # as a full session plus a contiguous "half ..." booking for the same
+        # child and educator (live-data check, 05/09/2026: 4 of 5 sampled
+        # half-sessions were such extensions; the rest are genuine standalone
+        # 30-minute sessions and import as such). Absorb each such half into
+        # its neighbour: one booking, +30min, +half the hourly price.
+        basics: list[dict | None] = []
+        for rec in records:
+            b = None
+            if isinstance(rec, dict):
+                try:
+                    raw_start = _first(rec, START_KEYS)
+                    raw_end = _first(rec, END_KEYS)
+                    email = _client_email(rec)
+                    b = {
+                        "start": _parse_local(raw_start) if raw_start else None,
+                        "end": _parse_local(raw_end) if raw_end else None,
+                        "email": email.lower() if email else None,
+                        "provider": _provider_key(rec, providers),
+                        "half": re.search(r"\bhalf\b", _norm(ROOM_RE.sub(" ", _service_name(rec)))) is not None,
+                        "cancelled": _is_cancelled(rec),
+                    }
+                except ValueError:
+                    b = None
+            basics.append(b)
+
+        absorbed: set[int] = set()
+        extra_halves = [0] * len(records)
+        extra_minutes = [0] * len(records)
+        start_override: list[datetime | None] = [None] * len(records)
+        for hi, h in enumerate(basics):
+            if (not h or not h["half"] or h["cancelled"]
+                    or not h["email"] or not h["start"]):
+                continue
+            for bi, b in enumerate(basics):
+                if (bi == hi or not b or b["half"] or b["cancelled"] or hi in absorbed
+                        or b["email"] != h["email"] or b["provider"] != h["provider"]
+                        or not b["start"] or not b["end"]):
+                    continue
+                follows = b["end"] == h["start"]
+                precedes = h["end"] is not None and h["end"] == b["start"]
+                if follows or precedes:
+                    mins = 30
+                    if h["end"] is not None:
+                        mins = max(1, int((h["end"] - h["start"]).total_seconds() // 60))
+                    extra_minutes[bi] += mins
+                    extra_halves[bi] += 1
+                    if precedes:
+                        start_override[bi] = h["start"]
+                    absorbed.add(hi)
+                    break
+
+        merged = 0
         for i, rec in enumerate(records, start=1):
             if not isinstance(rec, dict):
                 skipped.append(f"record #{i}: not an object")
+                continue
+            if i - 1 in absorbed:
+                merged += 1
                 continue
             label = f"simplybook booking {rec.get('id', f'#{i}')}"
             provider = rec.get("provider") if isinstance(rec.get("provider"), dict) else {}
@@ -218,7 +306,6 @@ def cmd_import() -> None:
             except ValueError:
                 skipped.append(f"{label}: unparseable start time {raw_start!r}")
                 continue
-
             duration = None
             raw_duration = rec.get("duration")
             if isinstance(raw_duration, (int, float)) and raw_duration > 0:
@@ -230,7 +317,9 @@ def cmd_import() -> None:
                         duration = max(1, int((_parse_local(raw_end) - start_local).total_seconds() // 60))
                     except ValueError:
                         pass
-            duration = duration or 60
+            duration = (duration or 60) + extra_minutes[i - 1]
+            if start_override[i - 1] is not None:
+                start_local = start_override[i - 1]  # an absorbed half precedes
 
             email = _first(client_obj, ("email",)) or _first(rec, ("client_email",))
             if email is None:
@@ -286,13 +375,27 @@ def cmd_import() -> None:
                 continue
 
             # SimplyBook's "half ..." service variants price at exactly half
-            # the hourly service (checked against the live service list), so
-            # the snapshot halves too instead of charging an hour for 30min.
-            scale = 2 if service_type is not None and re.search(r"\bhalf\b", base_name) else 1
+            # the hourly service (checked against the live service list): a
+            # standalone half snapshots half the prices, and each absorbed
+            # half adds half the hourly prices on top of the full session.
+            client_price = tutor_price = None
+            note = ""
+            if service_type is not None:
+                client_price = service_type.client_price_cents
+                tutor_price = service_type.tutor_payment_cents
+                if re.search(r"\bhalf\b", base_name):
+                    client_price //= 2
+                    tutor_price //= 2
+                    note = " (half rate)"
+                elif extra_halves[i - 1]:
+                    client_price += extra_halves[i - 1] * (client_price // 2)
+                    tutor_price += extra_halves[i - 1] * (tutor_price // 2)
+            if extra_halves[i - 1]:
+                note = f" (+{extra_minutes[i - 1]}min half-session merged)"
             st_label = service_type.name if service_type else "no service type"
             print(f"  + {start_local:%Y-%m-%d %H:%M} {duration}min  {label} -> "
                   f"client {client.id}, educator {educator.id}, {room.name}, {st_label}"
-                  f"{' (half rate)' if scale == 2 else ''} [{status}]")
+                  f"{note} [{status}]")
             to_create += 1
             if args.commit:
                 db.add(Booking(
@@ -300,8 +403,8 @@ def cmd_import() -> None:
                     educator_id=educator.id,
                     client_id=client.id,
                     service_type_id=service_type.id if service_type else None,
-                    client_price_cents=service_type.client_price_cents // scale if service_type else None,
-                    tutor_payment_cents=service_type.tutor_payment_cents // scale if service_type else None,
+                    client_price_cents=client_price,
+                    tutor_payment_cents=tutor_price,
                     start_utc=start_utc,
                     duration_minutes=duration,
                     status=status,
@@ -312,7 +415,8 @@ def cmd_import() -> None:
                 ))
 
     verb = "Created" if args.commit else "Would create"
-    print(f"{verb} {to_create} booking(s); {skipped_existing} already existed; "
+    print(f"{verb} {to_create} booking(s); {merged} half-session(s) merged into "
+          f"their adjacent booking; {skipped_existing} already existed; "
           f"{len(skipped)} skipped.")
     for line in skipped:
         print(f"  {line}")

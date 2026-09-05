@@ -175,6 +175,38 @@ def test_service_alias_and_late_cancellation(booking_env, tmp_path, monkeypatch)
         assert bookings[1].cancelled_at is not None
 
 
+def test_full_plus_half_merge_into_90_minutes(booking_env, tmp_path, monkeypatch, capsys):
+    """SimplyBook can't book 90min: a 1.5h session is a full session plus a
+    contiguous half. The pair becomes one booking at 1.5x the price."""
+    dump = _dump(tmp_path, [
+        _nested(1, "2027-03-01 10:00:00", "2027-03-01 11:00:00"),
+        _nested(2, "2027-03-01 11:00:00", "2027-03-01 11:30:00", duration=30,
+                service_name="Test Session half session"),
+    ])
+    _run(monkeypatch, dump, "--commit")
+    assert "1 half-session(s) merged" in capsys.readouterr().out
+    with session_scope() as db:
+        bookings = db.scalars(select(Booking)).all()
+        assert len(bookings) == 1
+        assert bookings[0].duration_minutes == 90
+        assert bookings[0].client_price_cents == 5250  # 3500 + 1750
+        assert bookings[0].tutor_payment_cents == 4500  # 3000 + 1500
+
+
+def test_half_before_full_merges_and_shifts_start(booking_env, tmp_path, monkeypatch):
+    dump = _dump(tmp_path, [
+        _nested(1, "2027-03-01 10:00:00", "2027-03-01 11:00:00"),
+        _nested(2, "2027-03-01 09:30:00", "2027-03-01 10:00:00", duration=30,
+                service_name="Test Session half session"),
+    ])
+    _run(monkeypatch, dump, "--commit")
+    with session_scope() as db:
+        bookings = db.scalars(select(Booking)).all()
+        assert len(bookings) == 1
+        assert bookings[0].duration_minutes == 90
+        assert bookings[0].start_utc == local_to_utc(date(2027, 3, 1), time(9, 30))
+
+
 def test_half_session_halves_the_price_snapshot(booking_env, tmp_path, monkeypatch):
     from l360.models import ServiceType
     with session_scope() as db:
