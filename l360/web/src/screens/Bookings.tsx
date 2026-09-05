@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Card, StatusBadge } from "../ui/ui";
 import {
   ApiError,
@@ -28,6 +28,11 @@ function roomShort(name: string): string {
 // the invoice on the spot. Monthly billing runs remain the safety net.
 export function Bookings({ me }: { me: Me | null }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  // Upcoming / Past / Cancelled selector (Simon, 05/09/2026). Cancelled
+  // collects both flavours regardless of date; the other two split the rest
+  // on whether the session has started. Upcoming reads soonest-first, the
+  // other two most-recent-first.
+  const [filter, setFilter] = useState<"upcoming" | "past" | "cancelled">("upcoming");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -178,6 +183,27 @@ export function Bookings({ me }: { me: Me | null }) {
     return null;
   }
 
+  const visible = useMemo(() => {
+    const now = Date.now();
+    const isCancelled = (b: Booking) => b.status === "cancelled" || b.status === "cancelled_late";
+    const rows = bookings.filter((b) => {
+      if (filter === "cancelled") return isCancelled(b);
+      if (isCancelled(b)) return false;
+      const past = new Date(b.start_utc).getTime() <= now;
+      return filter === "past" ? past : !past;
+    });
+    rows.sort((a, b) =>
+      filter === "upcoming" ? a.start_utc.localeCompare(b.start_utc) : b.start_utc.localeCompare(a.start_utc),
+    );
+    return rows;
+  }, [bookings, filter]);
+
+  const EMPTY_BY_FILTER = {
+    upcoming: "No upcoming sessions in the next 14 days.",
+    past: "No past sessions in the last 14 days.",
+    cancelled: "No cancelled sessions in this window.",
+  } as const;
+
   return (
     <Card>
       <p className="l360-field-hint" style={{ marginTop: 0, marginBottom: 16 }}>
@@ -191,16 +217,37 @@ export function Bookings({ me }: { me: Me | null }) {
         </div>
       )}
 
+      {/* Same segmented pattern (and mobile full-width split) as the
+          Calendar's Day/Week toggles. */}
+      <div className="l360-cal-switch" role="tablist" aria-label="Show" style={{ marginBottom: 16 }}>
+        {([
+          ["upcoming", "Upcoming"],
+          ["past", "Past"],
+          ["cancelled", "Cancelled"],
+        ] as const).map(([key, label]) => (
+          <Button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={filter === key}
+            variant={filter === key ? "primary" : "secondary"}
+            onClick={() => setFilter(key)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+
       {loading ? (
         <p className="l360-empty">Loading…</p>
-      ) : bookings.length === 0 ? (
-        <p className="l360-empty">No sessions in this window.</p>
+      ) : visible.length === 0 ? (
+        <p className="l360-empty">{EMPTY_BY_FILTER[filter]}</p>
       ) : isMobile ? (
         /* The 8-column table is ~870px of nowrap content — on a phone the
            Confirm button needed a 500px sideways scroll to reach. Cards
            put the action in thumb range (04/09/2026 UI audit). */
         <div>
-          {bookings.map((b) => {
+          {visible.map((b) => {
             const preview = previews[b.id];
             const { variant, label } = statusBadgeProps(preview ? { ...b, ...preview } : b);
             const billing = billingBadgeProps(
@@ -242,7 +289,7 @@ export function Bookings({ me }: { me: Me | null }) {
               </tr>
             </thead>
             <tbody>
-              {bookings.map((b) => {
+              {visible.map((b) => {
                 const preview = previews[b.id];
                 const { variant, label } = statusBadgeProps(preview ? { ...b, ...preview } : b);
                 // While the flow previews a choice, billing previews too:
